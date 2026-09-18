@@ -1,0 +1,79 @@
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { motion } from 'framer-motion';
+
+export default function PaymentProcessing() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [status, setStatus] = useState('verifying');
+  const [orderId, setOrderId] = useState(null);
+  const intervalRef = useRef(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const id = params.get('order_id');
+    if (id) { setOrderId(id); startPolling(id); } else { setStatus('error'); }
+    return () => clearInterval(intervalRef.current);
+  }, [location.search]);
+
+  const startPolling = (id) => {
+    setStatus('verifying');
+    checkStatus(id);
+    intervalRef.current = setInterval(() => { checkStatus(id); }, 5000);
+  };
+
+  const checkStatus = async (id) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { clearInterval(intervalRef.current); setStatus('error'); return; }
+      const response = await fetch('/api/payments/verify-status', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: id })
+      });
+      const data = await response.json();
+      if (data.status === 'success') {
+        clearInterval(intervalRef.current);
+        setStatus('success');
+        setTimeout(() => navigate('/purchase-success'), 2000);
+      }
+    } catch (err) { console.error('Polling error:', err); }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-md w-full bg-white border border-gray-200 rounded-2xl shadow-sm p-10 text-center">
+        {status === 'verifying' && (
+          <>
+            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+            </div>
+            <h1 className="text-xl font-bold text-gray-900 mb-2">Verifying Payment...</h1>
+            <p className="text-gray-500 text-sm mb-8">We are securely confirming your transaction with the bank. This usually takes a few seconds.</p>
+            <button onClick={() => checkStatus(orderId)} className="text-sm text-gray-600 hover:text-gray-900 font-medium border border-gray-200 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors">Check Status Manually</button>
+          </>
+        )}
+        {status === 'success' && (
+          <>
+            <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+            </div>
+            <h1 className="text-xl font-bold text-gray-900 mb-2">Payment Successful!</h1>
+            <p className="text-gray-500 text-sm mb-8">Your Iron Engine Pro access is now active. Redirecting to your dashboard...</p>
+          </>
+        )}
+        {status === 'error' && (
+          <>
+            <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </div>
+            <h1 className="text-xl font-bold text-gray-900 mb-2">Verification Issue</h1>
+            <p className="text-gray-500 text-sm mb-8">We couldn't find your transaction. If money was deducted, it will be auto-verified within 24 hours.</p>
+            <button onClick={() => navigate('/dashboard')} className="bg-gray-900 text-white px-6 py-2.5 rounded-lg text-sm font-medium">Back to Dashboard</button>
+          </>
+        )}
+      </motion.div>
+    </div>
+  );
+}

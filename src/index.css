@@ -1,0 +1,89 @@
+/* Brand fonts */
+@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Barlow:wght@400;600;700&family=Barlow+Semi+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   PREMIUM DARK THEME
+   The GLM dashboard was authored light (bg-white / gray text).
+   Rather than rewrite 20+ pages, we remap the exact light
+   utility classes it uses onto the LalitLifts iron palette.
+   Sidebar chrome (bg-gray-900 / text-white) is intentionally
+   left dark. Order matters: these come after @tailwind utilities
+   so they win by source order at equal specificity.
+   ============================================================ */
+:root {
+  --ll-iron: #111318;
+  --ll-steel: #1b1f26;
+  --ll-steel2: #242932;
+  --ll-chalk: #edeae2;
+  --ll-knurl: #9ba1ac;
+  --ll-dim: #6b7280;
+  --ll-brass: #c9a24b;
+  --ll-red: #c8102e;
+  --ll-red-dim: #8e1024;
+  --ll-line: #313742;
+}
+
+body {
+  @apply antialiased;
+  background-color: var(--ll-iron);
+  color: var(--ll-chalk);
+  font-family: 'Barlow', system-ui, sans-serif;
+}
+
+/* --- surfaces --- */
+.bg-white   { background-color: var(--ll-steel) !important; }
+.bg-gray-50 { background-color: var(--ll-iron) !important; }
+.bg-gray-100{ background-color: var(--ll-steel2) !important; }
+.bg-gray-200{ background-color: #2b3039 !important; }
+
+/* --- text --- */
+.text-gray-900 { color: var(--ll-chalk) !important; }
+.text-gray-800 { color: #e0ddd5 !important; }
+.text-gray-700 { color: #c9cdd4 !important; }
+.text-gray-600 { color: var(--ll-knurl) !important; }
+.text-gray-500 { color: #7d8594 !important; }
+.text-gray-400 { color: var(--ll-dim) !important; }
+
+/* --- borders --- */
+.border-gray-100 { border-color: rgba(49,55,66,.5) !important; }
+.border-gray-200 { border-color: var(--ll-line) !important; }
+.border-gray-300 { border-color: #3a4049 !important; }
+
+/* --- hover states used in the app --- */
+.hover\:bg-gray-100:hover { background-color: var(--ll-steel2) !important; }
+.hover\:bg-gray-50:hover  { background-color: var(--ll-steel2) !important; }
+.hover\:text-gray-900:hover { color: var(--ll-chalk) !important; }
+
+/* --- forms: dark inputs + brand focus ring --- */
+input, textarea, select {
+  color: var(--ll-chalk);
+  background-color: var(--ll-iron);
+}
+input::placeholder, textarea::placeholder { color: var(--ll-dim); }
+.focus\:ring-gray-900:focus { --tw-ring-color: var(--ll-red) !important; }
+.focus\:ring-2:focus { --tw-ring-color: var(--ll-red); }
+
+/* --- primary buttons/links (bg-gray-900) become brand red,
+       WITHOUT touching the dark sidebar (which is a div/aside) --- */
+button.bg-gray-900,
+a.bg-gray-900 { background-color: var(--ll-red) !important; color: #fff !important; }
+button.bg-gray-900:hover,
+a.bg-gray-900:hover { background-color: var(--ll-red-dim) !important; }
+
+/* Tailwind's red-600 (used for Sign Out etc.) → exact brand red */
+.bg-red-600 { background-color: var(--ll-red) !important; }
+.hover\:bg-red-700:hover { background-color: var(--ll-red-dim) !important; }
+
+/* --- dark scrollbar polish --- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--ll-iron); }
+::-webkit-scrollbar-thumb { background: #2b3039; border-radius: 6px; }
+
+/* --- legal/prose pages: invert typography colors --- */
+.prose :where(h1,h2,h3,h4,strong):not(:where([class~="not-prose"] *)) { color: var(--ll-chalk); }
+.prose :where(p,li):not(:where([class~="not-prose"] *)) { color: var(--ll-knurl); }
+.prose :where(a):not(:where([class~="not-prose"] *)) { color: var(--ll-brass); }
