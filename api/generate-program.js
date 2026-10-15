@@ -4,9 +4,9 @@ import { profileToForm, buildProgram, toSnapshot } from '../src/lib/engine.js';
 const supabaseAdmin = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 // Settings the dashboard may override on top of the assessment defaults.
-const OVERRIDE_KEYS = ['goal', 'focus', 'weak', 'sticking', 'injuries', 'sleep', 'stress', 'days', 'exp'];
+const OVERRIDE_KEYS = ['goal', 'focus', 'weak', 'sticking', 'weakType', 'variationIdx', 'accIdx', 'injuries', 'sleep', 'stress', 'days', 'exp', 'equipment'];
 // Features the free tier cannot use (mirrors the landing-page free sample).
-const PRO_ONLY = { focus: 'bal', weak: 'none', sticking: null, injuries: { back: false, knee: false, shoulder: false } };
+const PRO_ONLY = { focus: 'bal', weak: 'none', sticking: null, variationIdx: 0, accIdx: 0, injuries: { back: false, knee: false, shoulder: false } };
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
@@ -35,7 +35,9 @@ export default async function handler(req, res) {
     if (!isPro) Object.assign(overrides, PRO_ONLY);
 
     const { form, maxes, decisions } = profileToForm(profile, overrides);
+    // The meet date is never overridable from the UI: the engine always plans around it.
     const program = buildProgram(form, maxes);
+    program.notes.forEach((n) => decisions.push({ step: 'Engine Note', decision: program.blockLabel, reason: n }));
     const snapshot = toSnapshot(program, form, maxes, decisions);
 
     const { data: engineVersion } = await supabaseAdmin.from('engine_versions').select('id, version_string').eq('is_active', true).maybeSingle();

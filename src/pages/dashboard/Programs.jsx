@@ -96,9 +96,10 @@ export default function Programs() {
           </div>
         </div>
 
-        {meta?.rec?.note && (
-          <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 text-sm text-gray-700 no-print">
-            <b className="text-gray-900">Autoregulation:</b> {meta.rec.note}
+        {(meta?.notes?.length > 0 || meta?.rec?.note) && (
+          <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 text-sm text-gray-700 space-y-2 no-print">
+            {meta?.notes?.map((n, i) => <p key={i}><b className="text-gray-900">Engine:</b> {n}</p>)}
+            {meta?.rec?.note && <p><b className="text-gray-900">Autoregulation:</b> {meta.rec.note}</p>}
           </div>
         )}
 
@@ -129,7 +130,7 @@ export default function Programs() {
           <div className="flex space-x-2 mb-6 overflow-x-auto pb-2 no-print">
             {weeks.map((w) => (
               <button key={w.week} onClick={() => { setActiveWeek(w.week); setActiveDay(1); }} className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeWeek === w.week ? 'bg-gray-900 text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                Week {w.week}{w.deload ? <span className="ml-1.5 text-[10px] uppercase tracking-wider opacity-75">Deload</span> : null}
+                {w.label || `Week ${w.week}`}{w.meetWeek ? null : w.taper ? <span className="ml-1.5 text-[10px] uppercase tracking-wider opacity-75">Taper</span> : w.deload ? <span className="ml-1.5 text-[10px] uppercase tracking-wider opacity-75">Deload</span> : null}
               </button>
             ))}
           </div>
@@ -142,18 +143,27 @@ export default function Programs() {
             ))}
           </div>
 
-          {currentWeekData.deload && (
-            <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 text-sm text-gray-700 no-print">
-              <b className="text-gray-900">Deload week.</b> The weight will feel light — that's the point. Test Day comes in Week 5.
+          {currentWeekData.meetWeek ? (
+            <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 text-sm text-gray-700 space-y-1.5 no-print">
+              <p><b className="text-gray-900">Meet week.</b> Nothing new, nothing heavy. Train the plan, trust the plan.</p>
+              {currentWeekData.weekNotes?.map((n, i) => <p key={i}>• {n}</p>)}
             </div>
-          )}
+          ) : currentWeekData.taper ? (
+            <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 text-sm text-gray-700 no-print">
+              <b className="text-gray-900">Taper week.</b> Volume cut, nothing above 75%, no singles. Sleep, eat, hydrate — freshness is the goal.
+            </div>
+          ) : currentWeekData.deload ? (
+            <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 text-sm text-gray-700 no-print">
+              <b className="text-gray-900">Deload week.</b> The weight will feel light — that's the point. Test Day comes the week after.
+            </div>
+          ) : null}
 
           <AnimatePresence mode="wait">
             <motion.div key={`${activeWeek}-${activeDay}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="space-y-4">
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">{currentDayData.focus}{currentDayData.optional ? <span className="ml-2 text-xs font-medium text-gray-400">optional</span> : null}</h2>
-                  {currentDayData.weekday && <p className="text-xs text-gray-500 uppercase tracking-wider">{currentDayData.weekday} · Week {activeWeek}</p>}
+                  <h2 className="text-xl font-bold text-gray-900">{currentDayData.focus}{currentDayData.optional ? <span className="ml-2 text-xs font-medium text-gray-400">optional · low stress</span> : null}</h2>
+                  {currentDayData.weekday && <p className="text-xs text-gray-500 uppercase tracking-wider">{currentDayData.weekday} · {currentWeekData.label || `Week ${activeWeek}`}{currentWeekData.phase ? ` · ${currentWeekData.phase}` : ''}</p>}
                 </div>
                 <Link to={`/dashboard/workout?week=${activeWeek}&day=${activeDay}`} className="no-print bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold py-2.5 px-5 rounded-lg transition-colors">Start Workout →</Link>
               </div>

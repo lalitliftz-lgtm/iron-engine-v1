@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import UpgradeModal from '../../components/UpgradeModal';
 import { motion, AnimatePresence } from 'framer-motion';
-import { profileToForm, STICKING, LIFT_NAMES, daysToMeet } from '../../lib/engine';
+import { profileToForm, STICKING, LIFT_NAMES, daysToMeet, SCHEMES } from '../../lib/engine';
 
 const STAGES = [
   { id: 0, name: "Loading Athlete Profile", description: "Fetching 1RMs, weak points, and constraints" },
@@ -33,6 +33,13 @@ const DAYS = [3, 4, 5, 6].map((d) => ({ v: d, l: `${d}` }));
 const SLEEP = [{ v: 'high', l: '7+ hrs' }, { v: 'mid', l: '6–7 hrs' }, { v: 'low', l: '< 6 hrs' }];
 const STRESS = [{ v: 'low', l: 'Low' }, { v: 'mid', l: 'Moderate' }, { v: 'high', l: 'High' }];
 const INJ = [{ v: 'back', l: 'Lower Back' }, { v: 'knee', l: 'Knee' }, { v: 'shoulder', l: 'Shoulder' }];
+const WEAK_TYPE = [
+  { v: 'strength', l: 'Strength', s: 'form fine, bar slows when heavy' },
+  { v: 'technique', l: 'Technique', s: 'form breaks even light' },
+  { v: 'fatigue', l: 'Fatigue', s: 'warm-ups feel heavy' },
+];
+const EQUIP = [{ v: 'commercial', l: 'Commercial gym' }, { v: 'basic', l: 'Barbell + DB' }, { v: 'minimal', l: 'Barbell only' }];
+const PHASE_LABEL = { base: 'Base Block', strength: 'Strength Block', peak: 'Peaking Block', taper: 'Taper → Meet', meetweek: 'Meet Week', post: 'Post-meet Deload', beginner: 'Beginner Linear' };
 
 function Seg({ options, value, onChange, multi, locked }) {
   return (
@@ -88,8 +95,8 @@ export default function GenerateProgram() {
       if (data) {
         const d = profileToForm(data);
         setDefaults(d);
-        const { goal, focus, weak, sticking, injuries, sleep, stress, days } = d.form;
-        setSettings({ goal, focus, weak, sticking, injuries, sleep, stress, days });
+        const { goal, focus, weak, sticking, weakType, variationIdx, accIdx, injuries, sleep, stress, days, equipment } = d.form;
+        setSettings({ goal, focus, weak, sticking, weakType, variationIdx, accIdx, injuries, sleep, stress, days, equipment });
       }
     };
     load();
@@ -113,7 +120,8 @@ export default function GenerateProgram() {
   }, [appStatus, engineData, navigate]);
 
   const set = (k, v) => setSettings((s) => ({ ...s, [k]: v }));
-  const setWeak = (v) => setSettings((s) => ({ ...s, weak: v, sticking: v === 'none' ? null : Object.keys(STICKING[v])[0] }));
+  const setWeak = (v) => setSettings((s) => ({ ...s, weak: v, sticking: v === 'none' ? null : Object.keys(STICKING[v])[0], variationIdx: 0, accIdx: 0 }));
+  const setSticking = (v) => setSettings((s) => ({ ...s, sticking: v, variationIdx: 0, accIdx: 0 }));
   const lockedClick = () => { if (!isPro) setShowUpgradeModal(true); };
 
   const handleGenerate = async () => {
@@ -161,6 +169,7 @@ export default function GenerateProgram() {
     const find = (step) => engineData.log.find((l) => l.step === step);
     if (stageId === 1) return find('Weak-Point Diagnosis') ? `Found: ${find('Weak-Point Diagnosis').decision}` : null;
     if (stageId === 2) return `Assigned: ${engineData.blockType}`;
+    if (stageId === 3) { const n = find('Engine Note'); return n ? n.reason.slice(0, 90) : null; }
     if (stageId === 5) return find('Injury Screen') ? `Flags: ${find('Injury Screen').decision}` : 'No injury flags';
     return null;
   };
@@ -185,6 +194,10 @@ export default function GenerateProgram() {
 
   const isBeg = defaults?.form.exp === 'beg';
   const dtm = daysToMeet(profile);
+  const meet = defaults?.meet || { phase: 'none' };
+  // With a meet booked, the engine owns the block choice; the athlete can't pick a goal that fights the timeline.
+  const meetLocked = meet.phase !== 'none';
+  const st = settings?.weak && settings.weak !== 'none' && settings.sticking ? STICKING[settings.weak][settings.sticking] : null;
 
   return (
     <>
@@ -200,6 +213,13 @@ export default function GenerateProgram() {
                 {' '}<Link to="/dashboard/assessment" className="text-blue-600 hover:text-blue-800 font-medium">Edit assessment</Link>
               </p>
             </div>
+
+            {meetLocked && (
+              <div className={`border rounded-xl p-5 mb-6 ${['meetweek', 'taper'].includes(meet.phase) ? 'bg-amber-50 border-amber-300' : 'bg-white border-gray-200'}`}>
+                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Meet-aware plan · {PHASE_LABEL[meet.phase]}</h2>
+                <p className="text-sm text-gray-800">{meet.reason}</p>
+              </div>
+            )}
 
             {/* What the engine already decided */}
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 mb-6">
@@ -221,8 +241,8 @@ export default function GenerateProgram() {
                 </div>
               ) : (
                 <>
-                  <Field label="Block Goal" hint="The adaptation this 4-week block is chasing">
-                    <Seg options={GOALS} value={settings.goal} onChange={(v) => set('goal', v)} />
+                  <Field label="Block Goal" hint={meetLocked ? 'Locked — the meet date decides the block' : 'The adaptation this 4-week block is chasing'}>
+                    <Seg options={GOALS.filter((g) => g.v !== 'peak' || meetLocked)} value={settings.goal} onChange={(v) => set('goal', v)} locked={meetLocked} />
                   </Field>
                   <Field label="Block Focus" hint="Which lift gets the extra frequency" pro={!isPro} locked={!isPro} onLockedClick={lockedClick}>
                     <Seg options={FOCUS} value={settings.focus} onChange={(v) => set('focus', v)} locked={!isPro} />
@@ -238,15 +258,29 @@ export default function GenerateProgram() {
                 <Seg options={WEAK} value={settings.weak} onChange={setWeak} locked={!isPro} />
               </Field>
               {isPro && settings.weak !== 'none' && (
-                <Field label={`${LIFT_NAMES[settings.weak]} — where does it fail?`} hint="The engine assigns the matching variation + accessory">
-                  <Seg options={Object.entries(STICKING[settings.weak]).map(([k, v]) => ({ v: k, l: v.l }))} value={settings.sticking} onChange={(v) => set('sticking', v)} />
-                  {settings.sticking && (
-                    <p className="text-xs text-gray-500 mt-2">
-                      Assigned: <b className="text-gray-900">{STICKING[settings.weak][settings.sticking].variation.name}</b> + <b className="text-gray-900">{STICKING[settings.weak][settings.sticking].acc.name}</b>
-                    </p>
+                <>
+                  <Field label={`${LIFT_NAMES[settings.weak]} — where does it fail?`} hint="Symptom → test → hypothesis → intervention → reassess in 4–6 weeks">
+                    <Seg options={Object.entries(STICKING[settings.weak]).map(([k, v]) => ({ v: k, l: v.l }))} value={settings.sticking} onChange={setSticking} />
+                  </Field>
+                  <Field label="Is it strength, technique or fatigue?" hint="Technique → lighter variation, no extra accessories. Fatigue → less volume, nothing new.">
+                    <Seg options={WEAK_TYPE} value={settings.weakType || 'strength'} onChange={(v) => set('weakType', v)} />
+                  </Field>
+                  {st && settings.weakType !== 'fatigue' && (
+                    <Field label="Variation (secondary lift)" hint="Default is first; pick what fits you and your gym">
+                      <Seg options={st.variations.map((v, i) => ({ v: i, l: v.name }))} value={settings.variationIdx || 0} onChange={(v) => set('variationIdx', v)} />
+                    </Field>
                   )}
-                </Field>
+                  {st && settings.weakType === 'strength' && (
+                    <Field label="Weak-point accessory" hint={st.note}>
+                      <Seg options={st.accessories.map((a, i) => ({ v: i, l: a.name, s: a.sr }))} value={settings.accIdx || 0} onChange={(v) => set('accIdx', v)} />
+                    </Field>
+                  )}
+                </>
               )}
+
+              <Field label="Gym Setup" hint="Machine/cable accessories are swapped for what you actually have">
+                <Seg options={EQUIP} value={settings.equipment || 'commercial'} onChange={(v) => set('equipment', v)} />
+              </Field>
 
               <Field label="Injury / Issue" hint="Swaps risky accessories and caps RPE on the affected lifts" pro={!isPro} locked={!isPro} onLockedClick={lockedClick}>
                 <Seg multi options={INJ} value={settings.injuries} onChange={(v) => set('injuries', v)} locked={!isPro} />

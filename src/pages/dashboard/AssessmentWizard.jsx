@@ -11,7 +11,7 @@ const steps = [
   { id: 'strength', title: 'Strength Metrics', fields: ['squat_1rm', 'bench_1rm', 'deadlift_1rm', 'training_days_per_week'] },
   { id: 'goals', title: 'Goals & Competition', fields: ['primary_goal', 'competition_status'] },
   { id: 'diagnostics', title: 'Diagnostics', fields: ['squat_weak_point', 'bench_weak_point', 'deadlift_weak_point', 'rpe_experience'] },
-  { id: 'constraints', title: 'Constraints & Equipment', fields: ['current_injuries', 'available_equipment', 'restricted_exercises', 'coach_notes'] },
+  { id: 'constraints', title: 'Constraints & Equipment', fields: ['current_injuries', 'equipment_level', 'available_equipment', 'restricted_exercises', 'coach_notes'] },
   { id: 'review', title: 'Review', fields: [] }
 ];
 
@@ -45,7 +45,8 @@ export default function AssessmentWizard() {
     const jsonFields = {
       squat_weak_point: formData.squat_weak_point, bench_weak_point: formData.bench_weak_point, deadlift_weak_point: formData.deadlift_weak_point,
       current_injuries: formData.current_injuries, available_equipment: formData.available_equipment, restricted_exercises: formData.restricted_exercises,
-      rpe_experience: formData.rpe_experience, coach_notes: formData.coach_notes
+      rpe_experience: formData.rpe_experience, coach_notes: formData.coach_notes,
+      weak_type: formData.weak_type, equipment_level: formData.equipment_level
     };
     const payload = { ...dbFields, user_id: user.id, assessment_data: jsonFields, updated_at: new Date().toISOString() };
     await supabase.from('athlete_profiles').upsert(payload, { onConflict: 'user_id' });
@@ -176,9 +177,15 @@ export default function AssessmentWizard() {
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 mb-6">Where do you break down?</h1>
                 <p className="text-sm text-gray-500 mb-6">This helps us map weak points to specific accessory work.</p>
-                <Select label="Squat Weak Point" {...register('squat_weak_point')}><option value="None">No specific weakness</option><option value="Hole/Mid-range">Hole / Mid-range (Bottom)</option><option value="Lockout">Lockout (Top half)</option><option value="Core/Collapse">Core / Torso Collapse</option></Select>
-                <Select label="Bench Weak Point" {...register('bench_weak_point')}><option value="None">No specific weakness</option><option value="Chest/Off-chest">Off the chest (Bottom)</option><option value="Mid-range">Mid-range transition</option><option value="Lockout">Lockout (Top half)</option></Select>
-                <Select label="Deadlift Weak Point" {...register('deadlift_weak_point')}><option value="None">No specific weakness</option><option value="Off-floor">Off the floor</option><option value="Mid-range">Mid-range (Knees)</option><option value="Lockout">Lockout</option></Select>
+                <Select label="Squat Weak Point" {...register('squat_weak_point')}><option value="None">No specific weakness</option><option value="Hole">Fails in the hole (bottom)</option><option value="Mid-range">Stalls mid-range (above parallel)</option><option value="Lockout">Can't finish the lockout (hips)</option><option value="Core/Collapse">Chest drops / hips shoot up</option></Select>
+                <Select label="Bench Weak Point" {...register('bench_weak_point')}><option value="None">No specific weakness</option><option value="Chest/Off-chest">Off the chest (bottom)</option><option value="Mid-range">Stalls mid-range</option><option value="Lockout">Fails at lockout</option><option value="Unstable">Bar path / touch point changes every rep</option></Select>
+                <Select label="Deadlift Weak Point" {...register('deadlift_weak_point')}><option value="None">No specific weakness</option><option value="Off-floor">Can't break the floor</option><option value="Mid-range">Stalls around the knee</option><option value="Lockout">Can't finish the lockout</option></Select>
+                <Select label="Where does the problem show up?" {...register('weak_type')}>
+                  <option value="strength">Technique is fine, the bar just slows down when it's heavy (strength issue)</option>
+                  <option value="technique">Form breaks even with light weight — depth, bar path or position (technique issue)</option>
+                  <option value="fatigue">Even warm-ups feel heavy lately, recovery feels incomplete (fatigue)</option>
+                </Select>
+                <p className="text-xs text-gray-400 -mt-3 mb-5">System 2.0 rule: technique issue → lighter variations, not more accessories. Fatigue → less volume, not a new exercise.</p>
                 <Select label="RPE Experience" {...register('rpe_experience')}><option value="true">Yes, I understand RPE</option><option value="false">No, explain it to me</option></Select>
               </div>
             )}
@@ -186,7 +193,12 @@ export default function AssessmentWizard() {
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 mb-6">Any physical constraints?</h1>
                 <TextArea label="Current Injuries or Pain" {...register('current_injuries')} placeholder="e.g., Lower back tightness, right shoulder impingement..." />
-                <TextArea label="Available Equipment" {...register('available_equipment')} placeholder="e.g., Full commercial gym, home gym with squat rack and dumbbells..." />
+                <Select label="Gym Setup" {...register('equipment_level')}>
+                  <option value="commercial">Commercial gym — machines, cables, dumbbells, everything</option>
+                  <option value="basic">Basic gym — barbell, rack, bench, plates, dumbbells, pull-up bar</option>
+                  <option value="minimal">Minimal — barbell, rack, bench and plates only</option>
+                </Select>
+                <TextArea label="Anything else about your equipment? (optional)" {...register('available_equipment')} placeholder="e.g., no leg press, have bands and a belt..." />
                 <TextArea label="Restricted Exercises" {...register('restricted_exercises')} placeholder="e.g., No barbell bench press due to shoulder..." />
                 <TextArea label="Coach Notes (Optional)" {...register('coach_notes')} placeholder="Anything else I should know?" />
               </div>
@@ -217,7 +229,7 @@ export default function AssessmentWizard() {
                   </ReviewSection>
                   <ReviewSection title="Constraints" onEdit={() => setCurrentStep(4)}>
                     <ReviewItem label="Injuries" value={formData.current_injuries || 'None'} />
-                    <ReviewItem label="Equipment" value={formData.available_equipment || 'Standard'} />
+                    <ReviewItem label="Gym Setup" value={formData.equipment_level || 'commercial'} />
                   </ReviewSection>
                 </div>
               </div>
