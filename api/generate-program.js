@@ -24,7 +24,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Add all three 1RMs in your assessment first' });
     }
 
-    const { data: activeSub } = await supabaseAdmin.from('subscriptions').select('id').eq('user_id', user.id).eq('status', 'active').gte('end_date', new Date().toISOString()).maybeSingle();
+    const { data: activeSub } = await supabaseAdmin.from('subscriptions').select('id').eq('user_id', user.id).eq('status', 'active').gte('end_date', new Date().toISOString()).order('end_date', { ascending: false }).limit(1).maybeSingle();
     const { count: programCount } = await supabaseAdmin.from('generated_programs').select('id', { count: 'exact', head: true }).eq('user_id', user.id);
 
     const isPro = !!activeSub;

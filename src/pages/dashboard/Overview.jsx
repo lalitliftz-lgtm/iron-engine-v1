@@ -20,7 +20,7 @@ export default function Overview() {
 
       const [profileRes, subRes, programRes, logsRes, purchasesRes] = await Promise.all([
         supabase.from('athlete_profiles').select('full_name, competition_date, experience_level').eq('user_id', user.id).maybeSingle(),
-        supabase.from('subscriptions').select('status, end_date').eq('user_id', user.id).eq('status', 'active').maybeSingle(),
+        supabase.from('subscriptions').select('status, end_date').eq('user_id', user.id).eq('status', 'active').gte('end_date', new Date().toISOString()).order('end_date', { ascending: false }).limit(1).maybeSingle(),
         supabase.from('generated_programs').select('id, created_at, program_snapshot').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
         supabase.from('workout_logs').select('date_completed, logged_exercises').eq('user_id', user.id).order('date_completed', { ascending: false }).limit(5),
         supabase.from('purchases').select('purchased_at, product_id, products(name)').eq('user_id', user.id).order('purchased_at', { ascending: false }).limit(3)
