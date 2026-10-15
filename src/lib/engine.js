@@ -4,7 +4,7 @@
 // Pure functions + data tables + XLSX/text export.
 // ============================================================
 import * as XLSX from "xlsx";
-import { CONFIG } from "../config/siteConfig";
+import { CONFIG } from "../config/siteConfig.js";
 
 export const C = {
   iron: "#111318", steel: "#1B1F26", steel2: "#242932", line: "#31374280",
@@ -465,6 +465,154 @@ export function buildProgram(form, maxes) {
   const freq = `SQ ${count.squat}× · BP ${count.bench}× · DL ${count.deadlift}× / week`;
 
   return { weeks, rec, freq, restDays: ALL_DAYS.filter((d) => !wdays.includes(d)) };
+}
+
+/* ---------------- Dashboard bridge: assessment → engine form ---------------- */
+// Maps the AssessmentWizard's weak-point labels onto STICKING keys.
+const WEAK_POINT_MAP = {
+  squat: { "Hole/Mid-range": "hole", "Lockout": "mid", "Core/Collapse": "mid" },
+  bench: { "Chest/Off-chest": "chest", "Mid-range": "mid", "Lockout": "lockout" },
+  deadlift: { "Off-floor": "floor", "Mid-range": "knee", "Lockout": "lockout" },
+};
+const EXP_MAP = { Beginner: "beg", Intermediate: "int", Advanced: "adv" };
+// Rough "balanced lifter" ratios used to guess which flagged lift is lagging most.
+const TYPICAL_RATIO = { squat: 1, bench: 0.7, deadlift: 1.2 };
+
+export function injuriesFromText(text) {
+  const t = String(text || "").toLowerCase();
+  return {
+    back: /back|spine|lumbar|disc|sciatic/.test(t),
+    knee: /knee|patell|menisc/.test(t),
+    shoulder: /shoulder|rotator|impinge|ac joint|labrum/.test(t),
+  };
+}
+
+export function daysToMeet(profile) {
+  if (!profile?.competition_date) return null;
+  return Math.ceil((new Date(profile.competition_date) - new Date()) / 86400000);
+}
+
+/**
+ * Build the engine `form` from a saved athlete_profiles row, then apply any
+ * user overrides from the dashboard UI. Returns { form, maxes, decisions }.
+ * `decisions` explains each default the engine picked (shown to the athlete).
+ */
+export function profileToForm(profile, overrides = {}) {
+  const a = profile?.assessment_data || {};
+  const decisions = [];
+  const maxes = {
+    squat: Number(profile?.squat_1rm) || 0,
+    bench: Number(profile?.bench_1rm) || 0,
+    deadlift: Number(profile?.deadlift_1rm) || 0,
+    estimated: false,
+  };
+
+  const exp = EXP_MAP[profile?.experience_level] || "int";
+  const days = Math.min(6, Math.max(3, Number(profile?.training_days_per_week) || 4));
+
+  // Block goal: meet timeline wins, then stated goal, else strength.
+  let goal = "str";
+  const dtm = daysToMeet(profile);
+  if (dtm !== null && dtm > 0) {
+    if (dtm <= 35) { goal = "peak"; decisions.push({ step: "Block Selection", decision: "Peaking Block", reason: `Meet in ${dtm} days — time to sharpen, not build` }); }
+    else if (dtm <= 70) { goal = "str"; decisions.push({ step: "Block Selection", decision: "Strength Block", reason: `Meet in ${dtm} days — heavy 4–6s now, peak in the final 4–5 weeks` }); }
+    else { goal = "hyp"; decisions.push({ step: "Block Selection", decision: "Base Block", reason: `Meet in ${dtm} days — enough time to build muscle + capacity first` }); }
+  } else if (profile?.primary_goal === "Hypertrophy") {
+    goal = "hyp"; decisions.push({ step: "Block Selection", decision: "Base Block", reason: "Goal is muscle — higher reps, moderate loads" });
+  } else {
+    decisions.push({ step: "Block Selection", decision: "Strength Block", reason: "No meet date — building raw strength in the 4–6 rep range" });
+  }
+
+  // Weakest lift: among lifts with a flagged sticking point, pick the one
+  // furthest below a balanced squat:bench:deadlift ratio.
+  const flagged = ["squat", "bench", "deadlift"].filter((l) => {
+    const label = a[`${l}_weak_point`];
+    return label && label !== "None" && WEAK_POINT_MAP[l][label];
+  });
+  let weak = "none", sticking = null;
+  if (flagged.length && maxes.squat) {
+    const lag = (l) => (maxes[l] / maxes.squat) / TYPICAL_RATIO[l];
+    weak = flagged.sort((x, y) => lag(x) - lag(y))[0];
+    sticking = WEAK_POINT_MAP[weak][a[`${weak}_weak_point`]];
+    const st = STICKING[weak][sticking];
+    decisions.push({ step: "Weak-Point Diagnosis", decision: `${LIFT_NAMES[weak]} — ${st.l}`, reason: `${st.variation.name} + ${st.acc.name} added` });
+  } else {
+    decisions.push({ step: "Weak-Point Diagnosis", decision: "Balanced", reason: "No sticking point flagged — equal volume across lifts" });
+  }
+
+  const injuries = injuriesFromText(a.current_injuries);
+  const flaggedInj = Object.keys(injuries).filter((k) => injuries[k]);
+  if (flaggedInj.length) decisions.push({ step: "Injury Screen", decision: flaggedInj.join(", "), reason: "Spine/joint-safe swaps applied, RPE capped where needed" });
+
+  const form = {
+    name: profile?.full_name || "",
+    exp, days, goal,
+    focus: "bal",
+    rmMode: "know",
+    maxes: { squat: maxes.squat, bench: maxes.bench, deadlift: maxes.deadlift },
+    calc: { squat: { w: "", r: "" }, bench: { w: "", r: "" }, deadlift: { w: "", r: "" } },
+    weak, sticking,
+    injuries,
+    sleep: "high", stress: "low",
+    ...overrides,
+  };
+  if (overrides.injuries) form.injuries = { ...injuries, ...overrides.injuries };
+  if (form.weak === "none") form.sticking = null;
+  else if (!form.sticking || !STICKING[form.weak]?.[form.sticking]) form.sticking = Object.keys(STICKING[form.weak])[0];
+  if (!SCHEMES[form.goal]) form.goal = "str";
+  if (!TEMPLATES[form.focus]) form.focus = "bal";
+  if (!WEEKDAYS[form.days]) form.days = 4;
+
+  return { form, maxes, decisions };
+}
+
+/**
+ * Convert engine output into the `program_snapshot` shape the dashboard
+ * (Programs, WorkoutSession, History, Overview) already reads:
+ * weeks[].days[].exercises[] with numeric `sets`, plus `meta` so the
+ * program can be re-built deterministically for export.
+ */
+export function toSnapshot(program, form, maxes, decisions = []) {
+  const splitSR = (sr) => {
+    const parts = String(sr).split("×");
+    if (parts.length === 2) return { sets: parseInt(parts[0], 10) || 1, reps: parts[1].trim() };
+    return { sets: 1, reps: String(sr) };
+  };
+  const rpeNum = (rpe) => String(rpe || "").replace(/^RPE\s*/i, "") || "—";
+
+  const weeks = program.weeks.map((w, wi) => ({
+    week: wi + 1,
+    deload: !!w.deload,
+    days: w.days.map((d, di) => ({
+      day: di + 1,
+      weekday: d.weekday,
+      focus: d.title,
+      optional: !!d.optional,
+      notes: d.main.map((m) => m.note).filter(Boolean).join(" · ") || null,
+      exercises: [
+        ...d.main.map((m) => ({
+          name: m.name, type: "Main", lift: m.lift,
+          sets: m.sets, reps: m.reps,
+          weight: m.kg ?? "", pct: m.pct, rpe: rpeNum(m.rpe), note: m.note,
+        })),
+        ...d.acc.map((a) => ({
+          name: a.name, type: "Accessory",
+          ...splitSR(a.sr),
+          weight: "", pct: null, rpe: rpeNum(a.rpe), note: null,
+        })),
+      ],
+    })),
+  }));
+
+  return {
+    version: 2,
+    blockType: form.exp === "beg" ? "Beginner Linear Block" : SCHEMES[form.goal].label,
+    weeks,
+    meta: {
+      form, maxes, decisions,
+      freq: program.freq, restDays: program.restDays, rec: program.rec,
+    },
+  };
 }
 
 /* ---------------- XLSX export ---------------- */

@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import UpgradeModal from '../../components/UpgradeModal';
 import { motion, AnimatePresence } from 'framer-motion';
+import { profileToForm, STICKING, LIFT_NAMES, daysToMeet } from '../../lib/engine';
 
 const STAGES = [
   { id: 0, name: "Loading Athlete Profile", description: "Fetching 1RMs, weak points, and constraints" },
@@ -15,9 +17,63 @@ const STAGES = [
   { id: 6, name: "Building Final Program", description: "Compiling 4-week training snapshot" }
 ];
 
+// Settings the athlete can tune on top of the assessment defaults.
+const GOALS = [
+  { v: 'hyp', l: 'Base Block', s: 'muscle + capacity' },
+  { v: 'str', l: 'Strength Block', s: 'heavy 4–6 range' },
+  { v: 'peak', l: 'Peaking', s: 'meet / 1RM prep' },
+];
+const FOCUS = [
+  { v: 'bal', l: 'Balanced' }, { v: 'squat', l: 'Squat Focus' }, { v: 'bench', l: 'Bench Focus' }, { v: 'dead', l: 'Deadlift Focus' },
+];
+const WEAK = [
+  { v: 'none', l: 'Balanced' }, { v: 'squat', l: 'Squat' }, { v: 'bench', l: 'Bench' }, { v: 'deadlift', l: 'Deadlift' },
+];
+const DAYS = [3, 4, 5, 6].map((d) => ({ v: d, l: `${d}` }));
+const SLEEP = [{ v: 'high', l: '7+ hrs' }, { v: 'mid', l: '6–7 hrs' }, { v: 'low', l: '< 6 hrs' }];
+const STRESS = [{ v: 'low', l: 'Low' }, { v: 'mid', l: 'Moderate' }, { v: 'high', l: 'High' }];
+const INJ = [{ v: 'back', l: 'Lower Back' }, { v: 'knee', l: 'Knee' }, { v: 'shoulder', l: 'Shoulder' }];
+
+function Seg({ options, value, onChange, multi, locked }) {
+  return (
+    <div className={`flex flex-wrap gap-2 ${locked ? 'opacity-50' : ''}`}>
+      {options.map((o) => {
+        const active = multi ? !!value[o.v] : value === o.v;
+        return (
+          <button key={o.v} type="button" disabled={locked}
+            onClick={() => (multi ? onChange({ ...value, [o.v]: !value[o.v] }) : onChange(o.v))}
+            className={`px-3.5 py-2 rounded-lg text-sm font-semibold border transition-colors text-left ${active ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'} ${locked ? 'cursor-not-allowed' : ''}`}>
+            {o.l}
+            {o.s && <span className="block text-[11px] font-normal opacity-75">{o.s}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Field({ label, hint, pro, locked, onLockedClick, children }) {
+  return (
+    <div className="mb-6" onClick={locked ? onLockedClick : undefined}>
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</span>
+        {pro && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">🔒 PRO</span>}
+      </div>
+      {hint && <p className="text-xs text-gray-400 mb-2">{hint}</p>}
+      {children}
+    </div>
+  );
+}
+
 export default function GenerateProgram() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { status } = useSubscription();
+  const isPro = status === 'pro_active';
+
+  const [profile, setProfile] = useState(undefined); // undefined = loading, null = none
+  const [defaults, setDefaults] = useState(null);
+  const [settings, setSettings] = useState(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [appStatus, setAppStatus] = useState('idle');
   const [error, setError] = useState('');
@@ -26,26 +82,45 @@ export default function GenerateProgram() {
   const intervalRef = useRef(null);
 
   useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase.from('athlete_profiles').select('*').eq('user_id', user.id).maybeSingle();
+      setProfile(data || null);
+      if (data) {
+        const d = profileToForm(data);
+        setDefaults(d);
+        const { goal, focus, weak, sticking, injuries, sleep, stress, days } = d.form;
+        setSettings({ goal, focus, weak, sticking, injuries, sleep, stress, days });
+      }
+    };
+    load();
+  }, [user]);
+
+  useEffect(() => {
     if (appStatus === 'generating') {
       intervalRef.current = setInterval(() => {
         setCurrentStage((prev) => {
           if (prev === STAGES.length - 1 && !engineData) return prev;
           if (prev === STAGES.length - 1 && engineData) {
             clearInterval(intervalRef.current);
-            setTimeout(() => navigate('/dashboard/programs'), 1000);
+            setTimeout(() => navigate('/dashboard/programs'), 900);
             return prev;
           }
           return prev + 1;
         });
-      }, 550);
+      }, 450);
       return () => clearInterval(intervalRef.current);
     }
   }, [appStatus, engineData, navigate]);
+
+  const set = (k, v) => setSettings((s) => ({ ...s, [k]: v }));
+  const setWeak = (v) => setSettings((s) => ({ ...s, weak: v, sticking: v === 'none' ? null : Object.keys(STICKING[v])[0] }));
+  const lockedClick = () => { if (!isPro) setShowUpgradeModal(true); };
 
   const handleGenerate = async () => {
     setAppStatus('generating');
     setError('');
     setCurrentStage(0);
+    setEngineData(null);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -53,7 +128,8 @@ export default function GenerateProgram() {
 
       const response = await fetch('/api/generate-program', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
+        headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings || {}),
       });
 
       if (response.status === 403) {
@@ -73,7 +149,6 @@ export default function GenerateProgram() {
 
       const data = await response.json();
       setEngineData(data.engineData);
-
     } catch (err) {
       setError(err.message);
       setAppStatus('error');
@@ -83,77 +158,159 @@ export default function GenerateProgram() {
 
   const getStageDetail = (stageId) => {
     if (!engineData) return null;
-    if (stageId === 2) {
-      const blockDecision = engineData.log.find(l => l.step === 'Block Selection');
-      return blockDecision ? `Assigned: ${blockDecision.decision}` : null;
-    }
-    if (stageId === 4) {
-      const accessoryDecisions = engineData.log.filter(l => l.step === 'Accessory Mapping');
-      if (accessoryDecisions.length === 0) return "Mapped: Balanced Routine";
-      return `Mapped: ${accessoryDecisions[0].decision}`;
-    }
+    const find = (step) => engineData.log.find((l) => l.step === step);
+    if (stageId === 1) return find('Weak-Point Diagnosis') ? `Found: ${find('Weak-Point Diagnosis').decision}` : null;
+    if (stageId === 2) return `Assigned: ${engineData.blockType}`;
+    if (stageId === 5) return find('Injury Screen') ? `Flags: ${find('Injury Screen').decision}` : 'No injury flags';
     return null;
   };
 
+  if (profile === undefined) {
+    return <div className="flex justify-center items-center min-h-[60vh]"><div className="animate-spin h-8 w-8 border-2 border-gray-900 rounded-full border-t-transparent"></div></div>;
+  }
+
+  if (profile === null || !profile.squat_1rm || !profile.bench_1rm || !profile.deadlift_1rm) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-20 text-center">
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-12">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Assessment first</h1>
+          <p className="text-gray-500 mb-8">The engine needs your experience, training days, 1RMs and weak points before it can build a block.</p>
+          <Link to="/dashboard/assessment" className="inline-flex items-center justify-center bg-gray-900 hover:bg-gray-800 text-white px-8 py-3.5 rounded-lg text-sm font-medium transition-colors">
+            {profile ? 'Complete Assessment' : 'Start Assessment'}
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const isBeg = defaults?.form.exp === 'beg';
+  const dtm = daysToMeet(profile);
+
   return (
     <>
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
-        <div className="w-full max-w-xl">
-          {appStatus === 'idle' && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center">
-              <div className="w-20 h-20 bg-gray-900 border border-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-2xl">
-                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-              </div>
-              <h1 className="text-3xl font-bold text-white mb-3 tracking-tight">Iron Engine V1</h1>
-              <p className="text-gray-500 mb-10 max-w-md mx-auto">The engine will securely analyze your assessment, apply scientific progression, and map your weak points to specific accessories.</p>
-              <button onClick={handleGenerate} className="bg-white hover:bg-gray-100 text-gray-900 px-10 py-4 rounded-xl text-sm font-semibold transition-all w-full md:w-auto shadow-lg hover:shadow-xl hover:-translate-y-0.5">Initialize Engine</button>
-            </motion.div>
-          )}
+      <div className="max-w-3xl mx-auto px-4 md:px-8 py-8 md:py-12">
+        {appStatus === 'idle' && settings && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            <div className="mb-8">
+              <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight">Build your next block</h1>
+              <p className="text-gray-500 mt-1 text-sm md:text-base">
+                Defaults come from your assessment — {profile.experience_level || 'Intermediate'}, {profile.training_days_per_week || 4} days/week,
+                1RM {profile.squat_1rm}/{profile.bench_1rm}/{profile.deadlift_1rm} kg
+                {dtm !== null && dtm > 0 ? ` · meet in ${dtm} days` : ''}.
+                {' '}<Link to="/dashboard/assessment" className="text-blue-600 hover:text-blue-800 font-medium">Edit assessment</Link>
+              </p>
+            </div>
 
-          {appStatus === 'generating' && (
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 md:p-10 shadow-2xl">
-              <div className="flex justify-between items-center mb-8">
-                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest">Engine Running</h2>
-                <span className="text-xs text-gray-600 font-mono">{Math.round(((currentStage + 1) / STAGES.length) * 100)}%</span>
-              </div>
-              <div className="h-1 w-full bg-gray-800 rounded-full overflow-hidden mb-10">
-                <motion.div className="h-full bg-white rounded-full" initial={{ width: 0 }} animate={{ width: `${((currentStage + 1) / STAGES.length) * 100}%` }} transition={{ duration: 0.4, ease: "easeInOut" }} />
-              </div>
-              <div className="space-y-6">
-                {STAGES.map((stage) => {
-                  const isComplete = currentStage > stage.id;
-                  const isActive = currentStage === stage.id;
-                  const detail = isComplete ? getStageDetail(stage.id) : null;
-                  return (
-                    <div key={stage.id} className="flex items-start space-x-4">
-                      <div className="flex-shrink-0 mt-0.5">
-                        {isComplete ? <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center"><svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg></div> : isActive ? <div className="w-5 h-5 rounded-full border-2 border-white border-t-transparent animate-spin"></div> : <div className="w-5 h-5 rounded-full border-2 border-gray-700"></div>}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className={`text-sm font-medium transition-colors ${isActive ? 'text-white' : isComplete ? 'text-gray-400' : 'text-gray-600'}`}>{stage.name}</h3>
-                        <AnimatePresence>
-                          {isActive && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-gray-500 mt-1 font-mono">{stage.description}...</motion.p>}
-                          {isComplete && detail && <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-xs text-green-400 mt-1 font-mono">{detail}</motion.p>}
-                        </AnimatePresence>
-                      </div>
-                    </div>
-                  );
-                })}
+            {/* What the engine already decided */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 mb-6">
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Engine read of your assessment</h2>
+              <div className="space-y-2">
+                {defaults.decisions.map((d, i) => (
+                  <div key={i} className="text-sm">
+                    <span className="font-semibold text-gray-900">{d.decision}</span>
+                    <span className="text-gray-500"> — {d.reason}</span>
+                  </div>
+                ))}
               </div>
             </div>
-          )}
 
-          {appStatus === 'error' && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-gray-900 border border-red-900 rounded-2xl p-10 text-center shadow-2xl">
-              <div className="w-12 h-12 bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              {isBeg ? (
+                <div className="mb-6 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <b className="text-gray-900">Beginner Linear Block.</b> Three full-body days (squat + bench every session, deadlift once), +2.5 kg per week while RPE stays under 8. Extra days become technique + GPP. Block goal and focus unlock once you're intermediate.
+                </div>
+              ) : (
+                <>
+                  <Field label="Block Goal" hint="The adaptation this 4-week block is chasing">
+                    <Seg options={GOALS} value={settings.goal} onChange={(v) => set('goal', v)} />
+                  </Field>
+                  <Field label="Block Focus" hint="Which lift gets the extra frequency" pro={!isPro} locked={!isPro} onLockedClick={lockedClick}>
+                    <Seg options={FOCUS} value={settings.focus} onChange={(v) => set('focus', v)} locked={!isPro} />
+                  </Field>
+                </>
+              )}
+
+              <Field label="Days Per Week" hint="Be realistic — pick what you can actually sustain">
+                <Seg options={DAYS} value={settings.days} onChange={(v) => set('days', v)} />
+              </Field>
+
+              <Field label="Weakest Lift" hint="Gets +1 set and a targeted variation" pro={!isPro} locked={!isPro} onLockedClick={lockedClick}>
+                <Seg options={WEAK} value={settings.weak} onChange={setWeak} locked={!isPro} />
+              </Field>
+              {isPro && settings.weak !== 'none' && (
+                <Field label={`${LIFT_NAMES[settings.weak]} — where does it fail?`} hint="The engine assigns the matching variation + accessory">
+                  <Seg options={Object.entries(STICKING[settings.weak]).map(([k, v]) => ({ v: k, l: v.l }))} value={settings.sticking} onChange={(v) => set('sticking', v)} />
+                  {settings.sticking && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Assigned: <b className="text-gray-900">{STICKING[settings.weak][settings.sticking].variation.name}</b> + <b className="text-gray-900">{STICKING[settings.weak][settings.sticking].acc.name}</b>
+                    </p>
+                  )}
+                </Field>
+              )}
+
+              <Field label="Injury / Issue" hint="Swaps risky accessories and caps RPE on the affected lifts" pro={!isPro} locked={!isPro} onLockedClick={lockedClick}>
+                <Seg multi options={INJ} value={settings.injuries} onChange={(v) => set('injuries', v)} locked={!isPro} />
+              </Field>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Sleep Average" hint="Volume auto-adjusts to recovery">
+                  <Seg options={SLEEP} value={settings.sleep} onChange={(v) => set('sleep', v)} />
+                </Field>
+                <Field label="Stress Level">
+                  <Seg options={STRESS} value={settings.stress} onChange={(v) => set('stress', v)} />
+                </Field>
               </div>
-              <h2 className="text-xl font-bold text-white mb-2">Engine Error</h2>
-              <p className="text-gray-500 mb-6 text-sm">{error}</p>
-              <button onClick={() => setAppStatus('idle')} className="text-gray-400 hover:text-white font-medium text-sm border border-gray-700 px-6 py-2 rounded-lg">Reset Engine</button>
-            </motion.div>
-          )}
-        </div>
+
+              <button onClick={handleGenerate} className="w-full bg-gray-900 hover:bg-gray-800 text-white px-10 py-4 rounded-xl text-sm font-semibold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5">
+                Generate 4-Week Block →
+              </button>
+              {!isPro && (
+                <p className="text-xs text-gray-400 mt-3 text-center">Free tier: one program, balanced focus. <button onClick={() => setShowUpgradeModal(true)} className="text-blue-600 hover:text-blue-800 font-medium">Unlock Pro</button> for sticking-point work, injury-aware swaps and unlimited blocks.</p>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {appStatus === 'generating' && (
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 md:p-10 shadow-2xl">
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest">Engine Running</h2>
+              <span className="text-xs text-gray-600 font-mono">{Math.round(((currentStage + 1) / STAGES.length) * 100)}%</span>
+            </div>
+            <div className="h-1 w-full bg-gray-800 rounded-full overflow-hidden mb-10">
+              <motion.div className="h-full bg-white rounded-full" initial={{ width: 0 }} animate={{ width: `${((currentStage + 1) / STAGES.length) * 100}%` }} transition={{ duration: 0.4, ease: "easeInOut" }} />
+            </div>
+            <div className="space-y-6">
+              {STAGES.map((stage) => {
+                const isComplete = currentStage > stage.id;
+                const isActive = currentStage === stage.id;
+                const detail = isComplete ? getStageDetail(stage.id) : null;
+                return (
+                  <div key={stage.id} className="flex items-start space-x-4">
+                    <div className="flex-shrink-0 mt-0.5">
+                      {isComplete ? <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center"><svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg></div> : isActive ? <div className="w-5 h-5 rounded-full border-2 border-white border-t-transparent animate-spin"></div> : <div className="w-5 h-5 rounded-full border-2 border-gray-700"></div>}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className={`text-sm font-medium transition-colors ${isActive ? 'text-white' : isComplete ? 'text-gray-400' : 'text-gray-600'}`}>{stage.name}</h3>
+                      <AnimatePresence>
+                        {isActive && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-gray-500 mt-1 font-mono">{stage.description}...</motion.p>}
+                        {isComplete && detail && <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-xs text-green-400 mt-1 font-mono">{detail}</motion.p>}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {appStatus === 'error' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-gray-900 border border-red-900 rounded-2xl p-10 text-center shadow-2xl">
+            <h2 className="text-xl font-bold text-white mb-2">Engine Error</h2>
+            <p className="text-gray-500 mb-6 text-sm">{error}</p>
+            <button onClick={() => setAppStatus('idle')} className="text-gray-400 hover:text-white font-medium text-sm border border-gray-700 px-6 py-2 rounded-lg">Back to settings</button>
+          </motion.div>
+        )}
       </div>
       <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
     </>
