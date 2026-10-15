@@ -1,6 +1,6 @@
 // ============================================================
 //  ENGINE GATE (landing) — free Week-1 sample, always open.
-//  "Get Access" routes into the REAL auth + Razorpay checkout
+//  "Get Access" routes into the REAL auth + PayU checkout
 //  (no static access code — the backend grants access on payment).
 // ============================================================
 import { useNavigate } from "react-router-dom";
@@ -14,7 +14,7 @@ export default function EngineGate() {
 
   // Send visitors into the account flow; after signup they land on the
   // subscription page pre-targeted at Iron Engine Pro, which triggers
-  // /api/payments/create-order (Razorpay).
+  // /api/payments/create-order (PayU).
   const goBuy = () =>
     navigate(
       `/signup?next=${encodeURIComponent(

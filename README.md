@@ -1,7 +1,7 @@
 # LalitLifts — Iron Engine (merged build)
 
 Premium **dark** LalitLifts storefront + the full GLM backend
-(Supabase auth, Razorpay payments, member dashboard) in one Vite/React app.
+(Supabase auth, PayU payments, member dashboard) in one Vite/React app.
 
 ## What's inside
 - **Public landing (`/`)** — dark LalitLifts branding, hero, 4 products,
@@ -9,9 +9,9 @@ Premium **dark** LalitLifts storefront + the full GLM backend
 - **Auth** — Supabase email/password (login, signup, reset). The signup/login
   flow carries the product a visitor picked on the landing page straight
   through to checkout.
-- **Payments** — Razorpay order → checkout → webhook/verify → access granted.
-  The Subscription page opens real Razorpay checkout and hands off to the
-  existing `/payment/processing` poller.
+- **Payments** — PayU hosted checkout: server signs the order → browser is
+  redirected to PayU → PayU posts back to `/api/payments/payu-callback` →
+  hash verified → access granted → `/payment/processing` double-checks.
 - **Dashboard** — everything from the backend: generated programs, athlete
   profile, technique lab, workout logging, library, billing, settings.
 - **Dark theme** — one global layer (`tailwind.config.js` tokens +
@@ -22,10 +22,10 @@ Premium **dark** LalitLifts storefront + the full GLM backend
 ## Edit your brand in one place
 `src/config/siteConfig.js` — brand name, Instagram, prices, product names.
 Each product's `productName` must match a row in `products` (see the seed in
-`supabase_schema.sql`) so checkout resolves the right Razorpay amount.
+`supabase_schema.sql`) so checkout resolves the right PayU amount.
 
 ## Setup
-1. Copy `.env.example` → `.env`, fill Supabase + Razorpay **test** keys.
+1. Copy `.env.example` → `.env`, fill Supabase + PayU **test** keys.
 2. `npm install`
 3. Run `supabase_schema.sql` in the Supabase SQL editor.
 4. `npm run dev`
@@ -33,7 +33,8 @@ Each product's `productName` must match a row in `products` (see the seed in
 ## Deploy (Vercel)
 1. Push to GitHub, import into Vercel.
 2. Add every `.env` variable in Vercel project settings.
-3. Deploy. Point the Razorpay webhook at `/api/payments/webhook`.
+3. Deploy. No webhook setup needed — PayU returns to
+   `/api/payments/payu-callback` automatically.
 
 ## Key files added/changed in the merge
 ```
@@ -45,6 +46,6 @@ src/pages/Landing.jsx               dark public storefront (new front door)
 src/components/AuthShell.jsx        branded dark auth wrapper
 src/pages/{Login,Signup,ForgotPassword}.jsx  restyled dark
 src/components/{Footer,dashboard/DashboardLayout}.jsx  dark chrome
-src/pages/dashboard/Subscription.jsx  real Razorpay checkout wired in
+src/pages/dashboard/Subscription.jsx  real PayU checkout wired in
 tailwind.config.js + src/index.css  dark palette + global flip layer
 ```

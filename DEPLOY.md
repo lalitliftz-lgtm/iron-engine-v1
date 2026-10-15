@@ -22,11 +22,11 @@ You need two services:
 - `SUPABASE_SERVICE_ROLE_KEY` — same page (keep secret, server-side only).
 - Run `supabase_schema.sql` in the Supabase SQL editor to create the tables.
 
-**Razorpay** (payments)
-- `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` — Razorpay dashboard → Settings → API
-  Keys (use **test** keys first).
-- `RAZORPAY_WEBHOOK_SECRET` — set after step 4.
-- `PAYMENT_PROVIDER=razorpay`
+**PayU** (payments)
+- `PAYU_KEY` and `PAYU_SALT` — PayU dashboard → Integrations / API keys
+  (Merchant Key + Merchant Salt). Use **test** credentials first.
+- `PAYU_MODE=test` while testing, `PAYU_MODE=live` when going live.
+- `PAYMENT_PROVIDER=payu` (optional — this is the default).
 
 ## Step 2 — Test locally first
 ```bash
@@ -45,12 +45,11 @@ Supabase keys are in.
    from your `.env` (both the `VITE_` ones and the secret server ones).
 4. Click **Deploy**.
 
-## Step 4 — Wire the Razorpay webhook
-1. After deploy you'll have a URL like `https://your-app.vercel.app`.
-2. In Razorpay dashboard → Settings → Webhooks, add:
-   `https://your-app.vercel.app/api/payments/webhook`
-3. Copy the webhook signing secret into Vercel as `RAZORPAY_WEBHOOK_SECRET`,
-   then redeploy.
+## Step 4 — Test a payment
+No webhook setup is needed: the server passes the return URL
+(`/api/payments/payu-callback`) to PayU on every checkout. After deploy,
+log in, open Subscription, buy a product with PayU test cards, and confirm
+you land on `/payment/processing` and then see access granted.
 
 ## Step 5 — Custom domain (optional)
 Vercel → Project → Settings → Domains → add your domain and follow the DNS
@@ -62,14 +61,14 @@ instructions.
 | `VITE_SUPABASE_URL` | Supabase API settings | No |
 | `VITE_SUPABASE_ANON_KEY` | Supabase API settings | No |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase API settings | **Yes** |
-| `PAYMENT_PROVIDER` | set to `razorpay` | No |
-| `RAZORPAY_KEY_ID` | Razorpay API keys | No |
-| `RAZORPAY_KEY_SECRET` | Razorpay API keys | **Yes** |
-| `RAZORPAY_WEBHOOK_SECRET` | Razorpay webhook (step 4) | **Yes** |
+| `PAYMENT_PROVIDER` | `payu` (default, optional) | No |
+| `PAYU_KEY` | PayU dashboard (Merchant Key) | No |
+| `PAYU_SALT` | PayU dashboard (Merchant Salt) | **Yes** |
+| `PAYU_MODE` | `test` or `live` | No |
 
 ## Before real payments go live
 Edit `src/config/siteConfig.js`:
 - `coachingFormUrl` is currently `"#"` — set your real Google Form link.
 - Confirm each product's `productName` matches a row in the `products` table
   (see `supabase_schema.sql`) so checkout resolves the right price.
-- Switch Razorpay from test keys to live keys.
+- Switch PayU to live credentials and set `PAYU_MODE=live`.
