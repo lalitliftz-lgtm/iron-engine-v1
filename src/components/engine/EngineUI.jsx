@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { CONFIG } from "../../config/siteConfig";
 import {
-  C, SCHEMES, STICKING,
+  C, SCHEMES, STICKING, LIFT_NAMES,
   resolveMaxes, buildProgram, programToText, downloadXLSX, platesPerSide,
 } from "../../lib/engine";
 

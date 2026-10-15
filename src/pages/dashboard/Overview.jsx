@@ -20,7 +20,7 @@ export default function Overview() {
 
       const [profileRes, subRes, programRes, logsRes, purchasesRes] = await Promise.all([
         supabase.from('athlete_profiles').select('full_name, competition_date, experience_level').eq('user_id', user.id).maybeSingle(),
-        supabase.from('subscriptions').select('status, end_date').eq('user_id', user.id).eq('status', 'active').maybeSingle(),
+        supabase.from('subscriptions').select('status, end_date').eq('user_id', user.id).eq('status', 'active').gte('end_date', new Date().toISOString()).order('end_date', { ascending: false }).limit(1).maybeSingle(),
         supabase.from('generated_programs').select('id, created_at, program_snapshot').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
         supabase.from('workout_logs').select('date_completed, logged_exercises').eq('user_id', user.id).order('date_completed', { ascending: false }).limit(5),
         supabase.from('purchases').select('purchased_at, product_id, products(name)').eq('user_id', user.id).order('purchased_at', { ascending: false }).limit(3)
@@ -50,9 +50,14 @@ export default function Overview() {
   const hasMeet = profile?.competition_date;
   const daysToMeet = hasMeet ? Math.ceil((new Date(hasMeet) - new Date()) / (1000 * 60 * 60 * 24)) : null;
 
-  const currentBlock = program ? "Strength Block" : null;
-  const currentWeek = 2; 
-  const totalWeeks = 4;
+  const snap = program?.program_snapshot;
+  const currentBlock = snap?.blockType || null;
+  const totalWeeks = snap?.weeks?.length || 4;
+  // Week of the block = weeks elapsed since it was generated, capped at the last week.
+  const weeksElapsed = program ? Math.floor((Date.now() - new Date(program.created_at)) / (7 * 86400000)) : 0;
+  const currentWeek = Math.min(totalWeeks, weeksElapsed + 1);
+  const firstDay = snap?.weeks?.find((w) => w.week === currentWeek)?.days?.[0];
+  const firstMain = firstDay?.exercises?.find((e) => e.type === 'Main');
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 md:py-12">
@@ -71,8 +76,8 @@ export default function Overview() {
             {program ? (
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Day 1 - Week {currentWeek}</h3>
-                  <p className="text-sm text-gray-500">Main Lift: Squat · RPE 7.5</p>
+                  <h3 className="text-lg font-semibold text-gray-900">{firstDay?.focus || 'Day 1'} · Week {currentWeek}</h3>
+                  <p className="text-sm text-gray-500">{firstMain ? `${firstMain.name} · ${firstMain.sets} × ${firstMain.reps}${firstMain.weight ? ` @ ${firstMain.weight} kg` : ''} · RPE ${firstMain.rpe}` : 'Open your program to see today\'s session'}</p>
                 </div>
                 <Link to="/dashboard/programs" className="bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium py-2 px-5 rounded-lg transition-colors text-center">Start Workout →</Link>
               </div>

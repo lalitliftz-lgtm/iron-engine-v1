@@ -23,6 +23,8 @@ export const SubscriptionProvider = ({ children }) => {
         .eq('user_id', user.id)
         .eq('status', 'active')
         .gte('end_date', new Date().toISOString())
+        .order('end_date', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       const { count } = await supabase
