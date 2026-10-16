@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -10,6 +10,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 const MAIN_REST = 180; // System 2.0: main lifts 3–5 min
 const ACC_REST = 90;
 const RPE_OPTIONS = ['6', '7', '7.5', '8', '8.5', '9', '9.5', '10'];
+// A gap with no taps longer than this is "left the gym / forgot the app", not training time.
+const IDLE_CAP = 20 * 60 * 1000;
+const newId = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
 const newSets = (ex) => Array.from({ length: Number(ex.sets) || 1 }, () => ({
   weight: ex.weight ? String(ex.weight) : '',
@@ -31,8 +34,17 @@ export default function WorkoutSession() {
   const [loading, setLoading] = useState(true);
   const [exercises, setExercises] = useState([]);
   const [notes, setNotes] = useState('');
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [restTimer, setRestTimer] = useState(null);
+  const [now, setNow] = useState(() => Date.now());
+  // Timing is kept as timestamps, never as a counting-down number: phones pause
+  // background tabs (screen lock, Spotify), and a timestamp is right the moment you come back.
+  const [restEndsAt, setRestEndsAt] = useState(null);
+  const [restOver, setRestOver] = useState(false);
+  const [activeMs, setActiveMs] = useState(0);        // training time banked up to lastActiveAt
+  const [lastActiveAt, setLastActiveAt] = useState(() => Date.now());
+  const [clientId, setClientId] = useState(newId);     // lets a retried save never create a duplicate log
+  const [offline, setOffline] = useState(false);
+  const [screenLock, setScreenLock] = useState('');
+  const savingRef = useRef(false); // one save at a time (the "online" event and the retry timer can fire together)
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [isWorkoutComplete, setIsWorkoutComplete] = useState(false);
@@ -41,18 +53,41 @@ export default function WorkoutSession() {
   const [resumed, setResumed] = useState(false);
 
   useEffect(() => {
-    // Clock runs from the real start time, so it stays right after leaving and coming back.
-    const tick = () => setElapsedTime(Math.max(0, Math.round((Date.now() - startedAt) / 1000)));
-    tick();
+    const tick = () => setNow(Date.now());
     const timer = setInterval(tick, 1000);
-    return () => clearInterval(timer);
-  }, [startedAt]);
+    document.addEventListener('visibilitychange', tick);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', tick); };
+  }, []);
 
+  // Session time = active training time. Gaps longer than IDLE_CAP only count IDLE_CAP.
+  const elapsedTime = Math.round((activeMs + Math.min(Math.max(0, now - lastActiveAt), IDLE_CAP)) / 1000);
+  const bump = () => {
+    const t = Date.now();
+    setActiveMs((a) => a + Math.min(Math.max(0, t - lastActiveAt), IDLE_CAP));
+    setLastActiveAt(t);
+  };
+
+  const restLeft = restEndsAt ? Math.max(0, Math.ceil((restEndsAt - now) / 1000)) : null;
   useEffect(() => {
-    if (restTimer === null || restTimer <= 0) return;
-    const interval = setInterval(() => setRestTimer((prev) => (prev <= 1 ? null : prev - 1)), 1000);
-    return () => clearInterval(interval);
-  }, [restTimer]);
+    if (restEndsAt && now >= restEndsAt) {
+      setRestEndsAt(null);
+      setRestOver(true);
+      try { navigator.vibrate?.([300, 150, 300]); } catch { /* not supported (iPhone) */ }
+    }
+  }, [now, restEndsAt]);
+
+  // Keep the screen on while training (Android Chrome, iPhone Safari 16.4+). Re-asked when you come back to the tab.
+  useEffect(() => {
+    if (!('wakeLock' in navigator)) { setScreenLock('unsupported'); return; }
+    let lock = null, alive = true;
+    const ask = async () => {
+      if (document.visibilityState !== 'visible' || !alive) return;
+      try { lock = await navigator.wakeLock.request('screen'); setScreenLock('on'); lock.addEventListener('release', () => alive && setScreenLock('')); } catch { setScreenLock(''); }
+    };
+    ask();
+    document.addEventListener('visibilitychange', ask);
+    return () => { alive = false; document.removeEventListener('visibilitychange', ask); lock?.release?.().catch(() => {}); };
+  }, []);
 
   useEffect(() => {
     const fetchProgram = async () => {
@@ -69,6 +104,10 @@ export default function WorkoutSession() {
             setExercises(draft.exercises);
             setNotes(draft.notes || '');
             setStartedAt(draft.startedAt);
+            if (draft.activeMs !== undefined) { setActiveMs(draft.activeMs); setLastActiveAt(draft.lastActiveAt || draft.startedAt); }
+            else { setActiveMs(0); setLastActiveAt(draft.startedAt); }
+            if (draft.restEndsAt && draft.restEndsAt > Date.now()) setRestEndsAt(draft.restEndsAt);
+            if (draft.clientId) setClientId(draft.clientId);
             setResumed(true);
           } else {
             setExercises(dData.exercises.map((ex) => ({ ...ex, loggedSets: newSets(ex), skipped: false })));
@@ -83,19 +122,21 @@ export default function WorkoutSession() {
   // Keep the in-progress session in this browser on every change.
   useEffect(() => {
     if (!program || !exercises.length || isWorkoutComplete) return;
-    saveDraft(user.id, { programId: program.id, week, day, focus: dayData?.focus || '', exercises, notes, startedAt });
-  }, [user.id, program, week, day, dayData, exercises, notes, startedAt, isWorkoutComplete]);
+    saveDraft(user.id, { programId: program.id, week, day, focus: dayData?.focus || '', exercises, notes, startedAt, activeMs, lastActiveAt, restEndsAt, clientId });
+  }, [user.id, program, week, day, dayData, exercises, notes, startedAt, activeMs, lastActiveAt, restEndsAt, clientId, isWorkoutComplete]);
 
   const formatTime = (seconds) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
 
   const updateSet = (exIdx, setIdx, patch) => {
+    bump();
     setExercises((prev) => prev.map((ex, i) => i !== exIdx ? ex : { ...ex, loggedSets: ex.loggedSets.map((s, j) => (j === setIdx ? { ...s, ...patch } : s)) }));
   };
   const toggleSetComplete = (exIdx, setIdx) => {
     const ex = exercises[exIdx];
     const nowComplete = !ex.loggedSets[setIdx].completed;
     updateSet(exIdx, setIdx, { completed: nowComplete });
-    if (nowComplete) setRestTimer(ex.type === 'Main' ? MAIN_REST : ACC_REST);
+    setRestOver(false);
+    if (nowComplete) setRestEndsAt(Date.now() + (ex.type === 'Main' ? MAIN_REST : ACC_REST) * 1000);
   };
   const skipExercise = (exIdx) => setExercises((prev) => prev.map((ex, i) => (i === exIdx ? { ...ex, skipped: true } : ex)));
 
@@ -127,9 +168,12 @@ export default function WorkoutSession() {
     return { duration: elapsedTime, sets: completedSets, completion, topSets, flags };
   };
 
-  const handleFinishWorkout = async () => {
+  const handleFinishWorkout = async (auto = false) => {
     const anyTicked = exercises.some((ex) => ex.loggedSets.some((s) => s.completed));
-    if (!anyTicked && !window.confirm('No sets ticked yet. Tap ✓ on each set you did so it counts.\n\nSave this session as empty anyway?')) return;
+    if (!auto && !anyTicked && !window.confirm('No sets ticked yet. Tap ✓ on each set you did so it counts.\n\nSave this session as empty anyway?')) return;
+    if (!navigator.onLine) { setOffline(true); setSaveError(''); return; }
+    if (savingRef.current) return;
+    savingRef.current = true;
     setIsSaving(true);
     setSaveError('');
     const s = buildSummary();
@@ -138,19 +182,32 @@ export default function WorkoutSession() {
       const res = await fetch('/api/save-workout', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ programId: program.id, weekNumber: week, dayNumber: day, loggedExercises: exercises, durationSeconds: Math.min(elapsedTime, 4 * 3600), sessionNotes: notes }),
+        body: JSON.stringify({ programId: program.id, weekNumber: week, dayNumber: day, loggedExercises: exercises, durationSeconds: Math.min(elapsedTime, 4 * 3600), sessionNotes: notes, clientId }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || 'Could not save the session');
       clearDraft(user.id);
+      setOffline(false);
       setSummary(s);
       setIsWorkoutComplete(true);
     } catch (err) {
-      setSaveError(err.message);
+      // fetch() throws TypeError when there is no connection — queue it instead of failing.
+      if (err instanceof TypeError || !navigator.onLine) { setOffline(true); setSaveError(''); }
+      else setSaveError(err.message);
     } finally {
+      savingRef.current = false;
       setIsSaving(false);
     }
   };
+
+  // Finished without signal (basement gym): save automatically as soon as the internet is back.
+  useEffect(() => {
+    if (!offline) return;
+    const retry = () => handleFinishWorkout(true);
+    window.addEventListener('online', retry);
+    const t = setInterval(() => { if (navigator.onLine) retry(); }, 30000);
+    return () => { window.removeEventListener('online', retry); clearInterval(t); };
+  }, [offline]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const nextSession = useMemo(() => {
     const weeks = program?.program_snapshot?.weeks || [];
@@ -212,24 +269,34 @@ export default function WorkoutSession() {
             <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Week {week} · {dayData.weekday || `Day ${day}`}</p>
             <p className="text-lg font-bold text-gray-900 tabular-nums">{formatTime(elapsedTime)}</p>
           </div>
-          <button onClick={handleFinishWorkout} disabled={isSaving} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50">{isSaving ? 'Saving...' : 'Finish'}</button>
+          <button onClick={() => handleFinishWorkout(false)} disabled={isSaving || offline} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50">{isSaving ? 'Saving...' : offline ? 'Waiting…' : 'Finish'}</button>
         </div>
         <AnimatePresence>
-          {restTimer !== null && restTimer > 0 && (
+          {restLeft !== null && restLeft > 0 && (
             <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden border-t border-gray-200" style={{ background: 'var(--ll-steel2)' }}>
               <div className="max-w-2xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Rest</p>
-                  <p className="text-3xl font-bold tabular-nums text-gray-900" style={{ fontFamily: "'Archivo Black', sans-serif" }}>{formatTime(restTimer)}</p>
+                  <p className="text-3xl font-bold tabular-nums text-gray-900" style={{ fontFamily: "'Archivo Black', sans-serif" }}>{formatTime(restLeft)}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setRestTimer(restTimer + 60)} className="text-sm font-semibold border border-gray-300 text-gray-800 px-3 py-2 rounded-lg">+1 min</button>
-                  <button onClick={() => setRestTimer(null)} className="text-sm font-semibold border border-gray-300 text-gray-800 px-3 py-2 rounded-lg">Skip</button>
+                  <button onClick={() => setRestEndsAt(restEndsAt + 60000)} className="text-sm font-semibold border border-gray-300 text-gray-800 px-3 py-2 rounded-lg">+1 min</button>
+                  <button onClick={() => setRestEndsAt(null)} className="text-sm font-semibold border border-gray-300 text-gray-800 px-3 py-2 rounded-lg">Skip</button>
                 </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
+        {restOver && (
+          <button type="button" onClick={() => setRestOver(false)} className="w-full text-white text-center py-3 text-base font-bold tracking-wide" style={{ background: 'var(--ll-good)' }}>
+            REST OVER — next set <span className="text-xs font-normal opacity-80">(tap to hide)</span>
+          </button>
+        )}
+        {(offline || screenLock === 'on') && (
+          <p className={`max-w-2xl mx-auto px-4 pb-2 text-xs ${offline ? 'text-amber-700' : 'text-gray-400'}`}>
+            {offline ? 'No internet — the session is safe on this phone and saves by itself when the signal is back.' : 'Screen stays on while you train.'}
+          </p>
+        )}
         {resumed && <p className="max-w-2xl mx-auto px-4 pb-2 text-xs text-green-600">Resumed — your ticked sets were kept.</p>}
       </div>
 
@@ -301,7 +368,7 @@ export default function WorkoutSession() {
         })}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
           <h3 className="text-sm font-semibold text-gray-700 mb-2">Session notes</h3>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="How did it feel? Anything the coach should know?" rows={3} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          <textarea value={notes} onChange={(e) => { bump(); setNotes(e.target.value); }} placeholder="How did it feel? Anything the coach should know?" rows={3} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
       </div>
     </div>
