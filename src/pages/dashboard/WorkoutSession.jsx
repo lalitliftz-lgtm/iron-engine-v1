@@ -224,12 +224,22 @@ export default function WorkoutSession() {
   const skipExercise = (exIdx) => setExercises((prev) => prev.map((ex, i) => (i === exIdx ? { ...ex, skipped: true } : ex)));
   const unskipExercise = (exIdx) => setExercises((prev) => prev.map((ex, i) => (i === exIdx ? { ...ex, skipped: false, skipNote: undefined } : ex)));
   // Rack taken, no machine, pain on one movement: log what was actually done. It stops counting as the competition lift.
+  const [swapFor, setSwapFor] = useState(null); // index of the exercise whose swap box is open
+  const [swapName, setSwapName] = useState('');
   const swapExercise = (exIdx) => {
     const ex = exercises[exIdx];
-    const name = window.prompt(`What are you doing instead of ${ex.originalName || ex.name}?`, '');
-    if (!name || !name.trim()) return;
-    setExercises((prev) => prev.map((e, i) => (i !== exIdx ? e : { ...e, originalName: e.originalName || e.name, name: `${name.trim().slice(0, 50)} (instead of ${e.originalName || e.name})`, lift: null, suggest: null })));
+    const name = swapName.trim().slice(0, 50);
+    const orig = ex.originalName || ex.name;
+    setSwapFor(null); setSwapName('');
+    if (!name) return;
+    if (name.toLowerCase() === orig.toLowerCase()) { undoSwap(exIdx); return; } // "swapped" to the same lift = no swap
+    setExercises((prev) => prev.map((e, i) => (i !== exIdx ? e : {
+      ...e, originalName: orig, originalLift: e.originalName ? e.originalLift : e.lift, name: `${name} (instead of ${orig})`, lift: null, suggest: null,
+    })));
   };
+  const undoSwap = (exIdx) => setExercises((prev) => prev.map((e, i) => (i !== exIdx || !e.originalName ? e : {
+    ...e, name: e.originalName, lift: e.originalLift ?? e.lift, originalName: undefined, originalLift: undefined,
+  })));
   // End a lift early (pain): keep the sets done, drop the rest.
   const stopExercise = (exIdx) => setExercises((prev) => prev.map((e, i) => (i !== exIdx ? e : { ...e, stopped: true, suggest: null, loggedSets: e.loggedSets.filter((x) => x.completed) })));
 
@@ -449,6 +459,13 @@ export default function WorkoutSession() {
                   <p className="text-xs text-gray-500 mt-0.5">{ex.sets} × {ex.reps}{ex.weight ? ` @ ${ex.weight} kg` : ''}{ex.rpe && ex.rpe !== '—' ? ` · RPE ${ex.rpe}` : ''}</p>
                   {plates && <p className="text-[11px] text-gray-400 mt-0.5">Per side: {plates.length ? plates.map((p) => p.w).join(' + ') : 'bar only'}</p>}
                   {ex.note && isMain && <p className="text-xs text-gray-500 mt-1">→ {ex.note}</p>}
+                  {swapFor === exIdx && (
+                    <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); swapExercise(exIdx); }}>
+                      <input autoFocus value={swapName} onChange={(e) => setSwapName(e.target.value)} placeholder="Doing instead… e.g. Leg press" aria-label="Replacement exercise" className="flex-1 min-w-0 h-9 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                      <button type="submit" disabled={!swapName.trim()} className="h-9 px-3 rounded-lg text-sm font-semibold bg-gray-900 text-white disabled:opacity-40">Swap</button>
+                      <button type="button" onClick={() => setSwapFor(null)} className="h-9 px-2 text-sm text-gray-500">Cancel</button>
+                    </form>
+                  )}
                   {ex.skipped && <p className="text-xs text-gray-500 mt-1">Skipped{ex.skipNote ? ` — ${ex.skipNote}` : ''}</p>}
                   {ex.stopped && <p className="text-xs text-amber-700 mt-1">Stopped early — remaining sets dropped.</p>}
                 </div>
@@ -456,7 +473,9 @@ export default function WorkoutSession() {
                   {ex.skipped
                     ? <button onClick={() => unskipExercise(exIdx)} className="text-xs text-gray-700 font-semibold border border-gray-300 px-2 py-1 rounded-md whitespace-nowrap">Undo skip</button>
                     : <button onClick={() => { if (!ex.loggedSets.some((x) => x.completed) || window.confirm(`Skip the rest of ${ex.name}?`)) skipExercise(exIdx); }} className="text-xs text-gray-400 hover:text-gray-900 font-medium border border-gray-200 px-2 py-1 rounded-md whitespace-nowrap">Skip</button>}
-                  {!ex.skipped && !ex.stopped && <button onClick={() => swapExercise(exIdx)} className="text-xs text-gray-400 hover:text-gray-900 font-medium px-2 py-0.5 whitespace-nowrap">Swap</button>}
+                  {!ex.skipped && !ex.stopped && (ex.originalName
+                    ? <button onClick={() => undoSwap(exIdx)} className="text-xs text-gray-700 font-semibold border border-gray-300 px-2 py-1 rounded-md whitespace-nowrap">Undo swap</button>
+                    : <button onClick={() => { setSwapFor(swapFor === exIdx ? null : exIdx); setSwapName(''); }} className="text-xs text-gray-400 hover:text-gray-900 font-medium px-2 py-0.5 whitespace-nowrap">Swap</button>)}
                 </div>
               </div>
               {!ex.skipped && (
