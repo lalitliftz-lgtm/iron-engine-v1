@@ -51,7 +51,8 @@ export const rpeLabel = (rpe) => `RPE ${rpe}${RPE_WORDS[rpe] ? ` (${RPE_WORDS[rp
    Base/Accumulation: 70–80%, 6–8 reps, RPE 7–8, accessories 3–4 × 10–15
    Strength/Intensification: 80–90%, 2–5 reps, RPE 8–9, accessories 2–3 × 5–8
    Peaking/Realization: 90%+, 1–3 reps, competition lifts only
-   Deload: ~50–60% volume, 60–70% intensity, RPE 6
+   Deload (both sources agree): load stays at the LOWEST load of the wave, reps drop to the
+   lowest reps of the wave, sets drop to ~⅔ → volume about half, RPE ~2 lower. Not a % crash.
    Each week: sets/reps/pct for squat+bench, `dl` override for deadlift
    (highest fatigue cost → fewer sets), `acc` = accessories per day,
    `extras` = practice singles added to the primary slot. */
@@ -63,7 +64,7 @@ export const SCHEMES = {
       { sets: 4, reps: 8, pct: 72.5, rpe: 7, dl: { sets: 3, reps: 5, pct: 77.5 }, acc: 4 },
       { sets: 4, reps: 7, pct: 75, rpe: 7.5, dl: { sets: 3, reps: 5, pct: 80 }, acc: 4 },
       { sets: 4, reps: 6, pct: 77.5, rpe: 8, dl: { sets: 3, reps: 4, pct: 82.5 }, acc: 4 },
-      { sets: 3, reps: 5, pct: 60, rpe: 6, dl: { sets: 2, reps: 3, pct: 60 }, acc: 2, deload: true },
+      { sets: 2, reps: 6, pct: 72.5, rpe: 6, dl: { sets: 2, reps: 4, pct: 77.5 }, acc: 2, deload: true },
     ],
   },
   str: {
@@ -73,16 +74,16 @@ export const SCHEMES = {
       { sets: 4, reps: 4, pct: 82.5, rpe: 8, dl: { sets: 3, reps: 3, pct: 85 }, acc: 3 },
       { sets: 4, reps: 3, pct: 85, rpe: 8, dl: { sets: 3, reps: 2, pct: 87.5 }, acc: 3 },
       { sets: 3, reps: 2, pct: 87.5, rpe: 8.5, dl: { sets: 2, reps: 1, pct: 90 }, acc: 2, note: "Last set: bar speed good → +2.5 kg allowed. Grind = stop." },
-      { sets: 3, reps: 3, pct: 65, rpe: 6, dl: { sets: 2, reps: 2, pct: 65 }, acc: 2, deload: true },
+      { sets: 2, reps: 2, pct: 82.5, rpe: 6, dl: { sets: 2, reps: 1, pct: 85 }, acc: 2, deload: true },
     ],
   },
   peak: {
     label: "Peaking Block (Realization)",
-    range: "85–95% · 1–3 reps · competition lifts only · meet rehearsal",
+    range: "85–90% · 3 → 2 → 1 reps · competition lifts first · meet rehearsal",
     weeks: [
-      { sets: 3, reps: 2, pct: 85, rpe: 8, dl: { sets: 2, reps: 2, pct: 85 }, acc: 2, extras: [{ reps: 1, pct: 90, note: "Practice single — competition commands, full setup" }] },
-      { sets: 2, reps: 2, pct: 87.5, rpe: 8.5, dl: { sets: 2, reps: 1, pct: 87.5 }, acc: 1, extras: [{ reps: 1, pct: 92.5, note: "2nd-attempt feel — only if bar speed looks good" }] },
-      { sets: 2, reps: 1, pct: 90, rpe: 8.5, dl: { sets: 1, reps: 1, pct: 90 }, acc: 1, extras: [{ reps: 1, pct: 95, note: "3rd-attempt feel — ONLY if the 90% single moved fast; otherwise stop at 90 (your opener on any day)" }] },
+      { sets: 3, reps: 3, pct: 85, rpe: 8, dl: { sets: 2, reps: 3, pct: 85 }, acc: 2, peak: true, note: "Competition commands on every rep — squat 'rack', bench 'start/press/rack', deadlift 'down'." },
+      { sets: 3, reps: 2, pct: 87.5, rpe: 8, dl: { sets: 2, reps: 2, pct: 87.5 }, acc: 1, peak: true, note: "Competition commands on every rep." },
+      { sets: 3, reps: 1, pct: 90, rpe: 8, dl: { sets: 2, reps: 1, pct: 90 }, acc: 1, peak: true, note: "90% singles ≈ your opener zone. Should feel like RPE 7–8. A grind here = open lighter. No max attempts in the gym." },
       { sets: 2, reps: 2, pct: 72.5, rpe: 6, dl: { sets: 1, reps: 2, pct: 70 }, acc: 0, deload: true, taper: true },
     ],
   },
@@ -249,21 +250,25 @@ export const TEMPLATES = {
 };
 
 const SUPPORT_DAYS = [
-  { ...T("Support Day — Technique + Accessories", [S("bench", "tech"), S("squat", "tech")], "supportDay"), optional: true, support: true },
-  { ...T("Support Day — Deadlift Technique + Mobility", [S("deadlift", "tech")], "supportDay"), optional: true, support: true },
+  { ...T("Support Day — Technique + Accessories", [{ ...S("bench", "tech"), support: true }, { ...S("squat", "tech"), support: true }], "supportDay"), optional: true, support: true },
+  { ...T("Support Day — Deadlift Technique + Mobility", [{ ...S("deadlift", "tech"), support: true }], "supportDay"), optional: true, support: true },
 ];
 
 /** Training days ≠ stress days. 5–6 days = 4–5 core stress days + support days
  *  (light technique, accessories, mobility) — the Indian 6-day-gym context. */
 export function dayTemplates(days, exp, focus) {
   if (exp === "beg") {
+    // Novice week (Helms novice PL structure + System 2.0 skill-first): one volume day, one technique +
+    // deadlift day, one strength day. Each day progresses against the same day last week.
     const base = [
-      T("Full Body A", [S("squat", "beg"), S("bench", "beg")], "pullA"),
-      T("Full Body B", [S("squat", "begLight"), S("deadlift", "begDL"), S("bench", "begPause")], "pullB"),
-      T("Full Body C", [S("squat", "beg"), S("bench", "beg")], "pullC"),
+      T("Volume Day — Squat + Bench", [S("squat", "begVol"), S("bench", "begVol")], "pullA"),
+      T("Technique Day — Bench + Deadlift", [S("bench", "begTech"), S("deadlift", "begDL")], "pullB"),
+      T("Strength Day — Squat + Bench", [S("squat", "begStr"), S("bench", "begStr")], "pullC"),
     ];
     const out = [...base];
-    for (let i = 3; i < days; i++) out.push({ ...T("Technique + GPP (Optional)", [], "gpp"), optional: true, support: true });
+    // 4+ days: the 4th day carries the accessories so the main-lift days stay short (Helms 4-day novice option).
+    if (days >= 4) out.push(T("Accessory Day — Back, Shoulders, Single-Leg", [], "begAcc"));
+    for (let i = 4; i < days; i++) out.push({ ...T("Technique + GPP (Optional)", [], "gpp"), optional: true, support: true });
     return out;
   }
   const t = TEMPLATES[focus] || TEMPLATES.bal;
@@ -329,6 +334,12 @@ export const ACC = {
     { name: "Face Pull + Band Pull-Apart", sr: "3 × 15", rpe: "RPE 7" },
     { name: "Core: Dead Bug / Plank", sr: "3 × 30–45 sec", rpe: "—" },
     { name: "Mobility circuit (hips, ankles, T-spine)", sr: "10–15 min", rpe: "easy" },
+  ],
+  begAcc: [
+    { name: "Bulgarian Split Squat or Step-up", sr: "3 × 8/leg", rpe: "RPE 8" },
+    { name: "Chest-Supported Row", sr: "4 × 10", rpe: "RPE 8" },
+    { name: "Overhead Press (DB or Barbell)", sr: "4 × 10", rpe: "RPE 8" },
+    { name: "Lat Pulldown or Pull-ups", sr: "4 × 10", rpe: "RPE 8" },
   ],
   pullA: [
     { name: "Barbell Row", sr: "3 × 8–10", rpe: "RPE 8" },
@@ -519,32 +530,49 @@ export function daysToMeet(profile) {
   return Math.ceil((new Date(profile.competition_date) - new Date()) / 86400000);
 }
 
-export function meetPhase(days, exp) {
+/** Days from today until the next Monday (0 when today is Monday) — training weeks run Monday → Sunday. */
+export function leadDays(now = new Date()) {
+  return (8 - now.getDay()) % 7;
+}
+
+export function meetPhase(days, exp, lead = leadDays()) {
   if (days === null || days === undefined) return { phase: "none" };
   if (days <= 0 && days > -14) return { phase: "post", reason: "Meet just happened — one deload week (volume −50%, light technique), then a Base block. No heavy work this week." };
   if (days <= -14) return { phase: "none", reason: "Meet date is in the past — planning a normal block. Update the date when the next meet is booked." };
-  // Full template weeks that fit before the final ~7–14 calendar days (taper sessions → activation → light single → rest → meet).
-  const fullWeeks = Math.max(0, Math.floor((days - 1) / 7) - 1);
-  const finalDays = days - fullWeeks * 7;
-  if (days <= 5) return { phase: "meetweek", fullWeeks: 0, finalDays, reason: `Meet in ${days} day${days === 1 ? "" : "s"} — this is MEET WEEK. No new block, no changes, no PR attempts in the gym. One light session at most, then rest. Rest is training now.` };
-  if (days <= 14) return { phase: "taper", fullWeeks: 0, finalDays, reason: `Meet in ${days} days — TAPER into the meet. Volume −40–50%, 70–75%, nothing above 75%, nothing new. Last 2 days: complete rest.` };
+  // Full Monday-to-Sunday weeks that fit before the final ~7–14 calendar days (taper sessions → opener practice → singles → primer → meet).
+  // Days before the first Monday are a lead-in (rest / light technique) so every planned week lines up with the real calendar.
+  const fullWeeks = Math.max(0, Math.floor((days - lead - 1) / 7) - 1);
+  const finalDays = days - lead - fullWeeks * 7;
+  if (days <= 5) return { phase: "meetweek", fullWeeks: 0, finalDays, reason: `Meet in ${days} day${days === 1 ? "" : "s"} — MEET WEEK. Only light singles (80% → 77.5%, RPE ≤ 6) to stay sharp, nothing else, day before off. No changes, no PRs in the gym.` };
+  if (days <= 14) return { phase: "taper", fullWeeks: 0, finalDays, reason: `Meet in ${days} days — TAPER. Volume down 50–70%, intensity stays (singles/doubles at 77.5–85%), competition lifts trained together, accessories half. Opener practice ~7 days out, then meet week.` };
   if (exp === "beg") {
-    if (days <= 35) return { phase: "beginner", fullWeeks, finalDays, reason: `Meet in ${days} days — beginner stays on linear progression for ${fullWeeks} week${fullWeeks === 1 ? "" : "s"}, then the plan tapers into the meet. Practice commands and pauses every session.` };
+    if (days <= 35) return { phase: "beginner", fullWeeks, finalDays, lead, reason: `Meet in ${days} days — beginner stays on linear progression for ${fullWeeks} week${fullWeeks === 1 ? "" : "s"}, then the plan tapers into the meet. Practice commands and pauses every session.` };
     return { phase: "beginner", fullWeeks: 4, finalDays: 0, reason: `Meet in ${days} days — beginner stays on linear progression; the taper comes in the last block before the meet.` };
   }
-  if (days <= 35) return { phase: "peak", fullWeeks, finalDays, reason: `Meet in ${days} days — PEAKING: ${fullWeeks} peaking week${fullWeeks === 1 ? "" : "s"}, then taper into the meet. Competition lifts only, accessories minimal.` };
+  if (days <= 35) return { phase: "peak", fullWeeks, finalDays, lead, reason: `Meet in ${days} days — PEAKING: ${fullWeeks} peaking week${fullWeeks === 1 ? "" : "s"}, then taper into the meet. Competition lifts only, accessories minimal.` };
   if (days <= 70) return { phase: "strength", fullWeeks: 4, finalDays: 0, reason: `Meet in ${days} days — STRENGTH block now (heavy 2–5s); peaking starts ~5 weeks out.` };
   return { phase: "base", fullWeeks: 4, finalDays: 0, reason: `Meet in ${days} days — enough time for a BASE block first (muscle + work capacity), strength and peaking later.` };
 }
 
 /* ---------------- Lift builders ---------------- */
-const BEG_START = { squat: 70, bench: 70, deadlift: 72.5 };
-const BEG_INC = { squat: 2.5, bench: 1.25, deadlift: 2.5 };
+/* Novice: start a little under the textbook % ("leave something in the tank") and add load every week on each day.
+   Helms novice jumps: squat/deadlift +5 kg, bench +2.5 kg per week; after a second stall the jump halves. */
+const BEG_DAY = {
+  begVol: { sets: 3, reps: 8, pct: 65, rpe: "RPE 6–8", label: "" },
+  begTech: { sets: 3, reps: 3, pct: 75, rpe: "RPE ≤ 6", label: " (Technique)" },
+  begDL: { sets: 3, reps: 3, pct: 77.5, rpe: "RPE ≤ 8", label: "" },
+  begStr: { sets: 3, reps: 4, pct: 77.5, rpe: "RPE ≤ 8", label: "" },
+};
+const BEG_INC = { squat: 5, bench: 2.5, deadlift: 5 };
 
 function stickingFor(form) {
   if (form.weak === "none" || !form.sticking) return null;
-  const st = STICKING[form.weak]?.[form.sticking];
+  let st = STICKING[form.weak]?.[form.sticking];
   if (!st) return null;
+  if (form.weak === "deadlift" && form.sticking === "floor" && form.dlStance === "sumo") {
+    // Deficits change a sumo pull too much; pause just off the floor instead.
+    st = WP(st.l, [{ name: "Paused Sumo Deadlift (just off the floor)", off: -17.5 }, { name: "Sumo Deadlift vs Bands / Speed Pulls (light)", off: -25 }], st.accessories, "Weak point: the floor (sumo) — wedge, leg drive and hips set before the bar moves", st.limiters);
+  }
   const idx = (v, arr) => { const n = Number(v); return Number.isInteger(n) && n >= 0 && n < arr.length ? n : 0; };
   const variation = st.variations[idx(form.variationIdx, st.variations)];
   const acc = st.accessories[idx(form.accIdx, st.accessories)];
@@ -564,42 +592,38 @@ export function buildLift(slot, wk, form, maxes, rec, scheme) {
     note: note || null, lift,
   });
 
-  // ---- Beginner linear: fixed kg jumps while RPE ≤ 8 (System 2.0 / A–Z)
-  if (role === "beg" || role === "begLight" || role === "begDL" || role === "begPause") {
-    const light = role === "begLight", pause = role === "begPause", dl = role === "begDL";
-    // 1.25 kg bench jumps need 0.625 kg micro-plates — only assume them in a commercial gym.
-    const micro = lift === "bench" && form.equipment === "commercial";
-    const rnd = micro ? round125 : round25;
-    const liftInc = micro ? BEG_INC.bench : lift === "bench" ? 2.5 : BEG_INC[lift];
-    const startPct = light ? BEG_START[lift] - 7.5 : pause ? BEG_START[lift] - 10 : BEG_START[lift];
-    const inc = (light || pause ? 0.5 : 1) * liftInc;
-    const base = max ? rnd((startPct / 100) * max) : null;
-    let kg = base ? rnd(base + wk * inc) : null;
-    let sets = dl ? 2 : light || pause ? 2 : 3;
-    let reps = 5;
+  // ---- Beginner: weekly load jumps per day while every rep stays clean (Helms novice + System 2.0)
+  if (BEG_DAY[role]) {
+    const cfg = BEG_DAY[role];
+    const inc = BEG_INC[lift];
+    const base = max ? round25((cfg.pct / 100) * max) : null;
+    let kg = base ? round25(base + wk * inc) : null;
+    let sets = cfg.sets, reps = cfg.reps;
     const notes = [];
     if (w.taper || w.meetweek) {
-      // Beginner taper: same lifts, lighter, fewer sets — practice the commands.
-      kg = base ? rnd(base * 0.9) : null;
-      sets = 2; reps = w.meetweek ? 2 : 3;
-      notes.push(w.meetweek ? "Meet week — light and crisp. Pause every squat/bench rep like on the platform." : "Taper — lighter than last week on purpose. Clean reps, full commands, walk out feeling fresh.");
+      kg = base ? round25(base * 0.95) : null;
+      sets = 2; reps = Math.min(reps, 3);
+      notes.push("Taper — lighter on purpose. Clean reps, full competition commands, walk out feeling fresh.");
     }
     const pct = max && kg ? Math.round((kg / max) * 200) / 2 : null;
-    const name = pause ? PAUSED[lift] : LIFT_NAMES[lift] + (light ? " (Light)" : "");
-    const rpe = w.taper || w.meetweek ? "RPE 6" : light ? "RPE 6–7" : pause ? "RPE 7" : "RPE ≤ 8";
-    if (wk === 0 && !light && !pause && !w.taper) notes.push(`+${liftInc} kg each week while every rep stays clean and RPE ≤ 8. Miss reps → repeat the weight. Miss twice → −10%, then half the jump.${lift === "bench" && !micro ? " Have 0.5 kg micro-plates? Use +1.25 kg jumps instead." : ""}`);
-    if (light) notes.push("Technique focus — same setup every rep, bar speed first");
-    if (dl) notes.push("Deadlift carries a high fatigue cost — 2 clean sets is enough");
-    if (!max) notes.push("No 1RM needed: pick a weight you can do for 5 clean reps with 3 reps left, then add 2.5 kg weekly");
-    return mk(name, sets, reps, pct, rpe, notes.join(" · ") || null, kg);
+    if (role === "begTech") notes.push("Technique day: always 4–6 reps left in the tank. Same setup, same pause, every rep.");
+    if (role === "begDL") notes.push("One heavy-ish pull a week is enough at this stage — clean reps, no grinding.");
+    if (wk === 0 && !w.taper && role !== "begTech") notes.push(`+${inc} kg next week on this day if every rep was clean. Missed reps → same weight next week. Missed two weeks in a row → −10% for one week, then back to that weight. Stall again → jumps of +${inc / 2} kg.`);
+    if (!max) notes.push(`No max needed: pick a weight you can do for ${reps} clean reps with ${role === "begTech" ? "4–6" : "2–3"} reps left, then add ${inc} kg a week.`);
+    return mk(LIFT_NAMES[lift] + cfg.label, sets, reps, pct, w.taper || w.meetweek ? "RPE 6" : cfg.rpe, notes.join(" · ") || null, kg);
   }
 
   const notes = [];
   const base = lift === "deadlift" && w.dl ? w.dl : w;
 
   if (role === "tech") {
-    const pct = w.deload ? 55 : w.taper ? 60 : 62.5;
-    return mk(LIFT_NAMES[lift] + " (Technique/Speed)", 3, 3, pct, "RPE 5–6", "Light technique work — competition commands, same setup every rep, maximum bar speed");
+    // Heavy technique work: heavy enough to be real practice, light enough to recover from (always 4–6 reps in the tank).
+    const hurt = (lift === "squat" && (form.injuries?.knee || form.injuries?.back)) || (lift === "deadlift" && form.injuries?.back) || (lift === "bench" && form.injuries?.shoulder);
+    const support = slot.support;
+    let pct = w.deload ? 75 : 80;
+    if (hurt) pct = Math.min(pct, 72.5);
+    const sets = w.deload ? 2 : 3, reps = support || lift === "deadlift" ? 1 : 2;
+    return mk(LIFT_NAMES[lift] + (support ? " (Technique singles)" : " (Technique)"), sets, reps, pct, "RPE 4–5", "Technique work, not a workout: competition commands, identical setup every rep, maximum intent on the way up. Always 4–6 reps left in the tank.");
   }
   if (role === "activation") {
     return mk(LIFT_NAMES[lift] + " (Activation)", 2, 2, 60, "RPE 5", "Meet week — grease the groove, nothing heavy. Feel the commands.");
@@ -616,6 +640,11 @@ export function buildLift(slot, wk, form, maxes, rec, scheme) {
     let capped = false;   // the load was actually lowered → no "+2.5 kg" notes, RPE re-derived
     let noExtras = false; // heavy singles removed (pain flag / technique / estimated max)
     const cap = (limit, why, soft) => { noExtras = true; if (pct > limit) { pct = limit; capped = true; notes.push(why); } else if (soft) notes.push(soft); };
+    // Event type: a lift that is not on the platform is MAINTAINED during peaking, not peaked.
+    if (w.peak && form.compLifts && !form.compLifts.includes(lift)) {
+      pct = Math.min(pct, 80); sets = Math.max(2, sets - 1); rpe = Math.min(rpe, 7);
+      return mk(LIFT_NAMES[lift] + " (maintenance)", sets, Math.max(reps, 3), pct, `RPE ${rpe}`, `Not competed — kept at a maintenance dose so all recovery goes to your ${form.compLifts.map((l) => LIFT_NAMES[l]).join(" + ")}.`);
+    }
     if (form.weak === lift && !w.deload && weakType === "strength") {
       sets += 1;
       notes.push(stick ? stick.note : "+1 set (weakest lift — extra volume)");
@@ -640,7 +669,7 @@ export function buildLift(slot, wk, form, maxes, rec, scheme) {
       rpe = Math.min(rpe, rpeFor(pct, reps));
     }
     if (w.note && !w.deload && !noExtras) notes.push(w.note);
-    if (w.taper) notes.push("Taper — nothing above 75%. Freshness is the goal.");
+    if (w.taper) notes.push("Taper — volume down, intensity stays. Crisp, never hard.");
     else if (w.deload) notes.push("Deload — the weight will feel light. Keep it light.");
     const realism = pct ? rpeFor(pct, reps) : null;
     if (realism && !w.deload && !w.extras && !capped && Math.abs(realism - rpe) >= 1.5) notes.push(`If this feels ≤ RPE ${realism}, the % is light for you today — add 2.5 kg. RPE is the final judge.`);
@@ -654,8 +683,10 @@ export function buildLift(slot, wk, form, maxes, rec, scheme) {
   if (role === "secondary") {
     const sets = Math.max(2, base.sets - 1);
     const reps = Math.min(base.reps + 2, 8);
-    const pct = Math.max(67.5, w.deload ? base.pct - 5 : base.pct - 10);
-    return mk(LIFT_NAMES[lift], sets, reps, pct, `RPE ${Math.max(6, Math.min(w.rpe - 1, rpeFor(pct, reps)))}`, "Secondary slot — volume work, don't grind reps");
+    let pct = Math.max(67.5, base.pct - 10);
+    const upright = lift === "squat" && form.squatBar === "low";
+    if (upright) pct -= 5; // high-bar runs ~5–10% below a low-bar max
+    return mk(upright ? "High-Bar Squat (upright — quads, hips get a break)" : LIFT_NAMES[lift], sets, reps, pct, `RPE ${Math.max(6, Math.min(w.rpe - 1, rpeFor(pct, reps)))}`, "Secondary slot — volume work, don't grind reps");
   }
 
   // paused / variation slot — dropped in deload and taper (nothing new, nothing extra)
@@ -675,17 +706,26 @@ function weekPlan(form, meet) {
   // Returns the list of week schemes with phase labels. Length varies with the meet.
   const goal = SCHEMES[form.goal] ? form.goal : "str";
   const P = SCHEMES.peak.weeks;
+  // Meet date not confirmed yet: no taper can be dated. Peak toward the earliest likely date, then hold a
+  // "ready" pattern (heavy-ish, low volume) until the real date is known — then the engine builds the taper.
+  const READY = { sets: 3, reps: 2, pct: 85, rpe: 7, dl: { sets: 2, reps: 2, pct: 85 }, acc: 2, label: "Ready Week (date not confirmed)", note: "Holding pattern until the meet date is confirmed: heavy enough to stay sharp, light enough to stay fresh. Update the date the moment it's announced." };
+  if (form.meetApprox && ["peak", "taper", "meetweek"].includes(meet?.phase)) {
+    const peakWeeks = meet.phase === "peak" && meet.fullWeeks >= 1 ? (meet.fullWeeks >= 3 ? [P[0], P[1], P[2]] : meet.fullWeeks === 2 ? [P[1], P[2]] : [P[2]]) : [];
+    return { weeks: [...peakWeeks, READY, READY], blockLabel: "Peak & Hold (meet date not confirmed)" };
+  }
   const begWeeks = (n) => SCHEMES.hyp.weeks.slice(0, n).map((w) => ({ ...w, deload: false, acc: 2 }));
   switch (meet?.phase) {
     case "meetweek": return { weeks: [], final: true, blockLabel: "Meet Week" };
     case "taper": return { weeks: [], final: true, blockLabel: "Taper → Meet" };
     case "peak": {
-      const n = Math.min(3, Math.max(1, meet.fullWeeks)); // peaking weeks before the taper
+      if (meet.fullWeeks < 1) return { weeks: [], final: true, blockLabel: "Taper → Meet" }; // no room for a full peaking week once the calendar is lined up
+      const n = Math.min(3, meet.fullWeeks); // peaking weeks before the taper
       const peakWeeks = n === 1 ? [P[2]] : n === 2 ? [P[1], P[2]] : [P[0], P[1], P[2]];
       return { weeks: peakWeeks, final: true, blockLabel: SCHEMES.peak.label };
     }
     case "beginner":
-      return meet.finalDays ? { weeks: begWeeks(Math.max(1, meet.fullWeeks)), final: true, blockLabel: "Beginner Linear → Meet", goal: "beg" } : { weeks: begWeeks(4), blockLabel: "Beginner Linear Block", goal: "beg" };
+      if (meet.finalDays && meet.fullWeeks < 1) return { weeks: [], final: true, blockLabel: "Taper → Meet" };
+      return meet.finalDays ? { weeks: begWeeks(meet.fullWeeks), final: true, blockLabel: "Beginner Linear → Meet", goal: "beg" } : { weeks: begWeeks(4), blockLabel: "Beginner Linear Block", goal: "beg" };
     case "strength": return { weeks: SCHEMES.str.weeks, blockLabel: SCHEMES.str.label, goal: "str" };
     case "base": return { weeks: SCHEMES.hyp.weeks, blockLabel: SCHEMES.hyp.label, goal: "hyp" };
     case "post": return { weeks: [{ ...SCHEMES.hyp.weeks[3], label: "Post-meet Deload" }, ...SCHEMES.hyp.weeks.slice(0, 3)], blockLabel: "Post-meet Recovery → Base" };
@@ -695,42 +735,73 @@ function weekPlan(form, meet) {
   }
 }
 
-/** The last days before a meet are laid out from the meet DATE, not from a template:
- *  taper sessions on the lifter's normal training days while ≥ 6 days out, activation 5 days out,
- *  one light single 3 days out, complete rest the last 2 days, then the meet. Beginners taper on their own template. */
+/** The last ~14 days before a meet are laid out from the meet DATE, not from a template.
+ *  Taper principle: cut VOLUME 50–70%, keep INTENSITY (no more than ~10% lower), all three lifts together,
+ *  low reps at 77.5–85% so RPE stays low; accessories half the sets. ~7 days out: opener practice
+ *  (singles ≈ 90%, RPE 7.5–8.5). Meet week: singles at 82.5% → 80% → a 77.5% primer 2 days out, day before off. */
 function finalStretch(startOffset, form, maxes, rec, tmpl, wdays) {
   const D = form.meetDays;
-  const taperScheme = { ...SCHEMES.peak.weeks[3], label: "Taper" };
-  const meetScheme = { meetweek: true, deload: true, sets: 2, reps: 2, pct: 60, rpe: 5, acc: 0 };
+  const beg = form.exp === "beg";
+  const comp = form.compLifts || ["squat", "bench", "deadlift"];
+  const on = (l) => comp.includes(l);
+  const platform = comp.map((l) => LIFT_NAMES[l]).join(" + ");
+  const kgOf = (lift, pct) => (maxes[lift] ? round25((pct / 100) * maxes[lift]) : null);
+  const single = (lift, sets, pct, rpe, note) => ({ name: LIFT_NAMES[lift], sets, reps: 1, pct, kg: kgOf(lift, pct), rpe, note: note || null, lift });
   const taperDays = [], meetDays = [];
+  let taperIdx = 0, openerDone = false;
   for (let off = Math.max(0, startOffset); off <= D; off++) {
     const date = new Date(Date.now() + off * 86400000);
     const weekday = ALL_DAYS[(date.getDay() + 6) % 7];
     const dateLabel = date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
     const before = D - off;
     const day = (title, main, extra = {}) => ({ weekday, date: dateLabel, title, optional: false, main, acc: [], ...extra });
-    if (before === 0) meetDays.push(day("MEET DAY", [], { meetDay: true, note: "Warm-up to opener: bar → 40% ×4 → 60% ×3 → 80% ×2 → 90% ×1 → 5–10 min → Attempt 1. Nothing new today." }));
-    else if (before === 5) meetDays.push(day("Activation", ["squat", "bench", "deadlift"].map((l) => buildLift(S(l, "activation"), 0, form, maxes, rec, meetScheme))));
-    else if (before === 3) meetDays.push(day("Light Singles + Commands", ["squat", "bench"].map((l) => buildLift(S(l, "primer"), 0, form, maxes, rec, meetScheme))));
-    else if (before >= 6) {
+    if (before === 0) {
+      meetDays.push(day(`MEET DAY — ${platform}`, [], { meetDay: true, note: `On the platform: ${platform}. Warm-up to opener: bar → 40% ×4 → 60% ×3 → 80% ×2 → 90% ×1 → 5–10 min → Attempt 1. Nothing new today.` }));
+    } else if (before === 1) {
+      continue; // day before: off
+    } else if (before === 2) {
+      const primer = ["squat", "bench"].filter(on);
+      const list = primer.length ? primer : comp; // deadlift-only lifter: one light pull is the primer
+      meetDays.push(day("Primer — one light single", list.map((l) => single(l, 1, beg ? 72.5 : l === "deadlift" ? 70 : 77.5, "RPE ≤ 5", "Primer 48 h out: one crisp single, bar speed only. Leave feeling strong, not tired.")), {}));
+    } else if (before === 3 || before === 4) {
+      if (!meetDays.some((d) => d.title.startsWith("Singles @ 80"))) meetDays.push(day("Singles @ 80% — commands", comp.map((l) => single(l, l === "deadlift" ? 1 : 2, beg ? 75 : 80, "RPE 4–6", l === "deadlift" ? "One crisp pull, done" : "Competition commands on every rep"))));
+    } else if (before === 5) {
+      meetDays.push(day(`Singles @ 82.5% — ${platform}`, comp.map((l) => single(l, l === "deadlift" ? 2 : 3, beg ? 77.5 : 82.5, "RPE 5–7", l === "deadlift" && comp.length > 1 ? "Deadlift fewer sets — highest fatigue cost" : null))));
+    } else if (before >= 6 && before <= 8 && !openerDone && (wdays.includes(weekday) || before === 6)) {
+      // Opener practice ~7 days out: work up to the planned openers (≈90%), RPE 7.5–8.5, one single each, then nothing.
+      openerDone = true;
+      taperDays.push(day("Opener practice — work up to your openers", comp.map((l) => single(l, 1, beg ? 85 : 90, "RPE 7.5–8.5", "This is your opener rehearsal: same warm-up ladder as meet day (40 → 60 → 80 → 90%). One single, judge the speed, stop.")), {}));
+    } else if (before >= 6 && !openerDone && wdays.includes(weekday)) {
+      // Taper sessions (opener practice is the last session of the taper — nothing heavy after it): all three lifts, 1–3 reps at 77.5–85%, volume 50–70% down, accessories half.
       const di = wdays.indexOf(weekday);
-      const t = di >= 0 ? tmpl[di] : null;
+      const t = tmpl[di];
       if (!t || t.support) continue;
-      const main = t.slots.map((sl) => buildLift(sl, 0, form, maxes, rec, taperScheme)).filter(Boolean);
-      if (main.length) taperDays.push(day(t.title, main));
+      const variant = taperIdx++ % 2; // alternate doubles @ 80 and triples @ 77.5 so no two sessions are identical
+      const reps = variant === 0 ? 2 : 3, pct = (variant === 0 ? 80 : 77.5) - (beg ? 5 : 0);
+      const main = [];
+      for (const l of ["squat", "bench", "deadlift"]) {
+        if (on(l)) main.push({ ...single(l, l === "deadlift" ? 2 : 3, pct, "RPE 6–7"), reps });
+        else if (before >= 8) main.push({ ...single(l, 2, 75, "RPE ≤ 6", "Not competed — light maintenance only, then it disappears until after the meet."), name: `${LIFT_NAMES[l]} (maintenance)`, reps: 3 });
+      }
+      if (!main.length) continue;
+      main[0].note = main[0].note || "Taper: intensity stays, volume halves. Low reps keep the RPE low — this should feel crisp, never hard.";
+      // Bench-only lifters don't need leg/hinge accessories in the taper.
+      const accPool = applyEquipment(applySwaps([...(ACC[t.acc] || [])], form.injuries), form.equipment).filter((a) => on("squat") || on("deadlift") || !["lower", "hinge"].includes(accBucket(a.name)));
+      const acc = accPool.slice(0, 2).map((a) => ({ ...a, sr: a.sr.includes("×") ? a.sr.replace(/^\d+/, "2") : a.sr, rpe: a.rpe === "—" ? a.rpe : "RPE 7" }));
+      taperDays.push(day(`Taper — ${comp.length === 3 ? "all three lifts" : platform} (${variant === 0 ? "doubles" : "triples"})`, main, { acc }));
     }
   }
   const restOf = (days) => ALL_DAYS.filter((d) => !days.some((x) => x.weekday === d));
   const out = [];
-  if (taperDays.length) out.push({ label: "Taper", deload: false, taper: true, phase: "Taper", days: taperDays, restDays: restOf(taperDays), notes: ["Taper: same lifts, 70–75%, half the sets, no accessories. You should leave every session feeling you could have done much more — that is the point."] });
+  if (taperDays.length) out.push({ label: "Taper", deload: false, taper: true, phase: "Taper", days: taperDays, restDays: restOf(taperDays), notes: [`Taper: main-lift volume down 50–70%, loads stay at 77.5–85% (never more than ~10% below the block), ${comp.length === 3 ? "all three lifts together" : `${platform} ${comp.length === 1 ? "gets" : "get"} the work; the other lifts fade out`}, accessories at half the sets. Ends with opener practice ~7 days out.`] });
   const meetWeekday = meetDays.at(-1)?.weekday;
   out.push({ label: "Meet Week", deload: true, meetWeek: true, phase: "Meet Week", days: meetDays, restDays: restOf(meetDays), notes: [`Meet day: ${meetWeekday}. ` + MEET_WEEK_NOTES[0], ...MEET_WEEK_NOTES.slice(1)] });
   return out;
 }
 const MEET_WEEK_NOTES = [
-  "Activation 5 days out, one light single 3 days out, then COMPLETE REST the last 2 days. Rest is training now.",
+  "Singles at 82.5% five days out, singles at 80% three to four days out, one 77.5% primer 48 h out, the day before OFF. Intensity stays, volume is tiny — that is what lets strength show up on the platform.",
   "Nothing new on meet day: same belt, same shoes, same setup, same warm-up you trained with.",
-  "Attempts: 1st = the lift you make on any day (~90%). 2nd = your real lift (~95–100%). 3rd = small PR only if 1 and 2 were clean.",
+  "Attempts: 1st = your current 3RM (~90%, a lift you make on any day). 2nd = your current 2RM (~95–97%). 3rd = the next small PR (+2.5 kg) only if it is there; otherwise a conservative jump. Build the biggest TOTAL, not three lift PRs.",
   "Warm-up to opener: 4×1 @40% → 3×1 @60% → 2×1 @80% → 1×1 @90% → 5–10 min rest → Attempt 1.",
   "Between lifts: walk 2–3 min, eat (carbs + protein), hydrate, 10–15 min calm, 5-min activation before the next lift.",
 ];
@@ -753,16 +824,44 @@ export function buildProgram(form, maxes) {
       else { const last = [...tmpl].reverse().find((d) => !d.support); if (last) last.slots.push(S(form.weak, "paused")); }
     }
   }
+  // Deadlift twice a week (one heavy day + one technique-singles day), as in the intermediate/advanced
+  // structure — but only once when recovery is poor, fatigue is the issue, or the back is flagged.
+  let dlNote = null;
+  const dlSlots = tmpl.reduce((n, d) => n + d.slots.filter((x) => x.lift === "deadlift").length, 0);
+  if (!isBeg && dlSlots < 2) {
+    const tired = rec.level === "poor" || (form.weakType || "strength") === "fatigue" || form.injuries?.back || form.cutting === "weightclass";
+    if (tired) dlNote = "Deadlift stays at 1× this week-plan: recovery is low (sleep/stress, fatigue, back flag or a hard cut). The second, technique pull comes back when recovery does.";
+    else {
+      tmpl = tmpl.map((d) => ({ ...d, slots: d.slots.map((x) => ({ ...x })) }));
+      const core = tmpl.map((d, i) => ({ d, i })).filter(({ d }) => !d.support);
+      const dlIdx = core.find(({ d }) => d.slots.some((x) => x.lift === "deadlift" && x.role === "primary"))?.i ?? -1;
+      // Farthest core day (around the week) from the heavy pull, without a heavy squat on it.
+      const pick = core.filter(({ i, d }) => i !== dlIdx && !d.slots.some((x) => x.lift === "squat" && x.role === "primary"))
+        .sort((a, b) => Math.min(Math.abs(b.i - dlIdx), tmpl.length - Math.abs(b.i - dlIdx)) - Math.min(Math.abs(a.i - dlIdx), tmpl.length - Math.abs(a.i - dlIdx)))[0];
+      if (pick) { pick.d.slots.push(S("deadlift", "tech")); dlNote = `Deadlift 2× a week: one heavy day + technique singles (~80%, RPE 4–5) on the ${pick.d.title} day. Low fatigue, more practice. Back tired or recovery poor → skip the singles that week.`; }
+    }
+  }
   const wdays = weekdaysFor(tmpl, form.days);
   const stick = stickingFor(form);
   const weakType = form.weakType || "strength";
   const level = form.exp === "beg" ? "beg" : form.exp === "adv" ? "adv" : "int";
-  const budget = { beg: [10, 12], int: [13, 15], adv: [16, 20] }[level];
+  // Volume by training age (novice 10–12, intermediate 13–15, advanced 16–20 sets/wk per movement).
+  // An aggressive cut for a weight class steps volume down one level.
+  const step = form.cutting === "weightclass" ? { beg: "beg", int: "beg", adv: "int" }[level] : level;
+  const budget = { beg: [10, 12], int: [13, 15], adv: [16, 20] }[step];
+  // Session length decides how many accessories fit (main lifts never get cut).
+  const sessionAccCap = form.sessionMin && form.sessionMin <= 45 ? 1 : form.sessionMin && form.sessionMin <= 60 ? 2 : 99;
 
   const notes = [];
-  if (meet.reason) notes.push(meet.reason);
+  const holding = plan.blockLabel.startsWith("Peak & Hold");
+  if (holding) notes.push(`Meet in about ${form.meetDays} days, date not confirmed. ${plan.weeks.length > 2 ? "Peaking toward the earliest likely date, then " : ""}a READY pattern (85% doubles, RPE 7) you can repeat until the date is announced. Confirm the date → the engine builds the exact taper: opener practice 7 days out, singles, primer, meet. Announced less than a week out → meet-week plan only.`);
+  else if (meet.reason) notes.push(meet.reason);
   if (weakType === "technique") notes.push("Form breaks even at light loads → this is a TECHNIQUE issue. Variations at lighter loads, no extra accessory volume, film one set per session.");
   if (weakType === "fatigue") notes.push("Warm-ups feel heavy → FATIGUE, not weakness. No new variations this block; volume −1 set, RPE capped at 7. If it persists 2 weeks, deload now.");
+  if (dlNote) notes.push(dlNote);
+  if (step !== level) notes.push("Cutting for a weight class → weekly volume stepped down one level so recovery keeps up with the diet. Deload every block, no exceptions.");
+  if (sessionAccCap < 99) notes.push(`${form.sessionMin}-minute sessions → main lifts first and complete, then max ${sessionAccCap} accessor${sessionAccCap === 1 ? "y" : "ies"}. Pair upper-body push + pull accessories back-to-back (~2 min between) to save time — never with squats or deadlifts.`);
+  if (form.compLifts && form.compLifts.length < 3 && meet.phase !== "none" && meet.phase !== "post") notes.push(`Competing in ${form.compLifts.map((l) => LIFT_NAMES[l]).join(" + ")} only → ${form.compLifts.length === 1 ? "that lift gets" : "those lifts get"} the peak, taper and attempts; the others are maintained, then fade out before the meet.`);
 
   const weeks = plan.weeks.map((w, wi) => {
     const label = w.label || `Week ${wi + 1}`;
@@ -783,12 +882,22 @@ export function buildProgram(form, maxes) {
           }
         }
         if (deload || w.taper) acc = acc.slice(0, w.taper ? 0 : 2).map((a) => ({ ...a, sr: a.sr.includes("×") ? a.sr.replace(/^\d+/, "2") : a.sr, rpe: a.rpe === "—" ? a.rpe : "RPE 6" }));
+        if (acc.length > sessionAccCap) {
+          const wp = acc.filter((a) => a.name.startsWith("Weak-point"));
+          acc = [...acc.filter((a) => !a.name.startsWith("Weak-point")).slice(0, Math.max(0, sessionAccCap - wp.length)), ...wp].slice(0, Math.max(sessionAccCap, wp.length));
+        }
         return { weekday: wdays[di] || "Extra", title: d.title, optional: d.optional, support: d.support, main, acc };
       }).filter((d) => d.main.length || d.acc.length).sort((a, b) => ALL_DAYS.indexOf(a.weekday) - ALL_DAYS.indexOf(b.weekday)),
     };
   });
   // Keep weekly hard sets inside the level's budget by dropping surplus accessories (never main lifts).
-  if (plan.final && form.meetDays !== null && form.meetDays !== undefined) weeks.push(...finalStretch(plan.weeks.length * 7, form, maxes, rec, tmpl, wdays));
+  // Put a real date on every training day: week 1 starts on the next Monday (or today if it is Monday).
+  const lead = plan.final && plan.weeks.length ? (meet.lead ?? leadDays()) : leadDays();
+  const fmt = (off) => new Date(Date.now() + off * 86400000).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  weeks.forEach((w, wi) => w.days.forEach((d) => { const i = ALL_DAYS.indexOf(d.weekday); if (i >= 0) d.date = fmt(lead + wi * 7 + i); }));
+  if (weeks.length) weeks[0].startsOn = fmt(lead);
+  if (lead > 0 && weeks.length) notes.push(`Week 1 starts Monday ${fmt(lead)}. Until then: rest, or one light technique session (singles @ 70–75%) — no hard training.`);
+  if (plan.final && form.meetDays !== null && form.meetDays !== undefined) weeks.push(...finalStretch(plan.weeks.length ? lead + plan.weeks.length * 7 : 0, form, maxes, rec, tmpl, wdays));
   // Trim ONCE on the heaviest-volume week and hold the same accessory menu all block — a coach never rotates accessories by accident.
   const trimmed = new Set();
   const refWeek = weeks.find((w) => !w.deload && !w.taper && !w.meetWeek) || weeks.find((w) => !w.meetWeek);
@@ -803,7 +912,7 @@ export function buildProgram(form, maxes) {
 
   // A test day only makes sense when there is no meet: the meet IS the test.
   const testDay = meet.phase === "none" && !isBeg;
-  return { weeks, rec, freq, restDays: ALL_DAYS.filter((d) => !wdays.includes(d)), phase: meet.phase, blockLabel: plan.blockLabel, notes, volume, budget, testDay, meetDays: form.meetDays ?? null };
+  return { weeks, rec, freq, restDays: ALL_DAYS.filter((d) => !wdays.includes(d)), phase: meet.phase, blockLabel: plan.blockLabel, notes, volume, budget, testDay, meetDays: form.meetDays ?? null, compLifts: form.compLifts || ["squat", "bench", "deadlift"] };
 }
 
 /** Which volume bucket an accessory belongs to (Lower / Upper push / Upper pull). */
@@ -887,12 +996,17 @@ export function profileToForm(profile, overrides = {}) {
     squat: Number(profile?.squat_1rm) || 0,
     bench: Number(profile?.bench_1rm) || 0,
     deadlift: Number(profile?.deadlift_1rm) || 0,
-    estimated: a.maxes_estimated === true || a.maxes_estimated === "true",
+    estimated: a.maxes_estimated === true || a.maxes_estimated === "true" || a.max_tested === "old" || a.max_tested === "never",
   };
 
-  const exp = EXP_MAP[profile?.experience_level] || "int";
+  // Training age is defined by how fast you progress, not by years (Helms L3). If the athlete told us, that wins.
+  const PROGRESS_EXP = { session: "beg", week: "int", month: "adv" };
+  const expFromYears = EXP_MAP[profile?.experience_level] || "int";
+  const exp = PROGRESS_EXP[a.progress_rate] || expFromYears;
   const days = Math.min(6, Math.max(3, Number(profile?.training_days_per_week) || 4));
   const meetDays = daysToMeet(profile);
+  const EVENTS = { full: ["squat", "bench", "deadlift"], bench: ["bench"], deadlift: ["deadlift"], pushpull: ["bench", "deadlift"] };
+  const events = EVENTS[a.meet_events] ? a.meet_events : "full";
   const meet = meetPhase(meetDays, exp);
 
   // Block goal: the meet timeline decides; otherwise the stated goal.
@@ -901,8 +1015,13 @@ export function profileToForm(profile, overrides = {}) {
   else if (meet.phase === "strength") goal = "str";
   else if (meet.phase === "peak") goal = "peak";
   else if (profile?.primary_goal === "Hypertrophy") goal = "hyp";
-  if (meet.reason) decisions.push({ step: "Block Selection", decision: { base: "Base Block", strength: "Strength Block", peak: "Peaking Block", taper: "Taper → Meet", meetweek: "Meet Week", post: "Post-meet deload", beginner: "Beginner Linear" }[meet.phase] || SCHEMES[goal]?.label, reason: meet.reason });
-  else if (exp === "beg") decisions.push({ step: "Block Selection", decision: "Beginner Linear Block", reason: "First year: 3 full-body days, same lifts every week, +2.5 kg while RPE ≤ 8. Skill before load." });
+  if (PROGRESS_EXP[a.progress_rate] && PROGRESS_EXP[a.progress_rate] !== expFromYears) {
+    const lbl = { beg: "Beginner", int: "Intermediate", adv: "Advanced" };
+    decisions.push({ step: "Training Age", decision: lbl[exp], reason: `Your lifts go up ${{ session: "almost every session", week: "week to week / every block", month: "only every month or two" }[a.progress_rate]} — that is ${lbl[exp].toLowerCase()} progression, whatever the years say (${profile?.experience_level || "not set"}). The program matches how fast you actually adapt.` });
+  }
+  if (meet.reason && a.meet_date_status === "approx" && ["peak", "taper", "meetweek"].includes(meet.phase)) decisions.push({ step: "Block Selection", decision: "Peak & Hold", reason: "Meet date not confirmed — peak toward the earliest likely date, then hold a ready pattern until the date is announced." });
+  else if (meet.reason) decisions.push({ step: "Block Selection", decision: { base: "Base Block", strength: "Strength Block", peak: "Peaking Block", taper: "Taper → Meet", meetweek: "Meet Week", post: "Post-meet deload", beginner: "Beginner Linear" }[meet.phase] || SCHEMES[goal]?.label, reason: meet.reason });
+  else if (exp === "beg") decisions.push({ step: "Block Selection", decision: "Beginner Linear Block", reason: "Novice: a volume day, a technique + deadlift day and a strength day. Each day adds load every week (squat/deadlift +5 kg, bench +2.5 kg) while every rep stays clean. Skill before load." });
   else if (goal === "hyp") decisions.push({ step: "Block Selection", decision: "Base Block", reason: "Goal is muscle + capacity — 6–8 reps at 70–80%, accessories 10–15" });
   else decisions.push({ step: "Block Selection", decision: "Strength Block", reason: "No meet date — heavy 2–5s at 80–90%, the range where strength is built" });
 
@@ -945,10 +1064,26 @@ export function profileToForm(profile, overrides = {}) {
     calc: { squat: { w: "", r: "" }, bench: { w: "", r: "" }, deadlift: { w: "", r: "" } },
     weak, sticking, weakType, variationIdx: 0, accIdx: 0,
     injuries, equipment,
-    sleep: "high", stress: "low",
+    sleep: ["high", "mid", "low"].includes(a.sleep_level) ? a.sleep_level : "high",
+    stress: ["low", "mid", "high"].includes(a.stress_level) ? a.stress_level : "low",
     meetDays,
+    meetApprox: a.meet_date_status === "approx",
+    compLifts: EVENTS[events],
+    sessionMin: [45, 60, 90, 120].includes(Number(a.session_minutes)) ? Number(a.session_minutes) : null,
+    cutting: ["no", "mild", "weightclass"].includes(a.cutting) ? a.cutting : "no",
+    squatBar: ["high", "low"].includes(a.squat_bar) ? a.squat_bar : null,
+    dlStance: ["conventional", "sumo"].includes(a.deadlift_stance) ? a.deadlift_stance : null,
     ...overrides,
   };
+  // A single-lift or push-pull meet shifts the week toward the competed lift(s) — meet-awareness is not a paid extra.
+  if (meet.phase !== "none" && meet.phase !== "post" && events === "bench") form.focus = "bench";
+  if (meet.phase !== "none" && meet.phase !== "post" && events === "deadlift") form.focus = "dead";
+  if (events !== "full" && meet.phase !== "none" && meet.phase !== "post") decisions.push({ step: "Meet Events", decision: EVENTS[events].map((l) => LIFT_NAMES[l]).join(" + "), reason: "Only the lifts on the platform are peaked and tapered; the rest stay at a maintenance dose and fade out in the last 1–2 weeks." });
+  if (form.meetApprox && meetDays !== null && meetDays > 0) decisions.push({ step: "Meet Date", decision: "Not confirmed yet", reason: "Planned toward the EARLIEST likely date — being ready early is safe, being late is not. No taper is dated until you confirm; then the taper (10–14 days) is built from the real date." });
+  if (a.other_sport) decisions.push({ step: "Other Training", decision: String(a.other_sport).slice(0, 40), reason: "Lift first. Hard cardio/sport after lifting (6+ h apart is better) or on non-lifting days; avoid it the day before heavy squats/deadlifts." });
+  if (form.cutting === "weightclass") decisions.push({ step: "Weight Cut", decision: "Volume one level lower", reason: "A real deficit lowers recovery — less volume, deload every block, autoregulate harder." });
+  if (form.squatBar === "low") decisions.push({ step: "Squat Style", decision: "Low-bar", reason: "Competition and technique squats stay low-bar. Any volume squat is done high-bar/upright, and the quad accessory (leg press / split squat) stays in — low-bar alone under-trains the quads." });
+  if (form.dlStance === "sumo" && form.weak === "deadlift" && form.sticking === "floor") decisions.push({ step: "Deadlift Style", decision: "Sumo", reason: "No deficit pulls for a sumo floor weakness — paused pulls just off the floor instead." });
   if (overrides.injuries) form.injuries = { ...injuries, ...overrides.injuries };
   if (form.weak === "none") form.sticking = null;
   else if (!form.sticking || !STICKING[form.weak]?.[form.sticking]) form.sticking = Object.keys(STICKING[form.weak])[0];

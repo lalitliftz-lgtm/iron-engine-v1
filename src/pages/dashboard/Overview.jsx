@@ -21,7 +21,7 @@ export default function Overview() {
       if (!user) return;
 
       const [profileRes, subRes, programRes] = await Promise.all([
-        supabase.from('athlete_profiles').select('full_name, competition_date, experience_level').eq('user_id', user.id).maybeSingle(),
+        supabase.from('athlete_profiles').select('full_name, competition_date, experience_level, assessment_data').eq('user_id', user.id).maybeSingle(),
         supabase.from('subscriptions').select('status, end_date').eq('user_id', user.id).eq('status', 'active').gte('end_date', new Date().toISOString()).order('end_date', { ascending: false }).limit(1).maybeSingle(),
         supabase.from('generated_programs').select('id, created_at, program_snapshot').eq('user_id', user.id).eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle(),
       ]);
@@ -73,7 +73,7 @@ export default function Overview() {
     const allLogged = (w.days || []).length && w.days.every((d) => done.has(`${w.week}-${d.day}`));
     if (allLogged && !checkins[String(w.week)]) checkinWeek = w.week;
   }
-  const attempts = snap && daysToMeet !== null && daysToMeet <= 14 && daysToMeet >= 0 ? attemptPlan(snap.meta?.maxes || {}, logs, snap.meta?.form?.exp) : null;
+  const attempts = snap && daysToMeet !== null && daysToMeet <= 14 && daysToMeet >= 0 ? attemptPlan(snap.meta?.maxes || {}, logs, snap.meta?.form?.exp, snap.meta?.form?.compLifts) : null;
   const currentWeek = next ? next.week.week : totalWeeks;
   const nextMains = next ? next.day.exercises.filter((e) => e.type === 'Main').slice(0, 3) : [];
   const sessionsDone = logs.length;
@@ -173,7 +173,10 @@ export default function Overview() {
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 shadow-sm text-white">
               <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Meet Prep</h2>
               <p className="text-4xl font-bold tracking-tight">{daysToMeet}</p>
-              <p className="text-sm text-gray-400 mt-1">Days to competition</p>
+              <p className="text-sm text-gray-400 mt-1">{profile?.assessment_data?.meet_date_status === 'approx' ? 'Days to the earliest likely date' : 'Days to competition'}</p>
+              {profile?.assessment_data?.meet_date_status === 'approx' && (
+                <Link to="/dashboard/assessment" className="inline-block mt-3 text-xs font-semibold bg-white text-gray-900 px-3 py-1.5 rounded-lg">Date announced? Update it → exact taper</Link>
+              )}
               {attempts && (
                 <div className="mt-4 space-y-2 border-t border-gray-800 pt-4">
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Suggested attempts (kg)</p>
