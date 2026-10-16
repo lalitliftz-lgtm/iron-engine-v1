@@ -77,7 +77,7 @@ export default function Overview() {
   let checkinWeek = null;
   for (const w of snap?.weeks || []) {
     if (w.meetWeek || w.taper) continue;
-    const trainDays = (w.days || []).filter((d) => !d.rest && !d.meetDay);
+    const trainDays = (w.days || []).filter((d) => !d.rest && !d.meetDay && !d.optional); // optional days never hold up the check-in
     const allLogged = trainDays.length && trainDays.every((d) => done.has(`${w.week}-${d.day}`));
     if (allLogged && !checkins[String(w.week)]) checkinWeek = w.week;
   }
@@ -118,7 +118,7 @@ export default function Overview() {
         {program && next ? (
           <>
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-              {sched.when === 'today' ? "Today's session"
+              {sched.when === 'today' ? (next.day.optional ? "Today · optional session" : "Today's session")
                 : sched.when === 'overdue' ? `Pending session · planned ${next.day.date}`
                 : sched.todayDone ? "Today's session done ✓ · next"
                 : restToday || sched.todayRest ? 'Rest day today · next session'
@@ -126,8 +126,21 @@ export default function Overview() {
             </p>
             <h2 className="text-xl md:text-2xl font-bold text-gray-900 mt-1">{next.day.focus}</h2>
             {restToday && <p className="text-sm text-gray-500 mt-1">{restToday.notes}</p>}
+            {sched.when === 'today' && next.day.optional && !draft && (
+              <p className="text-sm text-gray-500 mt-1">Optional — technique and conditioning. Do it if you feel fresh; skipping it costs nothing.</p>
+            )}
             {sched.when === 'upcoming' && !restToday && !draft && (
-              <p className="text-sm text-gray-500 mt-1">{sched.todayDone ? 'Recover today — this one is up next.' : 'Nothing planned for today.'} Training early is fine if you feel fresh; the plan just moves up.</p>
+              <p className="text-sm text-gray-500 mt-1">
+                {sched.startsOn
+                  ? `Your block starts ${sched.startsOn.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}. Rest until then — or start early if you're keen; the plan just moves up.`
+                  : `${sched.todayDone ? 'Recover today — this one is up next.' : 'Nothing planned for today.'} Training early is fine if you feel fresh; the plan just moves up.`}
+              </p>
+            )}
+            {sched.optionalBefore && !draft && (
+              <p className="text-sm text-gray-500 mt-2">
+                Optional before that: {sched.optionalBefore.day.weekday} {sched.optionalBefore.day.date} · {sched.optionalBefore.day.focus}.{' '}
+                <Link to={`/dashboard/workout?week=${sched.optionalBefore.week.week}&day=${sched.optionalBefore.day.day}`} className="font-semibold text-gray-900 underline">Open</Link>
+              </p>
             )}
             {!draft && (back || recentMissed.length > 0 || sched.droppedForMeet > 0 || sched.repeatLifts.length > 0) && (
               <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700 space-y-1">
