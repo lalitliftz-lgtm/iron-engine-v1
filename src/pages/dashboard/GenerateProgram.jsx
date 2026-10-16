@@ -4,8 +4,8 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import UpgradeModal from '../../components/UpgradeModal';
-import { motion } from 'framer-motion';
-import { profileToForm, STICKING, LIFT_NAMES, daysToMeet, SCHEMES } from '../../lib/engine';
+import { motion, AnimatePresence } from 'framer-motion';
+import { profileToForm, STICKING, LIFT_NAMES, daysToMeet, SCHEMES, buildProgram } from '../../lib/engine';
 import { evaluateBlock } from '../../lib/autoreg';
 
 // Settings the athlete can tune on top of the assessment defaults.
@@ -63,6 +63,62 @@ function Field({ label, hint, pro, locked, onLockedClick, children }) {
   );
 }
 
+/** The "engine at work" slides. Every line is computed from this athlete's real data and the real
+ *  engine output (the same pure function the server runs) — dramatic presentation, nothing invented. */
+function buildSlides(profile, settings) {
+  const { form, maxes, decisions } = profileToForm(profile, settings || {});
+  const program = buildProgram(form, maxes);
+  const find = (step) => decisions.find((d) => d.step === step);
+  const bw = Number(profile.bodyweight_kg) || 0;
+  const lifts = ['squat', 'bench', 'deadlift'];
+  const slides = [];
+  slides.push({
+    kicker: 'Step 1 · Your numbers',
+    title: maxes.squat ? `${maxes.squat} / ${maxes.bench} / ${maxes.deadlift} kg` : 'Working weights mode',
+    lines: [
+      maxes.squat ? `Total ${maxes.squat + maxes.bench + maxes.deadlift} kg${maxes.estimated ? ' (estimated — loads stay ≤ 87.5% until confirmed)' : ' (tested)'}` : 'No maxes needed — the engine prescribes working weights you can do with reps left.',
+      ...(bw && maxes.squat ? [`Strength-to-bodyweight: ${lifts.map((l) => `${LIFT_NAMES[l].split(' ')[0]} ${(maxes[l] / bw).toFixed(2)}×`).join(' · ')}`] : []),
+    ],
+  });
+  slides.push({
+    kicker: 'Step 2 · Training age',
+    title: { beg: 'Novice progression', int: 'Intermediate progression', adv: 'Advanced progression' }[form.exp],
+    lines: [find('Training Age')?.reason || ({ beg: 'Load goes up every week on each day while reps stay clean.', int: 'Weekly waves: reps down, load up, then a lighter week.', adv: 'Blocks of accumulation and intensification, autoregulated by RPE.' }[form.exp])],
+  });
+  const block = find('Block Selection');
+  slides.push({
+    kicker: 'Step 3 · Timeline',
+    title: program.blockLabel,
+    lines: [block?.reason || '', ...(form.compLifts?.length < 3 ? [`Platform: ${form.compLifts.map((l) => LIFT_NAMES[l]).join(' + ')} only — the other lifts are maintained.`] : [])].filter(Boolean),
+  });
+  const wp = find('Weak-Point Diagnosis');
+  slides.push({ kicker: 'Step 4 · Weak point', title: wp?.decision || 'Balanced', lines: [wp?.reason || ''].filter(Boolean) });
+  const inj = find('Injury Screen');
+  slides.push({
+    kicker: 'Step 5 · Recovery & safety',
+    title: { good: 'Recovery: good', mid: 'Recovery: borderline', poor: 'Recovery: low — volume adjusted' }[program.rec.level],
+    lines: [
+      program.rec.note || 'Sleep and stress support the full plan.',
+      inj ? `Injury flags: ${inj.decision} → loads capped on that lift, joint-safe swaps.` : 'No injury flags.',
+      ...(find('Weight Cut') ? ['Weight-class cut → one level less volume, deload every block.'] : []),
+    ],
+  });
+  slides.push({
+    kicker: 'Step 6 · Volume & frequency',
+    title: program.freq,
+    lines: [`${program.budget[0]}–${program.budget[1]} hard sets per movement per week for your level.`, ...(program.notes.filter((n) => n.startsWith('Deadlift')).slice(0, 1))],
+  });
+  const w1 = program.weeks[0];
+  const tops = lifts.map((l) => {
+    const all = (w1?.days || []).flatMap((d) => d.main).filter((x) => x.lift === l && !/Technique|maintenance|Paused|Variation/i.test(x.name));
+    const m = all.sort((a, b) => (b.kg || 0) - (a.kg || 0))[0];
+    return m ? `${LIFT_NAMES[l]} ${m.sets}×${m.reps}${m.kg ? ` @ ${m.kg} kg` : ''}` : null;
+  }).filter(Boolean);
+  const sessions = program.weeks.reduce((n, w) => n + w.days.filter((d) => !d.meetDay).length, 0);
+  slides.push({ kicker: 'Step 7 · Your block', title: `${program.weeks.length} weeks · ${sessions} sessions`, lines: [`Week 1 heavy work: ${tops.join(' · ') || 'see program'}`, 'Every load rounded to real plates. Every day dated on your calendar.'] });
+  return slides;
+}
+
 export default function GenerateProgram() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -75,6 +131,9 @@ export default function GenerateProgram() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [appStatus, setAppStatus] = useState('idle');
   const [error, setError] = useState('');
+  const [slides, setSlides] = useState([]);
+  const [slideIdx, setSlideIdx] = useState(0);
+  const [saved, setSaved] = useState(false);
   const [lastBlock, setLastBlock] = useState(null);
 
   useEffect(() => {
@@ -102,9 +161,19 @@ export default function GenerateProgram() {
   const setSticking = (v) => setSettings((s) => ({ ...s, sticking: v, variationIdx: 0, accIdx: 0 }));
   const lockedClick = () => { if (!isPro) setShowUpgradeModal(true); };
 
+  // Advance the slides; leave for the program only when the last slide was shown AND the save finished.
+  useEffect(() => {
+    if (appStatus !== 'generating' || !slides.length) return;
+    if (slideIdx < slides.length - 1) { const t = setTimeout(() => setSlideIdx((i) => i + 1), 1600); return () => clearTimeout(t); }
+    if (saved) { const t = setTimeout(() => navigate('/dashboard/programs'), 1400); return () => clearTimeout(t); }
+  }, [appStatus, slides, slideIdx, saved, navigate]);
+
   const handleGenerate = async () => {
-    setAppStatus('generating');
     setError('');
+    setSaved(false);
+    setSlideIdx(0);
+    try { setSlides(buildSlides(profile, settings)); } catch { setSlides([]); }
+    setAppStatus('generating');
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -131,7 +200,7 @@ export default function GenerateProgram() {
       }
 
       await response.json();
-      navigate('/dashboard/programs');
+      setSaved(true);
     } catch (err) {
       setError(err.message);
       setAppStatus('error');
@@ -212,7 +281,7 @@ export default function GenerateProgram() {
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
               {isBeg ? (
                 <div className="mb-6 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-4">
-                  <b className="text-gray-900">Beginner Linear Block.</b> Three full-body days (squat + bench every session, deadlift once), +2.5 kg per week while RPE stays under 8. Extra days become technique + GPP. Block goal and focus unlock once you're intermediate.
+                  <b className="text-gray-900">Novice block.</b> A volume day, a technique + deadlift day and a strength day (4th day = accessories). Each day adds load every week — squat/deadlift +5 kg, bench +2.5 kg — while every rep stays clean. Block goal and focus unlock once you're intermediate.
                 </div>
               ) : (
                 <>
@@ -281,10 +350,30 @@ export default function GenerateProgram() {
         )}
 
         {appStatus === 'generating' && (
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-10 text-center shadow-2xl">
-            <div className="w-10 h-10 rounded-full border-2 border-white border-t-transparent animate-spin mx-auto mb-6"></div>
-            <h2 className="text-lg font-semibold text-white mb-2">Building your block</h2>
-            <p className="text-sm text-gray-400">Reading your assessment, the meet date and your weak points — then saving the plan.</p>
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 md:p-10 shadow-2xl min-h-[340px] flex flex-col">
+            <div className="flex items-center justify-between mb-6">
+              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-500">Iron Engine · analysing</span>
+              <div className="flex gap-1.5">{slides.map((_, i) => <span key={i} className={`h-1.5 rounded-full transition-all ${i <= slideIdx ? 'w-5 bg-white' : 'w-1.5 bg-gray-700'}`}></span>)}</div>
+            </div>
+            <div className="flex-1">
+              <AnimatePresence mode="wait">
+                {slides[slideIdx] ? (
+                  <motion.div key={slideIdx} initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.35 }}>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-red-400 mb-2">{slides[slideIdx].kicker}</p>
+                    <h2 className="text-2xl md:text-3xl font-bold text-white mb-4 leading-tight">{slides[slideIdx].title}</h2>
+                    <div className="space-y-2">{slides[slideIdx].lines.map((l, i) => (
+                      <motion.p key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 + i * 0.25 }} className="text-sm md:text-base text-gray-300">{l}</motion.p>
+                    ))}</div>
+                  </motion.div>
+                ) : (
+                  <div className="text-gray-400 text-sm">Building your block…</div>
+                )}
+              </AnimatePresence>
+            </div>
+            <div className="mt-6 flex items-center gap-3 text-sm">
+              {saved ? <span className="text-green-400 font-semibold">✓ Block saved{slideIdx >= slides.length - 1 ? ' — opening your program…' : ''}</span>
+                : <><span className="w-4 h-4 rounded-full border-2 border-gray-400 border-t-transparent animate-spin"></span><span className="text-gray-400">Writing every set, rep and kilo to your account…</span></>}
+            </div>
           </div>
         )}
 

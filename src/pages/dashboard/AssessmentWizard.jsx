@@ -16,7 +16,8 @@ const e1rm = (w, r) => { const W = num(w), R = num(r); return W && R ? round25(e
 const steps = [
   { id: 'basics', title: 'Basic Info', fields: ['full_name', 'age', 'sex', 'height_cm', 'bodyweight_kg', 'experience_level'] },
   { id: 'strength', title: 'Strength Metrics', fields: ['squat_1rm', 'bench_1rm', 'deadlift_1rm', 'training_days_per_week', 'session_minutes', 'progress_rate', 'squat_set_w', 'squat_set_r', 'bench_set_w', 'bench_set_r', 'deadlift_set_w', 'deadlift_set_r'] },
-  { id: 'goals', title: 'Goals & Competition', fields: ['primary_goal', 'competition_status', 'meet_events', 'cutting'] },
+  { id: 'goals', title: 'Goals & Competition', fields: ['primary_goal', 'competition_status', 'meet_date_status', 'meet_events', 'cutting'] },
+  { id: 'recovery', title: 'Recovery & Life', fields: ['sleep_level', 'stress_level', 'max_tested', 'other_sport'] },
   { id: 'diagnostics', title: 'Diagnostics', fields: ['squat_weak_point', 'bench_weak_point', 'deadlift_weak_point', 'squat_bar', 'deadlift_stance', 'rpe_experience'] },
   { id: 'constraints', title: 'Constraints & Equipment', fields: ['current_injuries', 'equipment_level', 'available_equipment', 'restricted_exercises', 'coach_notes'] },
   { id: 'review', title: 'Review', fields: [] }
@@ -79,6 +80,8 @@ export default function AssessmentWizard() {
       progress_rate: formData.progress_rate || '', session_minutes: formData.session_minutes || '',
       meet_events: formData.meet_events || 'full', cutting: formData.cutting || 'no',
       squat_bar: formData.squat_bar || '', deadlift_stance: formData.deadlift_stance || '',
+      meet_date_status: formData.meet_date_status || 'exact', sleep_level: formData.sleep_level || '', stress_level: formData.stress_level || '',
+      max_tested: formData.max_tested || '', other_sport: formData.other_sport || '',
     };
     const payload = { ...dbFields, user_id: user.id, assessment_data: jsonFields, updated_at: new Date().toISOString() };
     const { error } = await supabase.from('athlete_profiles').upsert(payload, { onConflict: 'user_id' });
@@ -231,7 +234,12 @@ export default function AssessmentWizard() {
                 </Select>
                 {watch('competition_status') === 'true' && (
                   <>
-                    <Input label="Competition Date" type="date" {...register('competition_date')} error={errors.competition_date} />
+                    <Select label="Do you know the exact meet date?" {...register('meet_date_status')}>
+                      <option value="exact">Yes — the date is confirmed</option>
+                      <option value="approx">Not yet — only roughly (enter the EARLIEST likely date)</option>
+                    </Select>
+                    <Input label={watch('meet_date_status') === 'approx' ? 'Earliest likely meet date' : 'Competition Date'} type="date" {...register('competition_date')} error={errors.competition_date} />
+                    {watch('meet_date_status') === 'approx' && <p className="text-xs text-gray-400 -mt-3 mb-5">The engine peaks you for the earliest date and keeps you "ready" until the date is announced. Update it here the moment you know — the taper is then built from the real date.</p>}
                     <Select label="Which lifts are you competing in?" {...register('meet_events')}>
                       <option value="full">Full power — squat, bench, deadlift</option>
                       <option value="bench">Bench only</option>
@@ -248,6 +256,23 @@ export default function AssessmentWizard() {
               </div>
             )}
             {currentStep === 3 && (
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900 mb-2">Recovery & life outside the gym.</h1>
+                <p className="text-sm text-gray-500 mb-6">Training is only half the program — recovery decides how much of it you can use. Be honest; the engine sets volume from this.</p>
+                <Select label="Average sleep" {...register('sleep_level')}>
+                  <option value="">Select...</option><option value="high">7+ hours, most nights</option><option value="mid">6–7 hours</option><option value="low">Less than 6 hours</option>
+                </Select>
+                <Select label="Life stress right now (work, study, family)" {...register('stress_level')}>
+                  <option value="">Select...</option><option value="low">Low — life is calm</option><option value="mid">Moderate</option><option value="high">High — a lot going on</option>
+                </Select>
+                <Select label="When were your maxes last tested (or hit in training)?" {...register('max_tested')}>
+                  <option value="">Select...</option><option value="recent">Within the last month</option><option value="mid">1–3 months ago</option><option value="old">More than 3 months ago</option><option value="never">Never tested — they're my best guess</option>
+                </Select>
+                <p className="text-xs text-gray-400 -mt-3 mb-5">Old or guessed maxes → the engine stays at or below 87.5% until a clean heavy single confirms them.</p>
+                <Input label="Other sport or cardio you do (optional)" {...register('other_sport')} placeholder="e.g., football twice a week, running 3 km daily" />
+              </div>
+            )}
+            {currentStep === 4 && (
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 mb-6">Where do you break down?</h1>
                 <p className="text-sm text-gray-500 mb-6">This helps us map weak points to specific accessory work.</p>
@@ -271,7 +296,7 @@ export default function AssessmentWizard() {
                 <Select label="RPE Experience" {...register('rpe_experience')}><option value="true">Yes, I understand RPE</option><option value="false">No, explain it to me</option></Select>
               </div>
             )}
-            {currentStep === 4 && (
+            {currentStep === 5 && (
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 mb-6">Any physical constraints?</h1>
                 <TextArea label="Current Injuries or Pain" {...register('current_injuries')} placeholder="e.g., Lower back tightness, right shoulder impingement..." />
@@ -285,7 +310,7 @@ export default function AssessmentWizard() {
                 <TextArea label="Coach Notes (Optional)" {...register('coach_notes')} placeholder="Anything else I should know?" />
               </div>
             )}
-            {currentStep === 5 && (
+            {currentStep === 6 && (
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 mb-2">Review your profile.</h1>
                 <p className="text-sm text-gray-500 mb-8">Make sure everything looks correct before generating your program.</p>
@@ -306,12 +331,18 @@ export default function AssessmentWizard() {
                     {formData.competition_status === 'true' && <ReviewItem label="Events" value={{ full: 'Full power', bench: 'Bench only', deadlift: 'Deadlift only', pushpull: 'Push-pull' }[formData.meet_events || 'full']} />}
                     <ReviewItem label="Cutting" value={{ no: 'No', mild: 'Mild', weightclass: 'Weight-class cut' }[formData.cutting || 'no']} />
                   </ReviewSection>
-                  <ReviewSection title="Diagnostics" onEdit={() => setCurrentStep(3)}>
+                  <ReviewSection title="Recovery & Life" onEdit={() => setCurrentStep(3)}>
+                    <ReviewItem label="Sleep" value={{ high: '7+ h', mid: '6–7 h', low: '< 6 h' }[formData.sleep_level] || '—'} />
+                    <ReviewItem label="Stress" value={formData.stress_level || '—'} />
+                    <ReviewItem label="Maxes tested" value={{ recent: '< 1 month', mid: '1–3 months', old: '3+ months', never: 'Never (guess)' }[formData.max_tested] || '—'} />
+                    <ReviewItem label="Other sport" value={formData.other_sport || 'None'} />
+                  </ReviewSection>
+                  <ReviewSection title="Diagnostics" onEdit={() => setCurrentStep(4)}>
                     <ReviewItem label="Squat Weak Point" value={formData.squat_weak_point} />
                     <ReviewItem label="Bench Weak Point" value={formData.bench_weak_point} />
                     <ReviewItem label="Deadlift Weak Point" value={formData.deadlift_weak_point} />
                   </ReviewSection>
-                  <ReviewSection title="Constraints" onEdit={() => setCurrentStep(4)}>
+                  <ReviewSection title="Constraints" onEdit={() => setCurrentStep(5)}>
                     <ReviewItem label="Injuries" value={formData.current_injuries || 'None'} />
                     <ReviewItem label="Gym Setup" value={formData.equipment_level || 'commercial'} />
                   </ReviewSection>
