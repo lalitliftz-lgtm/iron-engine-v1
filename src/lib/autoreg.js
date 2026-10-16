@@ -202,10 +202,10 @@ export function evaluateBlock(snapshot, logs, checkins = {}) {
 }
 
 /* ---------------- 8. Attempt calculator (Ch 16 — illustrative %, adjusted by training) ---------------- */
-export function attemptPlan(maxes, logs = [], exp = "int") {
+export function attemptPlan(maxes, logs = [], exp = "int", compLifts = LIFTS) {
   const e1 = e1rmFromLogs(logs);
   const out = {};
-  for (const l of LIFTS) {
+  for (const l of LIFTS.filter((x) => (compLifts || LIFTS).includes(x))) {
     const max = maxes?.[l] || 0;
     if (!max) continue;
     // Best clean single/double in training (RPE ≤ 8) anchors the opener; the 1RM anchors the ceiling.
@@ -223,13 +223,15 @@ export function attemptPlan(maxes, logs = [], exp = "int") {
     out[l] = {
       opener, second, third,
       notes: [
-        bestSingle ? `Opener = your best clean single in training (${bestSingle} kg) — a weight you make on any day.` : "Opener ≈ 90% — a weight you make on any day, tired or fresh.",
+        bestSingle ? `Opener = your best clean single in training (${bestSingle} kg) — a weight you make on any day.` : "Opener ≈ 90% (about your current 3-rep max) — a weight you make on any day, tired or fresh.",
         `2nd ≈ ${conservative ? 95 : 97}% — your real lift. Only if the opener moved fast.`,
         `3rd ≈ ${conservative ? "100" : "102.5"}% — a small PR, ONLY if the 2nd was clean (RPE ≤ 9). A missed 3rd scores nothing.`,
       ],
       ref,
     };
   }
-  out.rule = "9 for 9 beats a bombed-out hero. Decide the 3rd after the 2nd, never before.";
+  out.rule = exp === "beg"
+    ? "First meet: the goal is 9 for 9 (or 3 for 3 per lift) and the experience. Open light, take small jumps, decide the 3rd after the 2nd."
+    : "Build the biggest TOTAL, not three lift PRs. 9 for 9 beats a bombed-out hero. Decide the 3rd after the 2nd, never before.";
   return out;
 }

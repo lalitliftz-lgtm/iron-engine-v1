@@ -73,7 +73,7 @@ export default function Overview() {
     const allLogged = (w.days || []).length && w.days.every((d) => done.has(`${w.week}-${d.day}`));
     if (allLogged && !checkins[String(w.week)]) checkinWeek = w.week;
   }
-  const attempts = snap && daysToMeet !== null && daysToMeet <= 14 && daysToMeet >= 0 ? attemptPlan(snap.meta?.maxes || {}, logs, snap.meta?.form?.exp) : null;
+  const attempts = snap && daysToMeet !== null && daysToMeet <= 14 && daysToMeet >= 0 ? attemptPlan(snap.meta?.maxes || {}, logs, snap.meta?.form?.exp, snap.meta?.form?.compLifts) : null;
   const currentWeek = next ? next.week.week : totalWeeks;
   const nextMains = next ? next.day.exercises.filter((e) => e.type === 'Main').slice(0, 3) : [];
   const sessionsDone = logs.length;

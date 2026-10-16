@@ -15,9 +15,9 @@ const e1rm = (w, r) => { const W = num(w), R = num(r); return W && R ? round25(e
 
 const steps = [
   { id: 'basics', title: 'Basic Info', fields: ['full_name', 'age', 'sex', 'height_cm', 'bodyweight_kg', 'experience_level'] },
-  { id: 'strength', title: 'Strength Metrics', fields: ['squat_1rm', 'bench_1rm', 'deadlift_1rm', 'training_days_per_week', 'squat_set_w', 'squat_set_r', 'bench_set_w', 'bench_set_r', 'deadlift_set_w', 'deadlift_set_r'] },
-  { id: 'goals', title: 'Goals & Competition', fields: ['primary_goal', 'competition_status'] },
-  { id: 'diagnostics', title: 'Diagnostics', fields: ['squat_weak_point', 'bench_weak_point', 'deadlift_weak_point', 'rpe_experience'] },
+  { id: 'strength', title: 'Strength Metrics', fields: ['squat_1rm', 'bench_1rm', 'deadlift_1rm', 'training_days_per_week', 'session_minutes', 'progress_rate', 'squat_set_w', 'squat_set_r', 'bench_set_w', 'bench_set_r', 'deadlift_set_w', 'deadlift_set_r'] },
+  { id: 'goals', title: 'Goals & Competition', fields: ['primary_goal', 'competition_status', 'meet_events', 'cutting'] },
+  { id: 'diagnostics', title: 'Diagnostics', fields: ['squat_weak_point', 'bench_weak_point', 'deadlift_weak_point', 'squat_bar', 'deadlift_stance', 'rpe_experience'] },
   { id: 'constraints', title: 'Constraints & Equipment', fields: ['current_injuries', 'equipment_level', 'available_equipment', 'restricted_exercises', 'coach_notes'] },
   { id: 'review', title: 'Review', fields: [] }
 ];
@@ -76,6 +76,9 @@ export default function AssessmentWizard() {
       rpe_experience: formData.rpe_experience, coach_notes: formData.coach_notes,
       weak_type: formData.weak_type, equipment_level: formData.equipment_level,
       recent_sets, maxes_estimated: estimated,
+      progress_rate: formData.progress_rate || '', session_minutes: formData.session_minutes || '',
+      meet_events: formData.meet_events || 'full', cutting: formData.cutting || 'no',
+      squat_bar: formData.squat_bar || '', deadlift_stance: formData.deadlift_stance || '',
     };
     const payload = { ...dbFields, user_id: user.id, assessment_data: jsonFields, updated_at: new Date().toISOString() };
     const { error } = await supabase.from('athlete_profiles').upsert(payload, { onConflict: 'user_id' });
@@ -203,6 +206,17 @@ export default function AssessmentWizard() {
                   <Select label="Training Days Per Week" {...register('training_days_per_week', { required: 'Required', valueAsNumber: true })} error={errors.training_days_per_week}>
                     <option value="">Select...</option><option value="3">3 Days</option><option value="4">4 Days</option><option value="5">5 Days</option><option value="6">6 Days</option>
                   </Select>
+                  <p className="text-xs text-gray-400 -mt-3 mb-5">Pick what you can do every week for months, not your best week. Consistency beats the "perfect" plan.</p>
+                  <Select label="How long can one session be?" {...register('session_minutes')}>
+                    <option value="">No real limit</option><option value="45">About 45 minutes</option><option value="60">About 1 hour</option><option value="90">About 1.5 hours</option><option value="120">2 hours</option>
+                  </Select>
+                  <Select label="How often do your lifts go up?" {...register('progress_rate')}>
+                    <option value="">Not sure</option>
+                    <option value="session">Almost every session — I can still add weight each workout</option>
+                    <option value="week">Week to week, or every few weeks / every block</option>
+                    <option value="month">Only every month or two, even when sleep, food and effort are right</option>
+                  </Select>
+                  <p className="text-xs text-gray-400 -mt-3 mb-5">Training age is how fast you progress, not how many years you've been in the gym. This decides how your program progresses.</p>
                 </div>
               </div>
             )}
@@ -215,7 +229,22 @@ export default function AssessmentWizard() {
                 <Select label="Competition Status" {...register('competition_status', { required: 'Required' })} error={errors.competition_status}>
                   <option value="false">No upcoming meet</option><option value="true">I have a meet planned</option>
                 </Select>
-                {watch('competition_status') === 'true' && <Input label="Competition Date" type="date" {...register('competition_date')} error={errors.competition_date} />}
+                {watch('competition_status') === 'true' && (
+                  <>
+                    <Input label="Competition Date" type="date" {...register('competition_date')} error={errors.competition_date} />
+                    <Select label="Which lifts are you competing in?" {...register('meet_events')}>
+                      <option value="full">Full power — squat, bench, deadlift</option>
+                      <option value="bench">Bench only</option>
+                      <option value="deadlift">Deadlift only</option>
+                      <option value="pushpull">Push-pull — bench + deadlift</option>
+                    </Select>
+                  </>
+                )}
+                <Select label="Are you cutting weight?" {...register('cutting')}>
+                  <option value="no">No</option>
+                  <option value="mild">A little — slow, easy diet</option>
+                  <option value="weightclass">Yes — a real cut to make a weight class</option>
+                </Select>
               </div>
             )}
             {currentStep === 3 && (
@@ -231,6 +260,14 @@ export default function AssessmentWizard() {
                   <option value="fatigue">Even warm-ups feel heavy lately, recovery feels incomplete (fatigue)</option>
                 </Select>
                 <p className="text-xs text-gray-400 -mt-3 mb-5">System 2.0 rule: technique issue → lighter variations, not more accessories. Fatigue → less volume, not a new exercise.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Select label="How do you squat?" {...register('squat_bar')}>
+                    <option value="">Not sure</option><option value="high">High-bar (bar on top of the traps)</option><option value="low">Low-bar (bar lower, on the rear delts)</option>
+                  </Select>
+                  <Select label="How do you deadlift?" {...register('deadlift_stance')}>
+                    <option value="">Not sure</option><option value="conventional">Conventional</option><option value="sumo">Sumo</option>
+                  </Select>
+                </div>
                 <Select label="RPE Experience" {...register('rpe_experience')}><option value="true">Yes, I understand RPE</option><option value="false">No, explain it to me</option></Select>
               </div>
             )}
@@ -266,6 +303,8 @@ export default function AssessmentWizard() {
                   <ReviewSection title="Goals" onEdit={() => setCurrentStep(2)}>
                     <ReviewItem label="Primary Goal" value={formData.primary_goal} />
                     {formData.competition_status === 'true' && <ReviewItem label="Meet Date" value={formData.competition_date ? new Date(formData.competition_date).toLocaleDateString() : 'N/A'} />}
+                    {formData.competition_status === 'true' && <ReviewItem label="Events" value={{ full: 'Full power', bench: 'Bench only', deadlift: 'Deadlift only', pushpull: 'Push-pull' }[formData.meet_events || 'full']} />}
+                    <ReviewItem label="Cutting" value={{ no: 'No', mild: 'Mild', weightclass: 'Weight-class cut' }[formData.cutting || 'no']} />
                   </ReviewSection>
                   <ReviewSection title="Diagnostics" onEdit={() => setCurrentStep(3)}>
                     <ReviewItem label="Squat Weak Point" value={formData.squat_weak_point} />

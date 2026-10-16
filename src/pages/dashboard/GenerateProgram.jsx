@@ -181,7 +181,7 @@ export default function GenerateProgram() {
 
             {meetLocked && (
               <div className={`border rounded-xl p-5 mb-6 ${['meetweek', 'taper'].includes(meet.phase) ? 'bg-amber-50 border-amber-300' : 'bg-white border-gray-200'}`}>
-                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Meet-aware plan · {PHASE_LABEL[meet.phase]}</h2>
+                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Meet-aware plan · {PHASE_LABEL[meet.phase]}{defaults.form.compLifts?.length < 3 ? ` · ${defaults.form.compLifts.map((l) => LIFT_NAMES[l]).join(' + ')} only` : ''}</h2>
                 <p className="text-sm text-gray-800">{meet.reason}</p>
               </div>
             )}

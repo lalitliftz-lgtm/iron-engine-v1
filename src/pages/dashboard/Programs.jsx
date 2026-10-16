@@ -75,7 +75,7 @@ export default function Programs() {
   const checkins = program.program_snapshot.adjustments?.checkins || {};
   const isBeg = meta?.form?.exp === 'beg';
   const logged = new Set(logs.map((l) => `${l.week_number}-${l.day_number}`));
-  const attempts = weeks.some((w) => w.meetWeek) ? attemptPlan(meta?.maxes || {}, logs, meta?.form?.exp) : null;
+  const attempts = weeks.some((w) => w.meetWeek) ? attemptPlan(meta?.maxes || {}, logs, meta?.form?.exp, meta?.form?.compLifts) : null;
   const LIGHT_DOT = { green: 'bg-green-500', yellow: 'bg-amber-400', red: 'bg-red-500' };
   const currentWeekData = weeks.find(w => w.week === activeWeek) || weeks[0];
   const currentDayData = currentWeekData.days.find(d => d.day === activeDay) || currentWeekData.days[0];
@@ -183,7 +183,7 @@ export default function Programs() {
             </div>
           ) : currentWeekData.taper ? (
             <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 text-sm text-gray-700 no-print">
-              <b className="text-gray-900">Taper.</b> Volume down 50–70%, intensity stays (77.5–85%), all three lifts together, accessories half. Sleep, eat, hydrate — fatigue leaves, strength stays.
+              <b className="text-gray-900">Taper.</b> Volume down 50–70%, intensity stays (77.5–85%), competition lifts trained together, accessories half. Sleep, eat, hydrate — fatigue leaves, strength stays.
             </div>
           ) : currentWeekData.deload ? (
             <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 text-sm text-gray-700 no-print">
