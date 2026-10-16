@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { platesPerSide } from '../../lib/engine';
 import { applyAdjustments } from '../../lib/autoreg';
+import { readDraft, saveDraft, clearDraft } from '../../lib/workoutDraft';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const MAIN_REST = 180; // System 2.0: main lifts 3–5 min
@@ -36,11 +37,16 @@ export default function WorkoutSession() {
   const [saveError, setSaveError] = useState('');
   const [isWorkoutComplete, setIsWorkoutComplete] = useState(false);
   const [summary, setSummary] = useState(null);
+  const [startedAt, setStartedAt] = useState(() => Date.now());
+  const [resumed, setResumed] = useState(false);
 
   useEffect(() => {
-    const timer = setInterval(() => setElapsedTime((prev) => prev + 1), 1000);
+    // Clock runs from the real start time, so it stays right after leaving and coming back.
+    const tick = () => setElapsedTime(Math.max(0, Math.round((Date.now() - startedAt) / 1000)));
+    tick();
+    const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [startedAt]);
 
   useEffect(() => {
     if (restTimer === null || restTimer <= 0) return;
@@ -58,13 +64,27 @@ export default function WorkoutSession() {
         const dData = wData?.days.find((d) => d.day === day);
         if (dData) {
           setDayData(dData);
-          setExercises(dData.exercises.map((ex) => ({ ...ex, loggedSets: newSets(ex), skipped: false })));
+          const draft = readDraft(user.id);
+          if (draft && draft.programId === data.id && draft.week === week && draft.day === day && draft.exercises?.length) {
+            setExercises(draft.exercises);
+            setNotes(draft.notes || '');
+            setStartedAt(draft.startedAt);
+            setResumed(true);
+          } else {
+            setExercises(dData.exercises.map((ex) => ({ ...ex, loggedSets: newSets(ex), skipped: false })));
+          }
         }
       }
       setLoading(false);
     };
     fetchProgram();
   }, [user, week, day]);
+
+  // Keep the in-progress session in this browser on every change.
+  useEffect(() => {
+    if (!program || !exercises.length || isWorkoutComplete) return;
+    saveDraft(user.id, { programId: program.id, week, day, focus: dayData?.focus || '', exercises, notes, startedAt });
+  }, [user.id, program, week, day, dayData, exercises, notes, startedAt, isWorkoutComplete]);
 
   const formatTime = (seconds) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
 
@@ -81,7 +101,7 @@ export default function WorkoutSession() {
 
   const handleCancel = () => {
     const touched = exercises.some((ex) => ex.loggedSets.some((s) => s.completed));
-    if (!touched || window.confirm('Leave without saving this session?')) navigate(-1);
+    if (!touched || window.confirm('Discard this session? Ticked sets will be lost.')) { clearDraft(user.id); navigate(-1); }
   };
 
   const buildSummary = () => {
@@ -118,10 +138,11 @@ export default function WorkoutSession() {
       const res = await fetch('/api/save-workout', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ programId: program.id, weekNumber: week, dayNumber: day, loggedExercises: exercises, durationSeconds: elapsedTime, sessionNotes: notes }),
+        body: JSON.stringify({ programId: program.id, weekNumber: week, dayNumber: day, loggedExercises: exercises, durationSeconds: Math.min(elapsedTime, 4 * 3600), sessionNotes: notes }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || 'Could not save the session');
+      clearDraft(user.id);
       setSummary(s);
       setIsWorkoutComplete(true);
     } catch (err) {
@@ -209,6 +230,7 @@ export default function WorkoutSession() {
             </motion.div>
           )}
         </AnimatePresence>
+        {resumed && <p className="max-w-2xl mx-auto px-4 pb-2 text-xs text-green-600">Resumed — your ticked sets were kept.</p>}
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
