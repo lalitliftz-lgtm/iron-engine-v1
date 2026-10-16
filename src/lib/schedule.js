@@ -40,7 +40,12 @@ export function planSchedule(snap, logs = [], createdAt, now = new Date()) {
   const trainedLogs = logs.filter(trained);
   const last = trainedLogs.reduce((a, l) => (!a || new Date(l.date_completed) > new Date(a.date_completed) ? l : a), null);
   const gapDays = last ? Math.floor((today - startOfDay(last.date_completed)) / DAY) : null;
-  const trainedToday = !!last && gapDays === 0;
+  // Lifts already trained hard today (main sets ticked) — the 48 h note is only about these.
+  const todayLifts = new Set(trainedLogs.filter((l) => startOfDay(l.date_completed).getTime() === today.getTime())
+    .flatMap((l) => (l.logged_exercises || []).filter((ex) => ex.type === 'Main' && ex.lift && (ex.loggedSets || []).some((s) => s.completed)).map((ex) => ex.lift)));
+  const nextLifts = new Set((next?.day.exercises || []).filter((ex) => ex.type === 'Main' && ex.lift).map((ex) => ex.lift));
+  // Warn only when the next session hits a lift already trained today. Accessory days, other lifts: no note.
+  const repeatLifts = [...nextLifts].filter((l) => todayLifts.has(l));
 
   return {
     next,
@@ -48,7 +53,7 @@ export function planSchedule(snap, logs = [], createdAt, now = new Date()) {
     behind: meetLocked ? 0 : overdue.length,       // sessions the dates are behind (sequence mode)
     droppedForMeet: meetLocked ? overdue.length : 0, // missed sessions the meet calendar left behind
     gapDays,
-    trainedToday,
+    repeatLifts,
     sessionsDone: trainedLogs.length,
     sessionsTotal: sessions.length,
     noneLeftBeforeMeet: meetLocked && !next && pending.length > 0,
