@@ -35,6 +35,9 @@ export default function Programs() {
 
       if (data) {
         setProgram(data);
+        const w1 = data.program_snapshot?.weeks?.[0];
+        const firstTrain = w1?.days?.find((d) => !d.rest);
+        if (firstTrain) setActiveDay(firstTrain.day);
         const { data: l } = await supabase.from('workout_logs').select('week_number, day_number, date_completed, logged_exercises').eq('program_id', data.id).eq('user_id', user.id).order('date_completed', { ascending: false }).limit(100);
         setLogs(l || []);
       }
@@ -86,51 +89,40 @@ export default function Programs() {
     <>
       <style>{`@media print { body * { visibility: hidden; } #print-area, #print-area * { visibility: visible; } #print-area { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }`}</style>
       <div className="max-w-5xl mx-auto px-4 md:px-8 py-8 md:py-12">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 no-print">
-          <div>
-            <div className="flex items-center gap-3 mb-2 flex-wrap">
-              <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight">{blockType}</h1>
-              <span className="px-2.5 py-1 text-xs font-semibold bg-green-50 text-green-700 rounded-full">{program.is_active ? 'Active' : 'Completed'}</span>
-            </div>
-            <div className="flex items-center gap-4 text-sm text-gray-500 flex-wrap">
-              <span>Generated {new Date(program.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-              {meta?.freq && <span className="font-mono text-xs">{meta.freq}</span>}
-              {meta?.maxes?.squat ? <span className="font-mono text-xs">1RM {meta.maxes.squat}/{meta.maxes.bench}/{meta.maxes.deadlift} kg</span> : null}
-            </div>
+        <div className="flex items-start justify-between gap-4 mb-5 no-print">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Your program</p>
+            <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight">{blockType}</h1>
+            <p className="text-sm text-gray-500 mt-1">{weeks.length} weeks{meta?.freq ? ` · ${meta.freq}` : ''}{meta?.maxes?.squat ? ` · maxes ${meta.maxes.squat}/${meta.maxes.bench}/${meta.maxes.deadlift} kg` : ''}</p>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            {meta?.form && (
-              <button onClick={handleExcel} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">⬇ Excel</button>
-            )}
-            <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">📄 PDF</button>
-            <Link to="/dashboard/generate" className="px-4 py-2.5 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-colors">New Block</Link>
+          <div className="flex items-center gap-2 shrink-0">
+            <details className="relative">
+              <summary className="list-none cursor-pointer px-3 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50" aria-label="Export">Export</summary>
+              <div className="absolute right-0 mt-2 w-40 bg-white border border-gray-200 rounded-lg p-1 z-20 shadow-lg">
+                {meta?.form && <button onClick={handleExcel} className="w-full text-left px-3 py-2 text-sm text-gray-700 rounded hover:bg-gray-50">Excel sheet</button>}
+                <button onClick={handlePrint} className="w-full text-left px-3 py-2 text-sm text-gray-700 rounded hover:bg-gray-50">Print / PDF</button>
+              </div>
+            </details>
+            <Link to="/dashboard/generate" className="px-3 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">New block</Link>
           </div>
         </div>
 
-        {(meta?.notes?.length > 0 || meta?.rec?.note) && (
-          <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 text-sm text-gray-700 space-y-2 no-print">
-            {meta?.notes?.map((n, i) => <p key={i}><b className="text-gray-900">Engine:</b> {n}</p>)}
-            {meta?.rec?.note && <p><b className="text-gray-900">Autoregulation:</b> {meta.rec.note}</p>}
-          </div>
-        )}
-
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 mb-8">
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Program Summary</h2>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-            <div><p className="text-xs text-gray-400 mb-1">Block</p><p className="text-sm font-semibold text-gray-900">{blockType}</p></div>
-            <div><p className="text-xs text-gray-400 mb-1">Total Weeks</p><p className="text-sm font-semibold text-gray-900">{weeks.length} Weeks</p></div>
-            <div><p className="text-xs text-gray-400 mb-1">Days / Week</p><p className="text-sm font-semibold text-gray-900">{currentWeekData.days.length} Days</p></div>
-            <div><p className="text-xs text-gray-400 mb-1">Rest Days</p><p className="text-sm font-semibold text-gray-900">{meta?.restDays?.map((d) => d.slice(0, 3)).join(', ') || '—'}</p></div>
-            <div><p className="text-xs text-gray-400 mb-1">Engine Version</p><p className="text-sm font-semibold text-gray-900">{program.engine_versions?.version_string || 'v1.0'}</p></div>
-          </div>
-          {meta?.decisions?.length > 0 && (
-            <div className="mt-5 pt-5 border-t border-gray-100 space-y-1.5">
-              {meta.decisions.map((d, i) => (
-                <p key={i} className="text-xs text-gray-500"><span className="font-semibold text-gray-700">{d.step}:</span> {d.decision} — {d.reason}</p>
+        {(meta?.notes?.length > 0 || meta?.decisions?.length > 0) && (
+          <details className="bg-white border border-gray-200 rounded-xl mb-6 no-print group">
+            <summary className="list-none cursor-pointer px-4 py-3 flex items-center justify-between gap-3">
+              <span className="text-sm font-semibold text-gray-900">Why this plan</span>
+              <span className="text-xs text-gray-500 group-open:hidden">{(meta?.decisions?.length || 0) + (meta?.notes?.length || 0)} coaching decisions · tap to read</span>
+              <span className="text-xs text-gray-500 hidden group-open:inline">Hide</span>
+            </summary>
+            <div className="px-4 pb-4 space-y-3 text-sm">
+              {meta?.decisions?.map((d, i) => (
+                <div key={`d${i}`}><p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{d.step}</p><p className="text-gray-800"><b className="text-gray-900">{d.decision}</b> — {d.reason}</p></div>
               ))}
+              {meta?.notes?.length > 0 && <div className="pt-2 border-t border-gray-100 space-y-1.5">{meta.notes.map((n, i) => <p key={`n${i}`} className="text-gray-700">• {n}</p>)}</div>}
+              {meta?.rec?.note && <p className="text-gray-700">• {meta.rec.note}</p>}
             </div>
-          )}
-        </div>
+          </details>
+        )}
 
         <div id="print-area">
           <div className="hidden print:block mb-8">
@@ -140,7 +132,7 @@ export default function Programs() {
 
           <div className="flex space-x-2 mb-6 overflow-x-auto pb-2 no-print">
             {weeks.map((w) => (
-              <button key={w.week} onClick={() => { setActiveWeek(w.week); setActiveDay(1); }} className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeWeek === w.week ? 'bg-gray-900 text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+              <button key={w.week} onClick={() => { setActiveWeek(w.week); setActiveDay((w.days.find((d) => !d.rest) || w.days[0]).day); }} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap border ${activeWeek === w.week ? 'bg-gray-100 text-gray-900 border-gray-300' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
                 {checkins[String(w.week)] && <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${LIGHT_DOT[checkins[String(w.week)].light]}`} title={`Check-in: ${checkins[String(w.week)].light}`}></span>}
                 {w.label || `Week ${w.week}`}{w.meetWeek ? null : w.taper ? <span className="ml-1.5 text-[10px] uppercase tracking-wider opacity-75">Taper</span> : w.deload ? <span className="ml-1.5 text-[10px] uppercase tracking-wider opacity-75">Deload</span> : null}
               </button>

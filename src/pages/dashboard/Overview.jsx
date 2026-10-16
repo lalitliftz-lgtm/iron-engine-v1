@@ -45,7 +45,7 @@ export default function Overview() {
 
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div></div>;
 
-  const { profile, subscription, program, activity, logs } = dashboardData;
+  const { profile, subscription, program, logs } = dashboardData;
   const isPro = subscription && new Date(subscription.end_date) > new Date();
   const firstName = profile?.full_name?.split(' ')[0] || 'Athlete';
   const hasMeet = profile?.competition_date;
@@ -88,147 +88,116 @@ export default function Overview() {
     return `${e.name} ${top.weight}×${top.reps}${top.rpe ? ` @${top.rpe}` : ''}`;
   }).filter(Boolean);
 
+  // What does the calendar say about TODAY? (rest day, meet day, or a training day)
+  const todayLabel = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const todayEntry = (snap?.weeks || []).flatMap((w) => (w.days || []).map((d) => ({ w, d }))).find(({ d }) => d.date === todayLabel);
+  const restToday = todayEntry?.d.rest ? todayEntry.d : null;
+  const progressPct = sessionsTotal ? Math.min(100, Math.round((sessionsDone / sessionsTotal) * 100)) : 0;
+
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 md:py-12">
-      <div className="mb-12">
-        <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight">Welcome back, {firstName} 👋</h1>
-        <p className="text-gray-500 mt-1 text-sm md:text-base">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-      </div>
+    <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10 space-y-5">
+      <header className="flex items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+          <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight">Hi {firstName}</h1>
+        </div>
+        {!isPro && <Link to="/dashboard/subscription" className="text-xs font-semibold text-blue-600">Free plan · Go Pro</Link>}
+      </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Next Session</h2>
-              {isPro ? <span className="px-2 py-0.5 text-xs font-medium bg-green-50 text-green-700 rounded-full">Pro Active</span> : <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">Free Tier</span>}
+      {/* 1 — the one thing to do now */}
+      <section className="bg-white border border-gray-200 rounded-2xl p-5 md:p-6">
+        {program && next ? (
+          <>
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+              {restToday ? 'Today is a rest day · next session' : 'Next session'} · {next.week.label || `Week ${currentWeek}`}{next.day.weekday ? ` · ${next.day.weekday}${next.day.date ? ' ' + next.day.date : ''}` : ''}
+            </p>
+            <h2 className="text-xl md:text-2xl font-bold text-gray-900 mt-1">{next.day.focus}</h2>
+            {restToday && <p className="text-sm text-gray-500 mt-1">{restToday.notes}</p>}
+            <div className="mt-4 divide-y divide-gray-100">
+              {nextMains.map((m, i) => (
+                <div key={i} className="flex items-baseline justify-between gap-3 py-2">
+                  <span className="text-sm font-semibold text-gray-900">{m.name}</span>
+                  <span className="text-sm font-mono text-gray-700 whitespace-nowrap">{m.sets} × {m.reps}{m.weight ? ` · ${m.weight} kg` : ''}</span>
+                </div>
+              ))}
+              {nextMains.length === 0 && <p className="text-sm text-gray-500 py-2">Accessories + technique day</p>}
             </div>
-            {program && next ? (
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">{next.day.focus} <span className="text-gray-400 font-normal">· {next.week.label || `Week ${currentWeek}`}{next.day.weekday ? ` · ${next.day.weekday}${next.day.date ? ' ' + next.day.date : ''}` : ''}</span></h3>
-                  <div className="text-sm text-gray-500 mt-1 space-y-0.5">
-                    {nextMains.map((m, i) => <p key={i}>{m.name} · {m.sets} × {m.reps}{m.weight ? ` @ ${m.weight} kg` : ''}{m.rpe && m.rpe !== '—' ? ` · RPE ${m.rpe}` : ''}</p>)}
-                    {nextMains.length === 0 && <p>Accessories + technique day</p>}
-                  </div>
-                </div>
-                <Link to={`/dashboard/workout?week=${next.week.week}&day=${next.day.day}`} className="bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium py-2.5 px-5 rounded-lg transition-colors text-center whitespace-nowrap">Start session →</Link>
-              </div>
-            ) : blockDone ? (
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Block complete 🎉</h3>
-                  <p className="text-sm text-gray-500">Every session is logged. Build the next block — the engine re-reads your assessment and the meet date.</p>
-                </div>
-                <Link to="/dashboard/generate" className="bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium py-2.5 px-5 rounded-lg transition-colors text-center">Build next block →</Link>
-              </div>
-            ) : (
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">No Active Workout</h3>
-                  <p className="text-sm text-gray-500">Generate a program to start training.</p>
-                </div>
-                <Link to="/dashboard/generate" className="bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium py-2.5 px-5 rounded-lg transition-colors text-center">Build my block →</Link>
-              </div>
-            )}
-          </div>
+            <Link to={`/dashboard/workout?week=${next.week.week}&day=${next.day.day}`} className="mt-5 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Start session</Link>
+          </>
+        ) : blockDone ? (
+          <>
+            <p className="text-xs font-semibold uppercase tracking-wider text-green-700">Block complete</p>
+            <h2 className="text-xl font-bold text-gray-900 mt-1">Every session is logged.</h2>
+            <p className="text-sm text-gray-500 mt-1">The engine reviews this block (RPE, misses, check-ins) and builds the next one from it.</p>
+            <Link to="/dashboard/generate" className="mt-5 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Build next block</Link>
+          </>
+        ) : (
+          <>
+            <h2 className="text-xl font-bold text-gray-900">No block yet</h2>
+            <p className="text-sm text-gray-500 mt-1">Answer the assessment (2–3 min) and the engine builds your first block around your numbers, weak points and meet date.</p>
+            <Link to="/dashboard/generate" className="mt-5 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Build my block</Link>
+          </>
+        )}
+      </section>
 
-          {checkinWeek && (
-            <div className="bg-gray-900 text-white rounded-xl p-6 shadow-sm flex items-center justify-between gap-4 flex-wrap">
-              <div>
-                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Week {checkinWeek} done</h2>
-                <p className="text-sm">60-second check-in: sleep, soreness, mood, pain. The engine reads it with your logged RPE and sets next week's kg.</p>
-              </div>
-              <Link to={`/dashboard/checkin?week=${checkinWeek}`} className="bg-white text-gray-900 text-sm font-semibold px-5 py-2.5 rounded-lg whitespace-nowrap">Weekly check-in →</Link>
+      {/* 2 — only when it's due */}
+      {checkinWeek && (
+        <section className="bg-amber-50 border border-amber-300 rounded-2xl p-5 flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">Week {checkinWeek} done</p>
+            <p className="text-sm text-gray-800 mt-0.5">60-second check-in → the engine sets next week's kg.</p>
+          </div>
+          <Link to={`/dashboard/checkin?week=${checkinWeek}`} className="text-sm font-semibold border border-amber-300 text-amber-800 px-4 py-2 rounded-lg whitespace-nowrap">Check in</Link>
+        </section>
+      )}
+
+      {/* 3 — meet */}
+      {hasMeet && daysToMeet !== null && daysToMeet >= 0 && (
+        <section className="bg-white border border-gray-200 rounded-2xl p-5">
+          <div className="flex items-baseline gap-3">
+            <span className="text-4xl font-bold text-gray-900 tabular-nums" style={{ fontFamily: "'Archivo Black', sans-serif" }}>{daysToMeet}</span>
+            <span className="text-sm text-gray-500">{profile?.assessment_data?.meet_date_status === 'approx' ? 'days to the earliest likely meet date' : daysToMeet === 0 ? 'Meet day — go get it' : 'days to your meet'}</span>
+          </div>
+          {profile?.assessment_data?.meet_date_status === 'approx' && (
+            <Link to="/dashboard/assessment" className="inline-block mt-3 text-sm font-semibold text-blue-600">Date announced? Update it → exact taper</Link>
+          )}
+          {attempts && (
+            <div className="mt-4 pt-4 border-t border-gray-100 space-y-1.5">
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Suggested attempts (kg)</p>
+              {['squat', 'bench', 'deadlift'].filter((l) => attempts[l]).map((l) => (
+                <div key={l} className="flex justify-between text-sm"><span className="text-gray-500">{LIFT_NAMES[l]}</span><span className="font-mono text-gray-900">{attempts[l].opener} · {attempts[l].second} · {attempts[l].third}</span></div>
+              ))}
+              <p className="text-xs text-gray-500 pt-1">{attempts.rule}</p>
             </div>
           )}
+        </section>
+      )}
 
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Current Training Block</h2>
-            {currentBlock ? (
-              <div>
-                <div className="flex justify-between items-baseline mb-2">
-                  <h3 className="text-lg font-semibold text-gray-900">{currentBlock}</h3>
-                  <span className="text-sm text-gray-500">Week {currentWeek} of {totalWeeks} · {sessionsDone}/{sessionsTotal} sessions</span>
-                </div>
-                <div className="w-full bg-gray-100 rounded-full h-2">
-                  <div className="bg-gray-900 h-2 rounded-full transition-all duration-500" style={{ width: `${sessionsTotal ? Math.min(100, (sessionsDone / sessionsTotal) * 100) : 0}%` }}></div>
-                </div>
-                <Link to="/dashboard/programs" className="inline-block mt-4 text-sm text-gray-700 hover:text-gray-900 font-medium">View full program →</Link>
-              </div>
-            ) : (
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Not Assigned</h3>
-                <div className="w-full bg-gray-100 rounded-full h-2 mt-4"></div>
-              </div>
-            )}
+      {/* 4 — where you are in the block */}
+      {currentBlock && (
+        <section className="bg-white border border-gray-200 rounded-2xl p-5">
+          <div className="flex justify-between items-baseline gap-3 mb-2">
+            <p className="text-sm font-semibold text-gray-900">{currentBlock}</p>
+            <span className="text-xs text-gray-500 whitespace-nowrap tabular-nums">{sessionsDone}/{sessionsTotal} sessions</span>
           </div>
-
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Last Session · Top Sets</h2>
-            {lastTop.length > 0 ? <div className="flex flex-wrap gap-x-6 gap-y-2">{lastTop.map((t, i) => <span key={i} className="text-sm font-mono text-gray-800">{t}</span>)}</div> : <p className="text-sm text-gray-400">Log a session and your top sets show up here.</p>}
+          <div className="w-full bg-gray-100 rounded-full h-2" role="progressbar" aria-valuenow={progressPct} aria-valuemin="0" aria-valuemax="100">
+            <div className="h-2 rounded-full transition-all duration-500" style={{ width: `${progressPct}%`, background: 'var(--ll-good)' }}></div>
           </div>
-        </div>
-
-        <div className="space-y-6">
-          {hasMeet && (
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 shadow-sm text-white">
-              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Meet Prep</h2>
-              <p className="text-4xl font-bold tracking-tight">{daysToMeet}</p>
-              <p className="text-sm text-gray-400 mt-1">{profile?.assessment_data?.meet_date_status === 'approx' ? 'Days to the earliest likely date' : 'Days to competition'}</p>
-              {profile?.assessment_data?.meet_date_status === 'approx' && (
-                <Link to="/dashboard/assessment" className="inline-block mt-3 text-xs font-semibold bg-white text-gray-900 px-3 py-1.5 rounded-lg">Date announced? Update it → exact taper</Link>
-              )}
-              {attempts && (
-                <div className="mt-4 space-y-2 border-t border-gray-800 pt-4">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Suggested attempts (kg)</p>
-                  {['squat', 'bench', 'deadlift'].filter((l) => attempts[l]).map((l) => <p key={l} className="text-sm"><span className="text-gray-400">{LIFT_NAMES[l]}</span> {attempts[l].opener} · {attempts[l].second} · {attempts[l].third}</p>)}
-                  <p className="text-[11px] text-gray-500">{attempts.rule}</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-6">Recent Activity</h2>
-            {activity.length > 0 ? (
-              <div className="flow-root">
-                <ul className="-mb-8">
-                  {activity.map((act, idx) => (
-                    <li key={idx}>
-                      <div className="relative pb-8">
-                        {idx !== activity.length - 1 ? <span className="absolute top-1 left-1 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true"></span> : null}
-                        <div className="relative flex space-x-3">
-                          <div>
-                            <span className={`h-2 w-2 rounded-full flex items-center justify-center ring-4 ring-white mt-1.5 ${act.type === 'workout' ? 'bg-green-500' : act.type === 'program' ? 'bg-indigo-500' : 'bg-yellow-500'}`}></span>
-                          </div>
-                          <div className="flex min-w-0 flex-1 justify-between space-x-4">
-                            <div><p className="text-sm text-gray-800">{act.text}</p></div>
-                            <div className="whitespace-nowrap text-right text-xs text-gray-400">{new Date(act.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              <div className="text-center py-4">
-                <p className="text-sm text-gray-400">No recent activity.</p>
-                <p className="text-xs text-gray-300 mt-1">Generate a program or log a workout to get started.</p>
-              </div>
-            )}
+          <div className="flex justify-between mt-3 text-sm">
+            <span className="text-gray-500">Week {currentWeek} of {totalWeeks}</span>
+            <Link to="/dashboard/programs" className="font-semibold text-gray-900">Full program →</Link>
           </div>
+        </section>
+      )}
 
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Quick Links</h2>
-            <div className="space-y-3">
-              <Link to="/dashboard/athlete-profile" className="block text-sm text-gray-700 hover:text-gray-900 transition-colors flex items-center justify-between">Athlete Profile <span className="text-gray-400">→</span></Link>
-              <Link to="/dashboard/history" className="block text-sm text-gray-700 hover:text-gray-900 transition-colors flex items-center justify-between">Workout History <span className="text-gray-400">→</span></Link>
-              <Link to="/dashboard/subscription" className="block text-sm text-gray-700 hover:text-gray-900 transition-colors flex items-center justify-between">Manage Subscription <span className="text-gray-400">→</span></Link>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* 5 — last session */}
+      {lastTop.length > 0 && (
+        <section className="bg-white border border-gray-200 rounded-2xl p-5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Last session · top sets</p>
+          <div className="space-y-1">{lastTop.map((t, i) => <p key={i} className="text-sm font-mono text-gray-800">{t}</p>)}</div>
+          <Link to="/dashboard/history" className="inline-block mt-3 text-sm font-semibold text-gray-900">All sessions →</Link>
+        </section>
+      )}
     </div>
   );
 }
