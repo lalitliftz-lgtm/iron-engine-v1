@@ -6,7 +6,7 @@ import { applyAdjustments, attemptPlan } from '../../lib/autoreg';
 import { LIFT_NAMES } from '../../lib/engine';
 import StalePlanBanner from '../../components/dashboard/StalePlanBanner';
 import { readDraft, draftSetsDone } from '../../lib/workoutDraft';
-import { planSchedule, reentry } from '../../lib/schedule';
+import { planSchedule, reentry, appNow } from '../../lib/schedule';
 import SessionActions from '../../components/dashboard/SessionActions';
 
 export default function Overview() {
@@ -54,7 +54,7 @@ export default function Overview() {
   const isPro = subscription && new Date(subscription.end_date) > new Date();
   const firstName = profile?.full_name?.split(' ')[0] || 'Athlete';
   const hasMeet = profile?.competition_date;
-  const daysToMeet = hasMeet ? Math.ceil((new Date(hasMeet) - new Date()) / (1000 * 60 * 60 * 24)) : null;
+  const daysToMeet = hasMeet ? Math.ceil((new Date(hasMeet) - appNow()) / (1000 * 60 * 60 * 24)) : null;
 
   const snap = program ? applyAdjustments(program.program_snapshot, program.program_snapshot.adjustments) : null;
   const checkins = program?.program_snapshot?.adjustments?.checkins || {};
@@ -71,7 +71,7 @@ export default function Overview() {
   const blockDone = !!snap && !next;
   const back = sched ? reentry(sched.gapDays) : null;
   // Only the last week's misses are worth a mention; older ones simply count as missed in the block review.
-  const weekAgo = new Date(new Date().setHours(0, 0, 0, 0) - 7 * 864e5);
+  const weekAgo = new Date(new Date(appNow()).setHours(0, 0, 0, 0) - 7 * 864e5);
   const recentMissed = sched && sched.when !== 'overdue' ? sched.missed.filter((m) => m.at && m.at >= weekAgo).slice(-3) : [];
   // A finished training week with no check-in yet → ask for it (Pro). The latest such week wins.
   let checkinWeek = null;
@@ -96,7 +96,7 @@ export default function Overview() {
   }).filter(Boolean);
 
   // What does the calendar say about TODAY? (rest day, meet day, or a training day)
-  const todayLabel = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const todayLabel = appNow().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   const todayEntry = (snap?.weeks || []).flatMap((w) => (w.days || []).map((d) => ({ w, d }))).find(({ d }) => d.date === todayLabel);
   const restToday = todayEntry?.d.rest ? todayEntry.d : null;
   const progressPct = sessionsTotal ? Math.min(100, Math.round((sessionsDone / sessionsTotal) * 100)) : 0;
@@ -105,7 +105,7 @@ export default function Overview() {
     <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10 space-y-5">
       <header className="flex items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{appNow().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
           <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight">Hi {firstName}</h1>
         </div>
         {!isPro && <Link to="/dashboard/subscription" className="text-xs font-semibold text-blue-600">Free plan · Go Pro</Link>}
@@ -115,44 +115,25 @@ export default function Overview() {
 
       {/* 1 — the one thing to do now */}
       <section className="bg-white border border-gray-200 rounded-2xl p-5 md:p-6">
-        {program && next ? (
+        {program && draft ? (
+          <>
+            <p className="text-xs font-semibold uppercase tracking-wider text-green-700">Session in progress</p>
+            <h2 className="text-xl md:text-2xl font-bold text-gray-900 mt-1">{draft.focus || `Week ${draft.week} · Day ${draft.day}`}</h2>
+            <p className="text-sm text-gray-500 mt-1">{draftSetsDone(draft)} set{draftSetsDone(draft) === 1 ? '' : 's'} ticked so far.</p>
+            <Link to={`/dashboard/workout?week=${draft.week}&day=${draft.day}`} className="mt-5 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Resume session</Link>
+          </>
+        ) : program && sched?.when === 'today' ? (
           <>
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-              {sched.when === 'today' ? (next.day.optional ? "Today · optional session" : "Today's session")
-                : sched.when === 'overdue' ? `Pending session · planned ${next.day.date}`
-                : sched.todayDone ? "Today's session done ✓ · next"
-                : restToday || sched.todayRest ? 'Rest day today · next session'
-                : 'Next session'} · {next.week.label || `Week ${currentWeek}`}{sched.when !== 'overdue' && next.day.weekday ? ` · ${next.day.weekday}${next.day.date ? ' ' + next.day.date : ''}` : ''}
+              {next.day.optional ? 'Today · optional session' : "Today's session"} · {next.week.label || `Week ${currentWeek}`}{next.day.weekday ? ` · ${next.day.weekday} ${next.day.date || ''}` : ''}
             </p>
             <h2 className="text-xl md:text-2xl font-bold text-gray-900 mt-1">{next.day.focus}</h2>
-            {restToday && <p className="text-sm text-gray-500 mt-1">{restToday.notes}</p>}
-            {sched.when === 'today' && next.day.optional && !draft && (
-              <p className="text-sm text-gray-500 mt-1">Optional — technique and conditioning. Do it if you feel fresh; skipping it costs nothing.</p>
-            )}
-            {sched.when === 'upcoming' && !restToday && !draft && (
-              <p className="text-sm text-gray-500 mt-1">
-                {sched.startsOn
-                  ? `Your block starts ${sched.startsOn.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}. Rest until then — or start early if you're keen; the plan just moves up.`
-                  : `${sched.todayDone ? 'Recover today — this one is up next.' : 'Nothing planned for today.'} Training early is fine if you feel fresh; the plan just moves up.`}
-              </p>
-            )}
-            {sched.optionalBefore && !draft && (
-              <p className="text-sm text-gray-500 mt-2">
-                Optional before that: {sched.optionalBefore.day.weekday} {sched.optionalBefore.day.date} · {sched.optionalBefore.day.focus}.{' '}
-                <Link to={`/dashboard/workout?week=${sched.optionalBefore.week.week}&day=${sched.optionalBefore.day.day}`} className="font-semibold text-gray-900 underline">Open</Link>
-              </p>
-            )}
-            {!draft && (back || recentMissed.length > 0 || sched.droppedForMeet > 0 || sched.repeatLifts.length > 0) && (
+            {next.day.optional && <p className="text-sm text-gray-500 mt-1">Optional — technique and conditioning. Do it if you feel fresh; skipping it costs nothing.</p>}
+            {(back || sched.droppedForMeet > 0 || sched.repeatLifts.length > 0) && (
               <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700 space-y-1">
                 {back && <p>{back.text}{back.rebuild && <> <Link to="/dashboard/generate" className="underline font-semibold">Build a fresh block</Link></>}</p>}
-                {recentMissed.length > 0 && (
-                  <p>
-                    Missed: {recentMissed.map((m) => `${m.day.weekday || ''} ${m.day.date} ${m.day.focus}`.trim()).join(', ')}. Do it on a free day if you feel fresh (never two in one day), or just leave it.{' '}
-                    <Link to={`/dashboard/workout?week=${recentMissed[recentMissed.length - 1].week.week}&day=${recentMissed[recentMissed.length - 1].day.day}`} className="underline font-semibold">Do it instead</Link>
-                  </p>
-                )}
                 {sched.droppedForMeet > 0 && <p>{sched.droppedForMeet} missed session{sched.droppedForMeet > 1 ? 's' : ''} left behind — your meet date doesn't move, so the plan continues with today's session. Don't try to make them up.</p>}
-                {sched.repeatLifts.length > 0 && <p>You already trained {sched.repeatLifts.map((l) => LIFT_NAMES[l]).join(' and ')} today. This session has it again — best tomorrow; the same lift needs ~48 h between hard sessions.</p>}
+                {sched.repeatLifts.length > 0 && <p>You already trained {sched.repeatLifts.map((l) => LIFT_NAMES[l]).join(' and ')} today. This session has it again — the same lift needs ~48 h between hard sessions.</p>}
               </div>
             )}
             <div className="mt-4 divide-y divide-gray-100">
@@ -164,17 +145,34 @@ export default function Overview() {
               ))}
               {nextMains.length === 0 && <p className="text-sm text-gray-500 py-2">Accessories + technique day</p>}
             </div>
-            {draft ? (
-              <>
-                <p className="mt-5 text-xs text-green-600">In progress{draft.focus ? ` · W${draft.week} D${draft.day} ${draft.focus}` : ''} · {draftSetsDone(draft)} set{draftSetsDone(draft) === 1 ? '' : 's'} ticked</p>
-                <Link to={`/dashboard/workout?week=${draft.week}&day=${draft.day}`} className="mt-2 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Resume session</Link>
-              </>
-            ) : (
-              <>
-                <Link to={`/dashboard/workout?week=${next.week.week}&day=${next.day.day}`} className="mt-5 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Start session</Link>
-                <SessionActions programId={program.id} week={next.week} day={next.day} onDone={() => setReloadKey((k) => k + 1)} />
-              </>
+            <Link to={`/dashboard/workout?week=${next.week.week}&day=${next.day.day}`} className="mt-5 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Start session</Link>
+            <SessionActions programId={program.id} week={next.week} day={next.day} onDone={() => setReloadKey((k) => k + 1)} />
+          </>
+        ) : program && next && sched.when !== 'overdue' ? (
+          <>
+            {/* No workout today: nothing to start. Just what today is and what comes next. */}
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Today</p>
+            <h2 className="text-xl md:text-2xl font-bold text-gray-900 mt-1">
+              {sched.todayDone ? "Today's session is done ✓" : sched.startsOn ? `Your block starts ${sched.startsOn.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}` : 'Rest day'}
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              {sched.todayDone ? 'Recover: eat, sleep, walk.' : restToday?.notes || 'No workout today. Rest is when you actually get stronger.'}
+            </p>
+            {recentMissed.length > 0 && (
+              <p className="text-sm text-amber-700 mt-3">Missed: {recentMissed.map((m) => `${m.day.weekday || ''} ${m.day.date} ${m.day.focus}`.trim()).join(', ')}. No need to make it up — just do the next one.</p>
             )}
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Next workout · {next.day.weekday} {next.day.date}</p>
+              <p className="text-sm font-semibold text-gray-900 mt-1">{next.day.focus}</p>
+              {sched.optionalBefore && <p className="text-xs text-gray-500 mt-1">Optional before that: {sched.optionalBefore.day.weekday} {sched.optionalBefore.day.date} · {sched.optionalBefore.day.focus}</p>}
+            </div>
+          </>
+        ) : program && next ? (
+          <>
+            <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">This block's dates have passed</p>
+            <h2 className="text-xl font-bold text-gray-900 mt-1">Time for a fresh block.</h2>
+            <p className="text-sm text-gray-500 mt-1">The remaining sessions were planned for dates that are gone. Build a new block from where you are now — your logs carry over.</p>
+            <Link to="/dashboard/generate" className="mt-5 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Build a fresh block</Link>
           </>
         ) : blockDone && sched?.noneLeftBeforeMeet ? (
           <>

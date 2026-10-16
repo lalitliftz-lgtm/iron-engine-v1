@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { seasonRoadmap } from '../../lib/roadmap';
+import { appNow } from '../../lib/schedule';
 
 const fmt = (d) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
@@ -11,7 +12,7 @@ export default function SeasonRoadmap({ program }) {
   const road = seasonRoadmap(snap, program?.created_at, profile.competition_date, snap?.meta?.form?.exp);
   if (!road) return null;
   const { blocks, meet } = road;
-  const weeksToMeet = meet ? Math.max(0, Math.ceil((meet - new Date()) / (7 * 864e5))) : null;
+  const weeksToMeet = meet ? Math.max(0, Math.ceil((meet - appNow()) / (7 * 864e5))) : null;
 
   return (
     <section className="bg-white border border-gray-200 rounded-2xl p-4 md:p-5 mb-5 no-print">

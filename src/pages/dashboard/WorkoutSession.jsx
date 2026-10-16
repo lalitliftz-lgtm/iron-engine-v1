@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { platesPerSide, round25 } from '../../lib/engine';
 import { applyAdjustments } from '../../lib/autoreg';
 import { readDraft, saveDraft, clearDraft } from '../../lib/workoutDraft';
-import { reentry, trained, startOfDay, planSchedule, lockReason } from '../../lib/schedule';
+import { reentry, trained, startOfDay, planSchedule, lockReason, appNow } from '../../lib/schedule';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const MAIN_REST = 180; // System 2.0: main lifts 3–5 min
@@ -167,7 +167,7 @@ export default function WorkoutSession() {
               startNotes.push('This session is already in your History. Logging it again adds a second entry — remove one in History if that was a mistake.');
             }
             const lastTrained = (recent || []).find(trained);
-            const gap = lastTrained ? Math.floor((startOfDay(new Date()) - startOfDay(lastTrained.date_completed)) / 864e5) : null;
+            const gap = lastTrained ? Math.floor((startOfDay(appNow()) - startOfDay(lastTrained.date_completed)) / 864e5) : null;
             const back = reentry(gap);
             if (back) {
               fresh = fresh.map((ex) => (ex.type !== 'Main' ? ex : { ...ex, loggedSets: ex.loggedSets.map((x) => (x.weight ? { ...x, weight: String(round25(Number(x.weight) * back.factor)) } : x)) }));
