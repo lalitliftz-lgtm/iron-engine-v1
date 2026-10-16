@@ -42,14 +42,20 @@ export default async function handler(req, res) {
         rpe: st.rpe === '' || st.rpe === undefined ? '' : Number(st.rpe) || '',
         pain: st.pain === true,
         completed: st.completed === true,
+        ...(st.planned === true ? { planned: true } : {}), // "marked done" without details — not used for e1RM
       })) : [],
     }));
+
+    // Skipped session (sick, busy, gym closed…) or "did it, didn't log details".
+    const SKIP_REASONS = ['sick', 'busy', 'gym_closed', 'injury', 'travel', 'other'];
+    const skipReason = SKIP_REASONS.includes(req.body?.skipReason) ? req.body.skipReason : null;
+    const quick = req.body?.quick === true;
 
     // A retry after a dropped connection must not create a second log for the same session.
     const clientId = typeof req.body?.clientId === 'string' ? req.body.clientId.slice(0, 64) : null;
     if (clientId) {
       const { data: existing } = await supabaseAdmin.from('workout_logs').select('id')
-        .eq('user_id', user.id).eq('program_id', programId).eq('recovery_checklist->>client_id', clientId).limit(1).maybeSingle();
+        .eq('user_id', user.id).eq('program_id', programId).eq('is_deleted', false).eq('recovery_checklist->>client_id', clientId).limit(1).maybeSingle();
       if (existing) return res.status(200).json({ success: true, logId: existing.id, duplicate: true });
     }
 
@@ -60,7 +66,7 @@ export default async function handler(req, res) {
       day_number: dayNumber,
       logged_exercises: exercises,
       duration_seconds: int(durationSeconds, 0, 6 * 3600) ?? 0,
-      recovery_checklist: { session_notes: String(sessionNotes || '').slice(0, 2000), ...(clientId ? { client_id: clientId } : {}) }
+      recovery_checklist: { session_notes: String(sessionNotes || '').slice(0, 2000), ...(clientId ? { client_id: clientId } : {}), ...(skipReason ? { skip_reason: skipReason } : {}), ...(quick ? { quick: true } : {}) }
     }).select('id').single();
 
     if (insertError) throw insertError;

@@ -6,10 +6,13 @@ import { applyAdjustments, attemptPlan } from '../../lib/autoreg';
 import { LIFT_NAMES } from '../../lib/engine';
 import StalePlanBanner from '../../components/dashboard/StalePlanBanner';
 import { readDraft, draftSetsDone } from '../../lib/workoutDraft';
+import { planSchedule, reentry } from '../../lib/schedule';
+import SessionActions from '../../components/dashboard/SessionActions';
 
 export default function Overview() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
   const [dashboardData, setDashboardData] = useState({
     profile: null,
     subscription: null,
@@ -23,7 +26,7 @@ export default function Overview() {
       if (!user) return;
 
       const [profileRes, subRes, programRes] = await Promise.all([
-        supabase.from('athlete_profiles').select('full_name, competition_date, experience_level, training_days_per_week, assessment_data, updated_at').eq('user_id', user.id).maybeSingle(),
+        supabase.from('athlete_profiles').select('full_name, competition_date, experience_level, training_days_per_week, squat_1rm, bench_1rm, deadlift_1rm, assessment_data, updated_at').eq('user_id', user.id).maybeSingle(),
         supabase.from('subscriptions').select('status, end_date').eq('user_id', user.id).eq('status', 'active').gte('end_date', new Date().toISOString()).order('end_date', { ascending: false }).limit(1).maybeSingle(),
         supabase.from('generated_programs').select('id, created_at, program_snapshot').eq('user_id', user.id).eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle(),
       ]);
@@ -43,7 +46,7 @@ export default function Overview() {
     };
 
     fetchDashboardData();
-  }, [user]);
+  }, [user, reloadKey]);
 
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div></div>;
 
@@ -62,15 +65,11 @@ export default function Overview() {
   // An unfinished session in this browser (same block, day not logged yet) → Resume instead of Start.
   const savedDraft = readDraft(user.id);
   const draft = savedDraft && program && savedDraft.programId === program.id && !done.has(`${savedDraft.week}-${savedDraft.day}`) ? savedDraft : null;
-  let next = null;
-  for (const w of snap?.weeks || []) {
-    for (const d of w.days || []) {
-      if (d.meetDay || d.rest) continue;
-      if (!done.has(`${w.week}-${d.day}`)) { next = { week: w, day: d }; break; }
-    }
-    if (next) break;
-  }
+  // Missed days, breaks and meet calendars are handled in lib/schedule.js.
+  const sched = snap ? planSchedule(snap, logs, program.created_at) : null;
+  const next = sched?.next || null;
   const blockDone = !!snap && !next;
+  const back = sched ? reentry(sched.gapDays) : null;
   // A finished training week with no check-in yet → ask for it (Pro). The latest such week wins.
   let checkinWeek = null;
   for (const w of snap?.weeks || []) {
@@ -82,8 +81,8 @@ export default function Overview() {
   const attempts = snap && daysToMeet !== null && daysToMeet <= 14 && daysToMeet >= 0 ? attemptPlan(snap.meta?.maxes || {}, logs, snap.meta?.form?.exp, snap.meta?.form?.compLifts) : null;
   const currentWeek = next ? next.week.week : totalWeeks;
   const nextMains = next ? next.day.exercises.filter((e) => e.type === 'Main').slice(0, 3) : [];
-  const sessionsDone = logs.length;
-  const sessionsTotal = (snap?.weeks || []).reduce((n, w) => n + (w.days || []).filter((d) => !d.meetDay && !d.rest).length, 0);
+  const sessionsDone = sched?.sessionsDone || 0;
+  const sessionsTotal = sched?.sessionsTotal || 0;
   // Last logged main-lift top sets (what a coach glances at)
   const lastLog = logs[0];
   const lastTop = (lastLog?.logged_exercises || []).filter((e) => e.type === 'Main' && !e.skipped).map((e) => {
@@ -116,10 +115,18 @@ export default function Overview() {
         {program && next ? (
           <>
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-              {restToday ? 'Today is a rest day · next session' : 'Next session'} · {next.week.label || `Week ${currentWeek}`}{next.day.weekday ? ` · ${next.day.weekday}${next.day.date ? ' ' + next.day.date : ''}` : ''}
+              {restToday ? 'Today is a rest day · next session' : 'Next session'} · {next.week.label || `Week ${currentWeek}`}{next.at && next.at < new Date(new Date().setHours(0, 0, 0, 0)) ? ' · today (planned ' + next.day.date + ')' : next.day.weekday ? ` · ${next.day.weekday}${next.day.date ? ' ' + next.day.date : ''}` : ''}
             </p>
             <h2 className="text-xl md:text-2xl font-bold text-gray-900 mt-1">{next.day.focus}</h2>
             {restToday && <p className="text-sm text-gray-500 mt-1">{restToday.notes}</p>}
+            {!draft && (back || sched.behind > 0 || sched.droppedForMeet > 0 || sched.trainedToday) && (
+              <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700 space-y-1">
+                {back && <p>{back.text}{back.rebuild && <> <Link to="/dashboard/generate" className="underline font-semibold">Build a fresh block</Link></>}</p>}
+                {!back && sched.behind > 0 && <p>You're {sched.behind} session{sched.behind > 1 ? 's' : ''} behind the dates — that's fine. The plan simply continues in order; don't double up to catch up.</p>}
+                {sched.droppedForMeet > 0 && <p>{sched.droppedForMeet} missed session{sched.droppedForMeet > 1 ? 's' : ''} left behind — your meet date doesn't move, so the plan continues with today's session. Don't try to make them up.</p>}
+                {sched.trainedToday && <p>You already trained today. Best to do this one tomorrow — the same lift needs ~48 h between hard sessions.</p>}
+              </div>
+            )}
             <div className="mt-4 divide-y divide-gray-100">
               {nextMains.map((m, i) => (
                 <div key={i} className="flex items-baseline justify-between gap-3 py-2">
@@ -135,8 +142,18 @@ export default function Overview() {
                 <Link to={`/dashboard/workout?week=${draft.week}&day=${draft.day}`} className="mt-2 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Resume session</Link>
               </>
             ) : (
-              <Link to={`/dashboard/workout?week=${next.week.week}&day=${next.day.day}`} className="mt-5 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Start session</Link>
+              <>
+                <Link to={`/dashboard/workout?week=${next.week.week}&day=${next.day.day}`} className="mt-5 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Start session</Link>
+                <SessionActions programId={program.id} week={next.week} day={next.day} onDone={() => setReloadKey((k) => k + 1)} />
+              </>
             )}
+          </>
+        ) : blockDone && sched?.noneLeftBeforeMeet ? (
+          <>
+            <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">No sessions left before the meet</p>
+            <h2 className="text-xl font-bold text-gray-900 mt-1">The remaining dates have passed.</h2>
+            <p className="text-sm text-gray-500 mt-1">Rest, stay loose, and follow the meet-day plan. If the meet moved, update the date and build a new block.</p>
+            <Link to="/dashboard/assessment" className="mt-5 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Update meet date</Link>
           </>
         ) : blockDone ? (
           <>

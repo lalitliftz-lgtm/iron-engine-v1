@@ -27,7 +27,7 @@ export default function Programs() {
     const fetchProgram = async () => {
       const { data } = await supabase
         .from('generated_programs')
-        .select(`id, created_at, is_active, program_snapshot, engine_versions ( version_string ), athlete_profiles ( primary_goal, competition_date, training_days_per_week, assessment_data, updated_at )`)
+        .select(`id, created_at, is_active, program_snapshot, engine_versions ( version_string ), athlete_profiles ( primary_goal, competition_date, training_days_per_week, squat_1rm, bench_1rm, deadlift_1rm, assessment_data, updated_at )`)
         .eq('user_id', user.id)
         .eq('is_active', true)
         .order('created_at', { ascending: false })

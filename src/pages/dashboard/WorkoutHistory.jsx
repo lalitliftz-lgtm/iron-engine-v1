@@ -37,7 +37,7 @@ export default function WorkoutHistory() {
     const fetchHistory = async () => {
       const { data } = await supabase
         .from('workout_logs')
-        .select(`id, program_id, date_completed, duration_seconds, week_number, day_number, logged_exercises, generated_programs ( program_snapshot )`)
+        .select(`id, program_id, date_completed, duration_seconds, week_number, day_number, logged_exercises, recovery_checklist, generated_programs ( program_snapshot )`)
         .eq('user_id', user.id)
         .order('date_completed', { ascending: false });
       setLogs(data || []);
@@ -161,6 +161,8 @@ function Session({ log, snap, onRemove }) {
   const day = snap?.weeks?.[log.week_number - 1]?.days?.find((d) => d.day === log.day_number);
   const top = topSets(log);
   const { done, total, pain } = setCounts(log);
+  const meta = log.recovery_checklist || {};
+  const SKIP = { sick: 'sick', busy: 'no time', gym_closed: 'gym closed', travel: 'travelling', injury: 'injury / pain', other: 'other' };
   const exercises = (log.logged_exercises || []).filter((ex) => !ex.skipped && ex.loggedSets?.some((s) => s.completed));
   const mins = Math.round((log.duration_seconds || 0) / 60);
 
@@ -178,7 +180,9 @@ function Session({ log, snap, onRemove }) {
             <span key={l} className="text-gray-600"><span className="text-gray-400">{LIFT_NAMES[l]}</span> <b className="text-gray-900 font-semibold tabular-nums">{s.kg}×{s.reps}</b>{s.rpe ? <span className="text-gray-400"> @{s.rpe}</span> : ''}</span>
           ))}
           {pain && <span className="text-amber-700">⚠ pain noted</span>}
-          {done === 0 && <span className="text-amber-700">No sets ticked — tap ✓ on each set while you train so it counts</span>}
+          {meta.skip_reason && <span className="text-gray-400">Skipped — {SKIP[meta.skip_reason] || meta.skip_reason}</span>}
+          {meta.quick && <span className="text-gray-400">Marked done as planned (no details)</span>}
+          {done === 0 && !meta.skip_reason && <span className="text-amber-700">No sets ticked — tap ✓ on each set while you train so it counts</span>}
           {done > 0 && !Object.keys(top).length && <span className="text-gray-400">Accessories / support work</span>}
         </div>
       </summary>
