@@ -67,6 +67,11 @@ export function planSchedule(snap, logs = [], createdAt, now = appNow()) {
   const optionalBefore = next && !todayPending ? pending.find((s) => s.day.optional && s.at && s.at >= today && (!next.at || s.at < next.at)) || null : null;
   // Before the block's first dated session (blocks start on a Monday).
   const firstAt = sessions.map((s) => s.at).filter(Boolean).sort((a, b) => a - b)[0] || null;
+  // The block's last calendar day (rest days included). Past it, the block is over whatever was logged.
+  const allDays = (snap?.weeks || []).flatMap((w) => w.days || []);
+  const lastAt = allDays.map((d) => labelToDate(d.date, createdAt)).filter(Boolean).sort((a, b) => b - a)[0] || null;
+  const blockOver = !!lastAt && today > lastAt;
+  const hasMeetDay = allDays.some((d) => d.meetDay);
   const startsOn = firstAt && firstAt > today ? firstAt : null;
   const when = !next?.at ? 'next' : sameDay(next.at) ? 'today' : next.at > today ? 'upcoming' : 'overdue';
   const todayRest = !todaySession && (snap?.weeks || []).some((w) => (w.days || []).some((d) => d.rest && sameDay(labelToDate(d.date, createdAt))));
@@ -102,7 +107,10 @@ export function planSchedule(snap, logs = [], createdAt, now = appNow()) {
     repeatLifts,
     sessionsDone: new Set(trainedLogs.map((l) => `${l.week_number}-${l.day_number}`).filter((k) => sessions.some((x) => x.key === k && !x.day.optional))).size,
     sessionsTotal: sessions.filter((x) => !x.day.optional).length,
-    noneLeftBeforeMeet: meetLocked && !next && required.length > 0,
+    blockOver,
+    blockEnd: lastAt,
+    // Only a block that ends AT the meet can run out of sessions "before the meet".
+    noneLeftBeforeMeet: hasMeetDay && meetLocked && !next && required.length > 0 && !blockOver,
   };
 }
 
