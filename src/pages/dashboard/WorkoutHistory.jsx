@@ -114,7 +114,8 @@ export default function WorkoutHistory() {
 function Block({ block, open }) {
   const snap = block.snapshot;
   const trainable = snap?.weeks ? snap.weeks.flatMap((w) => w.days.filter((d) => !d.rest && !d.meetDay).map((d) => `${w.week}-${d.day}`)) : [];
-  const done = new Set(block.logs.map((l) => `${l.week_number}-${l.day_number}`).filter((k) => trainable.includes(k))).size;
+  // A session counts only when at least one set was ticked — an empty "Finish" is not a trained day.
+  const done = new Set(block.logs.filter((l) => setCounts(l).done > 0).map((l) => `${l.week_number}-${l.day_number}`).filter((k) => trainable.includes(k))).size;
   const pct = trainable.length ? Math.min(100, Math.round((done / trainable.length) * 100)) : null;
   const first = block.logs[block.logs.length - 1], last = block.logs[0];
 
@@ -163,7 +164,8 @@ function Session({ log, snap }) {
             <span key={l} className="text-gray-600"><span className="text-gray-400">{LIFT_NAMES[l]}</span> <b className="text-gray-900 font-semibold tabular-nums">{s.kg}×{s.reps}</b>{s.rpe ? <span className="text-gray-400"> @{s.rpe}</span> : ''}</span>
           ))}
           {pain && <span className="text-amber-700">⚠ pain noted</span>}
-          {!Object.keys(top).length && <span className="text-gray-400">Accessories / support day</span>}
+          {done === 0 && <span className="text-amber-700">No sets ticked — tap ✓ on each set while you train so it counts</span>}
+          {done > 0 && !Object.keys(top).length && <span className="text-gray-400">Accessories / support work</span>}
         </div>
       </summary>
       <div className="px-4 md:px-5 pb-4 space-y-2">
