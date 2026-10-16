@@ -1,5 +1,6 @@
 import { NavLink, Outlet, Link, useLocation } from 'react-router-dom';
 import Footer from '../Footer';
+import { TestDateBanner } from './TestDate';
 
 // Four places a lifter actually goes. Everything else lives inside one of them.
 const TABS = [
@@ -47,6 +48,7 @@ export default function DashboardLayout() {
       </aside>
 
       <main className={`flex-1 overflow-y-auto flex flex-col bg-iron ${inWorkout ? '' : 'pb-20 md:pb-0'}`}>
+        <TestDateBanner />
         <div className="flex-1"><Outlet /></div>
         <div className="hidden md:block"><Footer /></div>
       </main>

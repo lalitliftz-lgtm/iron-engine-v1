@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { supabase } from '../../lib/supabase';
 import InstallApp from '../../components/dashboard/InstallApp';
+import { TestDateCard } from '../../components/dashboard/TestDate';
 
 const EXP = { Beginner: 'Novice', Intermediate: 'Intermediate', Advanced: 'Advanced' };
 
@@ -76,6 +77,8 @@ export default function Account() {
         <LinkRow to="/dashboard/subscription" title={pro ? 'Manage Pro' : 'Iron Engine Pro'} sub={pro ? 'Validity, renewal, receipts' : 'Unlimited blocks, weak-point work, weekly check-ins'} />
         <LinkRow to="/dashboard/library" title="My guides" sub="Download the PDFs you bought" />
       </section>
+
+      <TestDateCard />
 
       <InstallApp />
 

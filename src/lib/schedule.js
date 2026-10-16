@@ -10,6 +10,24 @@
  *    a month or more off → a fresh block from current strength.
  */
 const DAY = 864e5;
+
+/* ---- "Today" for the whole app. Normally the real date; in test mode (Account → Testing, opened once
+   with ?testmode=1) the coach can pretend it's another day to walk through a block. ---- */
+const TEST_KEY = 'll-test-today';
+export function testToday() {
+  try { const v = localStorage.getItem(TEST_KEY); return /^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : null; } catch { return null; }
+}
+export function setTestToday(ymd) {
+  try { if (ymd) localStorage.setItem(TEST_KEY, ymd); else localStorage.removeItem(TEST_KEY); } catch { /* storage blocked */ }
+}
+/** Now, as the app should see it: the test date (at the current clock time) or the real now. */
+export function appNow() {
+  const t = testToday();
+  if (!t) return new Date();
+  const [y, m, d] = t.split('-').map(Number);
+  const n = new Date();
+  return new Date(y, m - 1, d, n.getHours(), n.getMinutes(), n.getSeconds());
+}
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
 
@@ -28,7 +46,7 @@ export function labelToDate(label, createdAt) {
 /** A log counts as training only if at least one set was ticked (skips and empty saves don't). */
 export const trained = (log) => (log.logged_exercises || []).some((ex) => (ex.loggedSets || []).some((s) => s.completed));
 
-export function planSchedule(snap, logs = [], createdAt, now = new Date()) {
+export function planSchedule(snap, logs = [], createdAt, now = appNow()) {
   const today = startOfDay(now);
   const done = new Set(logs.map((l) => `${l.week_number}-${l.day_number}`));
   const meetLocked = snap?.meta?.meetDays !== null && snap?.meta?.meetDays !== undefined;
@@ -63,11 +81,10 @@ export function planSchedule(snap, logs = [], createdAt, now = new Date()) {
   // Warn only when the next session hits a lift already trained today. Accessory days, other lifts: no note.
   const repeatLifts = [...nextLifts].filter((l) => todayLifts.has(l));
 
-  // What can be STARTED (Program page + logger): what Today offers — the next session, today's optional
-  // day or the optional day before the next one, and sessions missed in the last 7 days.
-  // Everything else is viewable but locked until its date. Done sessions are locked too (no duplicate logs).
-  const weekAgo = new Date(today.getTime() - 7 * DAY);
-  const allowed = new Set([next, optionalBefore, todayPending, ...overdue.filter((m) => m.at && m.at >= weekAgo)].filter(Boolean).map((x) => x.key));
+  // What can be STARTED (Program page + logger). Everything else is viewable but locked until its date;
+  // done sessions are locked too (no duplicate logs).
+  // Simple rule: only the session dated TODAY can be started. No session today = nothing to start.
+  const allowed = new Set([todayPending].filter(Boolean).map((x) => x.key));
 
   return {
     next,
@@ -95,7 +112,7 @@ export function lockReason(sched, week, day, createdAt) {
   if (!sched || sched.allowed.has(`${week.week}-${day.day}`)) return null;
   if (sched.doneKeys?.has(`${week.week}-${day.day}`)) return { kind: 'done', text: 'Already logged — see it in History.' };
   const at = labelToDate(day.date, createdAt);
-  if (at && at > startOfDay(new Date())) return { kind: 'future', text: `Opens ${at.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} — do today's session first.` };
+  if (at && at > startOfDay(appNow())) return { kind: 'future', text: `Opens on ${at.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}.` };
   return { kind: 'past', text: 'This date has passed — the plan has moved on.' };
 }
 
