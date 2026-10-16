@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { profileToForm, buildProgram, toSnapshot } from '../src/lib/engine.js';
+import { profileToForm, buildProgram, toSnapshot, LIFT_NAMES } from '../src/lib/engine.js';
+import { evaluateBlock } from '../src/lib/autoreg.js';
 
 const supabaseAdmin = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
@@ -55,7 +56,44 @@ export default async function handler(req, res) {
     const overrides = cleanOverrides(req.body);
     if (!isPro) Object.assign(overrides, PRO_ONLY);
 
+    // ---- Block-end evaluation of the previous block (System 2.0 Ch 8/9): what did the logs say?
+    const { data: prev } = await supabaseAdmin.from('generated_programs').select('id, program_snapshot').eq('user_id', user.id).eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    let evaluation = null;
+    if (prev?.program_snapshot?.weeks) {
+      const { data: logs } = await supabaseAdmin.from('workout_logs').select('week_number, day_number, date_completed, logged_exercises').eq('program_id', prev.id).eq('user_id', user.id).limit(200);
+      if (logs && logs.length >= 4) { // fewer than 4 sessions is a re-generate, not a finished block
+        evaluation = evaluateBlock(prev.program_snapshot, logs, prev.program_snapshot.adjustments?.checkins || {});
+        // Remember the verdict on the finished block (only the `adjustments` key is ever written; weeks stay immutable).
+        await supabaseAdmin.from('generated_programs').update({ program_snapshot: { ...prev.program_snapshot, adjustments: { ...(prev.program_snapshot.adjustments || {}), evaluation } } }).eq('id', prev.id);
+      }
+    }
+    const prevGoal = prev?.program_snapshot?.meta?.form?.goal;
+    if (evaluation) {
+      if (evaluation.volumeDelta) overrides.volumeDelta = evaluation.volumeDelta;
+      // Advance the phase only when there is no meet (the meet date decides otherwise) and the athlete didn't pick a goal.
+      if (evaluation.verdict === 'advance' && req.body?.goal === undefined && !profile.competition_date) overrides.goal = prevGoal === 'hyp' ? 'str' : 'hyp';
+      if (evaluation.verdict !== 'advance' && req.body?.goal === undefined && prevGoal && !profile.competition_date) overrides.goal = prevGoal;
+    }
+
     const { form, maxes, decisions } = profileToForm(profile, overrides);
+    if (evaluation) {
+      decisions.unshift({ step: 'Last Block Review', decision: { advance: 'Next phase', repeat: 'Repeat the block', 'repeat-lighter': 'Repeat, 5–10% lighter', 'repeat-less-volume': 'Repeat, less volume' }[evaluation.verdict], reason: evaluation.reason });
+      // e1RM trend from clean ≤5-rep sets replaces max testing (Ch 8): update maxes conservatively (+2.5 to +10%).
+      const profileUpdate = {};
+      for (const l of ['squat', 'bench', 'deadlift']) {
+        const e = evaluation.e1rm?.[l];
+        if (e && maxes[l] && e.e1rm >= maxes[l] + 2.5 && e.e1rm <= maxes[l] * 1.1) {
+          decisions.push({ step: 'Max Update', decision: `${LIFT_NAMES[l]} ${maxes[l]} → ${e.e1rm} kg`, reason: `From training: ${e.from}. No max test needed — the logs are the test.` });
+          maxes[l] = e.e1rm; form.maxes[l] = e.e1rm; profileUpdate[`${l}_1rm`] = e.e1rm;
+        }
+      }
+      if (evaluation.loadDelta) {
+        for (const l of ['squat', 'bench', 'deadlift']) if (maxes[l]) { maxes[l] = Math.round((maxes[l] * (1 + evaluation.loadDelta / 100)) / 2.5) * 2.5; form.maxes[l] = maxes[l]; }
+        decisions.push({ step: 'Start Load', decision: `${evaluation.loadDelta}%`, reason: 'Working maxes lowered for this block so week 1 is clean, not a grind. Your profile 1RMs are unchanged.' });
+      }
+      if (Object.keys(profileUpdate).length) await supabaseAdmin.from('athlete_profiles').update({ ...profileUpdate, assessment_data: { ...(profile.assessment_data || {}), maxes_estimated: false } }).eq('id', profile.id);
+      if (Object.keys(profileUpdate).length) maxes.estimated = false;
+    }
     // The meet date is never overridable from the UI: the engine always plans around it.
     const program = buildProgram(form, maxes);
     program.notes.forEach((n) => decisions.push({ step: 'Engine Note', decision: program.blockLabel, reason: n }));
@@ -94,7 +132,7 @@ export default async function handler(req, res) {
     });
     if (logError) console.error('Decision log insert failed:', logError.message);
 
-    return res.status(200).json({ success: true, programId: newProgram.id, engineData: { blockType: snapshot.blockType, log: decisions } });
+    return res.status(200).json({ success: true, programId: newProgram.id, engineData: { blockType: snapshot.blockType, log: decisions, evaluation } });
 
   } catch (error) {
     console.error('Engine Error:', error);

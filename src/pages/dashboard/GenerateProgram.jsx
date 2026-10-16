@@ -6,6 +6,7 @@ import { useSubscription } from '../../context/SubscriptionContext';
 import UpgradeModal from '../../components/UpgradeModal';
 import { motion } from 'framer-motion';
 import { profileToForm, STICKING, LIFT_NAMES, daysToMeet, SCHEMES } from '../../lib/engine';
+import { evaluateBlock } from '../../lib/autoreg';
 
 // Settings the athlete can tune on top of the assessment defaults.
 const GOALS = [
@@ -74,6 +75,7 @@ export default function GenerateProgram() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [appStatus, setAppStatus] = useState('idle');
   const [error, setError] = useState('');
+  const [lastBlock, setLastBlock] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -84,6 +86,12 @@ export default function GenerateProgram() {
         setDefaults(d);
         const { goal, focus, weak, sticking, weakType, variationIdx, accIdx, injuries, sleep, stress, days, equipment } = d.form;
         setSettings({ goal, focus, weak, sticking, weakType, variationIdx, accIdx, injuries, sleep, stress, days, equipment });
+      }
+      // Review of the current block (same function the API uses) so the athlete sees what the engine will do with it.
+      const { data: prev } = await supabase.from('generated_programs').select('id, program_snapshot').eq('user_id', user.id).eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (prev?.program_snapshot?.weeks) {
+        const { data: logs } = await supabase.from('workout_logs').select('week_number, day_number, date_completed, logged_exercises').eq('program_id', prev.id).limit(200);
+        if (logs?.length) setLastBlock({ block: prev.program_snapshot.blockType, ...evaluateBlock(prev.program_snapshot, logs, prev.program_snapshot.adjustments?.checkins || {}) });
       }
     };
     load();
@@ -175,6 +183,16 @@ export default function GenerateProgram() {
               <div className={`border rounded-xl p-5 mb-6 ${['meetweek', 'taper'].includes(meet.phase) ? 'bg-amber-50 border-amber-300' : 'bg-white border-gray-200'}`}>
                 <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Meet-aware plan · {PHASE_LABEL[meet.phase]}</h2>
                 <p className="text-sm text-gray-800">{meet.reason}</p>
+              </div>
+            )}
+
+            {lastBlock && (
+              <div className={`border rounded-xl p-5 mb-6 ${lastBlock.verdict === 'advance' ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Review of your current block · {lastBlock.block}</h2>
+                <p className="text-sm text-gray-800">{lastBlock.reason}</p>
+                {Object.entries(lastBlock.e1rm || {}).filter(([, v]) => v).length > 0 && (
+                  <p className="text-xs text-gray-600 mt-2">Training-based maxes: {Object.entries(lastBlock.e1rm).filter(([, v]) => v).map(([l, v]) => `${LIFT_NAMES[l]} ~${v.e1rm} kg (${v.from})`).join(' · ')}. If higher than your profile, the engine updates it — no max test needed.</p>
+                )}
               </div>
             )}
 
