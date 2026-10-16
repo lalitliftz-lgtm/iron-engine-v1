@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
-import { profileToForm, buildProgram, toSnapshot, LIFT_NAMES } from '../src/lib/engine.js';
-import { evaluateBlock } from '../src/lib/autoreg.js';
+import { profileToForm, buildProgram, toSnapshot, LIFT_NAMES, calToday } from '../src/lib/engine.js';
+import { evaluateBlock, applyAdjustments } from '../src/lib/autoreg.js';
+import { bridgeWeek } from '../src/lib/bridge.js';
 
 const supabaseAdmin = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
@@ -64,7 +65,7 @@ export default async function handler(req, res) {
     if (!isPro) Object.assign(overrides, PRO_ONLY);
 
     // ---- Block-end evaluation of the previous block (System 2.0 Ch 8/9): what did the logs say?
-    const { data: prev } = await supabaseAdmin.from('generated_programs').select('id, program_snapshot').eq('user_id', user.id).eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    const { data: prev } = await supabaseAdmin.from('generated_programs').select('id, created_at, program_snapshot').eq('user_id', user.id).eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
     let evaluation = null;
     if (prev?.program_snapshot?.weeks) {
       const { data: logs } = await supabaseAdmin.from('workout_logs').select('week_number, day_number, date_completed, logged_exercises').eq('program_id', prev.id).eq('user_id', user.id).limit(200);
@@ -104,7 +105,13 @@ export default async function handler(req, res) {
     // The meet date is never overridable from the UI: the engine always plans around it.
     const program = buildProgram(form, maxes);
     program.notes.forEach((n) => decisions.push({ step: 'Engine Note', decision: program.blockLabel, reason: n }));
-    const snapshot = toSnapshot(program, form, maxes, decisions);
+    let snapshot = toSnapshot(program, form, maxes, decisions);
+    // Rebuilt mid-week? The rest of this week keeps the previous block's sessions; the new block starts Monday.
+    if (prev?.program_snapshot?.weeks) {
+      const { data: prevLogs } = await supabaseAdmin.from('workout_logs').select('week_number, day_number').eq('program_id', prev.id).eq('user_id', user.id).limit(300);
+      const prevSnap = applyAdjustments(prev.program_snapshot, prev.program_snapshot.adjustments);
+      snapshot = bridgeWeek(snapshot, prevSnap, prevLogs || [], prev.created_at, calToday(form.today));
+    }
 
     // The snapshot must reference an engine version (NOT NULL FK). A freshly restored
     // database may have no seed row, so create/activate one instead of failing the save.
