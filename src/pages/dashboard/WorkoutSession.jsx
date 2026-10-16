@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { platesPerSide, round25 } from '../../lib/engine';
 import { applyAdjustments } from '../../lib/autoreg';
 import { readDraft, saveDraft, clearDraft } from '../../lib/workoutDraft';
-import { reentry, trained, startOfDay } from '../../lib/schedule';
+import { reentry, trained, startOfDay, planSchedule, lockReason } from '../../lib/schedule';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const MAIN_REST = 180; // System 2.0: main lifts 3–5 min
@@ -87,6 +87,7 @@ export default function WorkoutSession() {
   const [clientId, setClientId] = useState(newId);     // lets a retried save never create a duplicate log
   const [offline, setOffline] = useState(false);
   const [screenLock, setScreenLock] = useState('');
+  const [locked, setLocked] = useState(null);    // { text } when this session can't be started today
   const [startNote, setStartNote] = useState(''); // re-entry after a break / already logged
   const [dayMode, setDayMode] = useState('');      // '' | 'low' | 'short'
   const savingRef = useRef(false); // one save at a time (the "online" event and the retry timer can fire together)
@@ -136,7 +137,7 @@ export default function WorkoutSession() {
 
   useEffect(() => {
     const fetchProgram = async () => {
-      const { data } = await supabase.from('generated_programs').select('id, program_snapshot').eq('user_id', user.id).eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      const { data } = await supabase.from('generated_programs').select('id, created_at, program_snapshot').eq('user_id', user.id).eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
       if (data) {
         setProgram(data);
         const snap = applyAdjustments(data.program_snapshot, data.program_snapshot.adjustments);
@@ -155,6 +156,10 @@ export default function WorkoutSession() {
             if (draft.clientId) setClientId(draft.clientId);
             setResumed(true);
           } else {
+            // Same rule as the Program page: only what Today offers can be started.
+            const { data: blockLogs } = await supabase.from('workout_logs').select('week_number, day_number, date_completed, logged_exercises').eq('user_id', user.id).eq('program_id', data.id).limit(300);
+            const lock = lockReason(planSchedule(snap, blockLogs || [], data.created_at), wData, dData, data.created_at);
+            if (lock) { setLocked(lock); setLoading(false); return; }
             let fresh = dData.exercises.map((ex) => ({ ...ex, loggedSets: newSets(ex), skipped: false }));
             const { data: recent } = await supabase.from('workout_logs').select('program_id, week_number, day_number, date_completed, logged_exercises').eq('user_id', user.id).order('date_completed', { ascending: false }).limit(20);
             const startNotes = [];
@@ -347,6 +352,14 @@ export default function WorkoutSession() {
   }, [program, week, day]);
 
   if (loading) return <div className="min-h-screen flex justify-center items-center"><div className="animate-spin h-8 w-8 border-2 border-gray-900 rounded-full border-t-transparent"></div></div>;
+  if (locked) return (
+    <div className="min-h-screen flex flex-col justify-center items-center text-center px-6 gap-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Week {week} · {dayData?.weekday || `Day ${day}`}{dayData?.date ? ` · ${dayData.date}` : ''}</p>
+      <h1 className="text-xl font-bold text-gray-900">{dayData?.focus || 'Session'} is locked</h1>
+      <p className="text-sm text-gray-500 max-w-sm">{locked.text}</p>
+      <Link to="/dashboard" className="mt-2 bg-gray-900 text-white px-6 py-3 rounded-lg text-sm font-semibold">Go to today's session</Link>
+    </div>
+  );
   if (!dayData && !isWorkoutComplete) return <div className="min-h-screen flex flex-col justify-center items-center text-gray-500 gap-4">Session not found.<Link to="/dashboard/programs" className="text-gray-900 underline">Back to program</Link></div>;
 
   if (isWorkoutComplete && summary) {
@@ -376,7 +389,7 @@ export default function WorkoutSession() {
             {summary.flags.length ? summary.flags.map((f, i) => <p key={i} className="text-sm text-gray-100 mb-1.5">• {f}</p>) : <p className="text-sm text-gray-100">On plan. Nothing to change — recover, eat, sleep, and show up for the next one.</p>}
           </div>
           <div className="flex flex-col gap-3">
-            {nextSession ? <Link to={`/dashboard/workout?week=${nextSession.week}&day=${nextSession.day}`} className="w-full bg-gray-900 hover:bg-gray-800 text-white py-3.5 rounded-lg text-sm font-semibold transition-colors">Next: {nextSession.label} →</Link>
+            {nextSession ? <Link to="/dashboard" className="w-full bg-gray-900 hover:bg-gray-800 text-white py-3.5 rounded-lg text-sm font-semibold transition-colors">Done — next up: {nextSession.label}</Link>
               : <Link to="/dashboard/generate" className="w-full bg-gray-900 hover:bg-gray-800 text-white py-3.5 rounded-lg text-sm font-semibold transition-colors">Block complete — build the next block →</Link>}
             <Link to="/dashboard" className="w-full text-gray-600 hover:text-gray-900 py-2.5 rounded-lg text-sm font-medium transition-colors">Back to dashboard</Link>
           </div>

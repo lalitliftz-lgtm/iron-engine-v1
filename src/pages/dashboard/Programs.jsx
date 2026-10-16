@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { buildProgram, downloadXLSX, LIFT_NAMES } from '../../lib/engine';
 import { applyAdjustments, attemptPlan } from '../../lib/autoreg';
 import StalePlanBanner from '../../components/dashboard/StalePlanBanner';
+import { planSchedule, lockReason } from '../../lib/schedule';
 
 const EXECUTION_RULES = [
   ["Warm-up", "Bar × 8 → 40% × 5 → 55% × 3 → 70% × 2 → 80% × 1 → work sets."],
@@ -87,6 +88,7 @@ export default function Programs() {
   const checkins = program.program_snapshot.adjustments?.checkins || {};
   const isBeg = meta?.form?.exp === 'beg';
   const logged = new Set(logs.map((l) => `${l.week_number}-${l.day_number}`));
+  const sched = program?.program_snapshot ? planSchedule(program.program_snapshot, logs, program.created_at) : null;
   const attempts = weeks.some((w) => w.meetWeek) ? attemptPlan(meta?.maxes || {}, logs, meta?.form?.exp, meta?.form?.compLifts) : null;
   const LIGHT_DOT = { green: 'bg-green-500', yellow: 'bg-amber-400', red: 'bg-red-500' };
   const currentWeekData = weeks.find(w => w.week === activeWeek) || weeks[0];
@@ -201,7 +203,13 @@ export default function Programs() {
                   <h2 className="text-xl font-bold text-gray-900">{currentDayData.focus}{currentDayData.optional ? <span className="ml-2 text-xs font-medium text-gray-400">optional · low stress</span> : null}</h2>
                   {currentDayData.weekday && <p className="text-xs text-gray-500 uppercase tracking-wider">{currentDayData.weekday}{currentDayData.date ? ` ${currentDayData.date}` : ''} · {currentWeekData.label || `Week ${activeWeek}`}{currentWeekData.phase ? ` · ${currentWeekData.phase}` : ''}</p>}
                 </div>
-                {!currentDayData.meetDay && !currentDayData.rest && <Link to={`/dashboard/workout?week=${activeWeek}&day=${activeDay}`} className="no-print bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold py-2.5 px-5 rounded-lg transition-colors">Start Workout →</Link>}
+                {!currentDayData.meetDay && !currentDayData.rest && (() => {
+                  // Every day can be viewed; only what Today offers can be started.
+                  const lock = lockReason(sched, currentWeekData, currentDayData, program.created_at);
+                  return lock
+                    ? <div className="no-print text-right"><span className="inline-block bg-gray-100 text-gray-500 text-sm font-semibold py-2.5 px-5 rounded-lg cursor-not-allowed" aria-disabled="true">Locked</span><p className="text-xs text-gray-500 mt-1.5 max-w-[16rem]">{lock.text}</p></div>
+                    : <Link to={`/dashboard/workout?week=${activeWeek}&day=${activeDay}`} className="no-print bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold py-2.5 px-5 rounded-lg transition-colors">Start Workout →</Link>;
+                })()}
               </div>
               {currentDayData.rest && (
                 <div className="bg-white border border-dashed border-gray-300 rounded-xl p-6">
