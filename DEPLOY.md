@@ -72,3 +72,10 @@ Edit `src/config/siteConfig.js`:
 - Confirm each product's `productName` matches a row in the `products` table
   (see `supabase_schema.sql`) so checkout resolves the right price.
 - Switch PayU to live credentials and set `PAYU_MODE=live`.
+
+## Security migration (v2) — run once
+
+Open Supabase → SQL Editor → paste and run `supabase_migration_v2.sql`. It enables row-level
+security on the reference tables (products, exercises, engine_versions, …) so the public anon
+key can only read them, never change prices. The app keeps working because the Vercel functions
+use the service role key.

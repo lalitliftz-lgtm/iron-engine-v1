@@ -1,26 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import UpgradeModal from '../../components/UpgradeModal';
-import { motion, AnimatePresence } from 'framer-motion';
-import { profileToForm, STICKING, LIFT_NAMES, daysToMeet } from '../../lib/engine';
-
-const STAGES = [
-  { id: 0, name: "Loading Athlete Profile", description: "Fetching 1RMs, weak points, and constraints" },
-  { id: 1, name: "Diagnosing Weak Points", description: "Analyzing mechanical failure points" },
-  { id: 2, name: "Selecting Training Block", description: "Mapping timeline to adaptation phase" },
-  { id: 3, name: "Assigning Main Lifts", description: "Calculating wave loading progression" },
-  { id: 4, name: "Selecting Accessories", description: "Applying weak-point mapping matrix" },
-  { id: 5, name: "Applying Progression Rules", description: "Setting RPE caps and volume budgets" },
-  { id: 6, name: "Building Final Program", description: "Compiling 4-week training snapshot" }
-];
+import { motion } from 'framer-motion';
+import { profileToForm, STICKING, LIFT_NAMES, daysToMeet, SCHEMES } from '../../lib/engine';
 
 // Settings the athlete can tune on top of the assessment defaults.
 const GOALS = [
   { v: 'hyp', l: 'Base Block', s: 'muscle + capacity' },
-  { v: 'str', l: 'Strength Block', s: 'heavy 4–6 range' },
+  { v: 'str', l: 'Strength Block', s: 'heavy 2–4s at 80–90%' },
   { v: 'peak', l: 'Peaking', s: 'meet / 1RM prep' },
 ];
 const FOCUS = [
@@ -33,6 +23,13 @@ const DAYS = [3, 4, 5, 6].map((d) => ({ v: d, l: `${d}` }));
 const SLEEP = [{ v: 'high', l: '7+ hrs' }, { v: 'mid', l: '6–7 hrs' }, { v: 'low', l: '< 6 hrs' }];
 const STRESS = [{ v: 'low', l: 'Low' }, { v: 'mid', l: 'Moderate' }, { v: 'high', l: 'High' }];
 const INJ = [{ v: 'back', l: 'Lower Back' }, { v: 'knee', l: 'Knee' }, { v: 'shoulder', l: 'Shoulder' }];
+const WEAK_TYPE = [
+  { v: 'strength', l: 'Strength', s: 'form fine, bar slows when heavy' },
+  { v: 'technique', l: 'Technique', s: 'form breaks even light' },
+  { v: 'fatigue', l: 'Fatigue', s: 'warm-ups feel heavy' },
+];
+const EQUIP = [{ v: 'commercial', l: 'Commercial gym' }, { v: 'basic', l: 'Barbell + DB' }, { v: 'minimal', l: 'Barbell only' }];
+const PHASE_LABEL = { base: 'Base Block', strength: 'Strength Block', peak: 'Peaking Block', taper: 'Taper → Meet', meetweek: 'Meet Week', post: 'Post-meet Deload', beginner: 'Beginner Linear' };
 
 function Seg({ options, value, onChange, multi, locked }) {
   return (
@@ -77,9 +74,6 @@ export default function GenerateProgram() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [appStatus, setAppStatus] = useState('idle');
   const [error, setError] = useState('');
-  const [currentStage, setCurrentStage] = useState(0);
-  const [engineData, setEngineData] = useState(null);
-  const intervalRef = useRef(null);
 
   useEffect(() => {
     const load = async () => {
@@ -88,39 +82,21 @@ export default function GenerateProgram() {
       if (data) {
         const d = profileToForm(data);
         setDefaults(d);
-        const { goal, focus, weak, sticking, injuries, sleep, stress, days } = d.form;
-        setSettings({ goal, focus, weak, sticking, injuries, sleep, stress, days });
+        const { goal, focus, weak, sticking, weakType, variationIdx, accIdx, injuries, sleep, stress, days, equipment } = d.form;
+        setSettings({ goal, focus, weak, sticking, weakType, variationIdx, accIdx, injuries, sleep, stress, days, equipment });
       }
     };
     load();
   }, [user]);
 
-  useEffect(() => {
-    if (appStatus === 'generating') {
-      intervalRef.current = setInterval(() => {
-        setCurrentStage((prev) => {
-          if (prev === STAGES.length - 1 && !engineData) return prev;
-          if (prev === STAGES.length - 1 && engineData) {
-            clearInterval(intervalRef.current);
-            setTimeout(() => navigate('/dashboard/programs'), 900);
-            return prev;
-          }
-          return prev + 1;
-        });
-      }, 450);
-      return () => clearInterval(intervalRef.current);
-    }
-  }, [appStatus, engineData, navigate]);
-
   const set = (k, v) => setSettings((s) => ({ ...s, [k]: v }));
-  const setWeak = (v) => setSettings((s) => ({ ...s, weak: v, sticking: v === 'none' ? null : Object.keys(STICKING[v])[0] }));
+  const setWeak = (v) => setSettings((s) => ({ ...s, weak: v, sticking: v === 'none' ? null : Object.keys(STICKING[v])[0], variationIdx: 0, accIdx: 0 }));
+  const setSticking = (v) => setSettings((s) => ({ ...s, sticking: v, variationIdx: 0, accIdx: 0 }));
   const lockedClick = () => { if (!isPro) setShowUpgradeModal(true); };
 
   const handleGenerate = async () => {
     setAppStatus('generating');
     setError('');
-    setCurrentStage(0);
-    setEngineData(null);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -137,7 +113,6 @@ export default function GenerateProgram() {
         if (data.error === 'UPGRADE_REQUIRED') {
           setShowUpgradeModal(true);
           setAppStatus('idle');
-          clearInterval(intervalRef.current);
           return;
         }
       }
@@ -147,34 +122,25 @@ export default function GenerateProgram() {
         throw new Error(errData.error || 'Engine failed to generate program');
       }
 
-      const data = await response.json();
-      setEngineData(data.engineData);
+      await response.json();
+      navigate('/dashboard/programs');
     } catch (err) {
       setError(err.message);
       setAppStatus('error');
-      clearInterval(intervalRef.current);
     }
-  };
-
-  const getStageDetail = (stageId) => {
-    if (!engineData) return null;
-    const find = (step) => engineData.log.find((l) => l.step === step);
-    if (stageId === 1) return find('Weak-Point Diagnosis') ? `Found: ${find('Weak-Point Diagnosis').decision}` : null;
-    if (stageId === 2) return `Assigned: ${engineData.blockType}`;
-    if (stageId === 5) return find('Injury Screen') ? `Flags: ${find('Injury Screen').decision}` : 'No injury flags';
-    return null;
   };
 
   if (profile === undefined) {
     return <div className="flex justify-center items-center min-h-[60vh]"><div className="animate-spin h-8 w-8 border-2 border-gray-900 rounded-full border-t-transparent"></div></div>;
   }
 
-  if (profile === null || !profile.squat_1rm || !profile.bench_1rm || !profile.deadlift_1rm) {
+  const needsMaxes = profile && profile.experience_level !== 'Beginner' && (!profile.squat_1rm || !profile.bench_1rm || !profile.deadlift_1rm);
+  if (profile === null || needsMaxes) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center">
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-12">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Assessment first</h1>
-          <p className="text-gray-500 mb-8">The engine needs your experience, training days, 1RMs and weak points before it can build a block.</p>
+          <p className="text-gray-500 mb-8">The engine needs your experience, training days, your three lifts (a 1RM or a recent heavy set) and weak points before it can build a block. 2–3 minutes.</p>
           <Link to="/dashboard/assessment" className="inline-flex items-center justify-center bg-gray-900 hover:bg-gray-800 text-white px-8 py-3.5 rounded-lg text-sm font-medium transition-colors">
             {profile ? 'Complete Assessment' : 'Start Assessment'}
           </Link>
@@ -185,6 +151,10 @@ export default function GenerateProgram() {
 
   const isBeg = defaults?.form.exp === 'beg';
   const dtm = daysToMeet(profile);
+  const meet = defaults?.meet || { phase: 'none' };
+  // With a meet booked, the engine owns the block choice; the athlete can't pick a goal that fights the timeline.
+  const meetLocked = meet.phase !== 'none';
+  const st = settings?.weak && settings.weak !== 'none' && settings.sticking ? STICKING[settings.weak][settings.sticking] : null;
 
   return (
     <>
@@ -195,11 +165,18 @@ export default function GenerateProgram() {
               <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight">Build your next block</h1>
               <p className="text-gray-500 mt-1 text-sm md:text-base">
                 Defaults come from your assessment — {profile.experience_level || 'Intermediate'}, {profile.training_days_per_week || 4} days/week,
-                1RM {profile.squat_1rm}/{profile.bench_1rm}/{profile.deadlift_1rm} kg
+                {profile.squat_1rm ? `${profile.assessment_data?.maxes_estimated ? 'est. ' : ''}1RM ${profile.squat_1rm}/${profile.bench_1rm}/${profile.deadlift_1rm} kg` : 'no maxes yet (beginner working weights)'}
                 {dtm !== null && dtm > 0 ? ` · meet in ${dtm} days` : ''}.
                 {' '}<Link to="/dashboard/assessment" className="text-blue-600 hover:text-blue-800 font-medium">Edit assessment</Link>
               </p>
             </div>
+
+            {meetLocked && (
+              <div className={`border rounded-xl p-5 mb-6 ${['meetweek', 'taper'].includes(meet.phase) ? 'bg-amber-50 border-amber-300' : 'bg-white border-gray-200'}`}>
+                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Meet-aware plan · {PHASE_LABEL[meet.phase]}</h2>
+                <p className="text-sm text-gray-800">{meet.reason}</p>
+              </div>
+            )}
 
             {/* What the engine already decided */}
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 mb-6">
@@ -221,8 +198,8 @@ export default function GenerateProgram() {
                 </div>
               ) : (
                 <>
-                  <Field label="Block Goal" hint="The adaptation this 4-week block is chasing">
-                    <Seg options={GOALS} value={settings.goal} onChange={(v) => set('goal', v)} />
+                  <Field label="Block Goal" hint={meetLocked ? 'Locked — the meet date decides the block' : 'The adaptation this 4-week block is chasing'}>
+                    <Seg options={GOALS.filter((g) => g.v !== 'peak' || meetLocked)} value={settings.goal} onChange={(v) => set('goal', v)} locked={meetLocked} />
                   </Field>
                   <Field label="Block Focus" hint="Which lift gets the extra frequency" pro={!isPro} locked={!isPro} onLockedClick={lockedClick}>
                     <Seg options={FOCUS} value={settings.focus} onChange={(v) => set('focus', v)} locked={!isPro} />
@@ -238,15 +215,29 @@ export default function GenerateProgram() {
                 <Seg options={WEAK} value={settings.weak} onChange={setWeak} locked={!isPro} />
               </Field>
               {isPro && settings.weak !== 'none' && (
-                <Field label={`${LIFT_NAMES[settings.weak]} — where does it fail?`} hint="The engine assigns the matching variation + accessory">
-                  <Seg options={Object.entries(STICKING[settings.weak]).map(([k, v]) => ({ v: k, l: v.l }))} value={settings.sticking} onChange={(v) => set('sticking', v)} />
-                  {settings.sticking && (
-                    <p className="text-xs text-gray-500 mt-2">
-                      Assigned: <b className="text-gray-900">{STICKING[settings.weak][settings.sticking].variation.name}</b> + <b className="text-gray-900">{STICKING[settings.weak][settings.sticking].acc.name}</b>
-                    </p>
+                <>
+                  <Field label={`${LIFT_NAMES[settings.weak]} — where does it fail?`} hint="Symptom → test → hypothesis → intervention → reassess in 4–6 weeks">
+                    <Seg options={Object.entries(STICKING[settings.weak]).map(([k, v]) => ({ v: k, l: v.l }))} value={settings.sticking} onChange={setSticking} />
+                  </Field>
+                  <Field label="Is it strength, technique or fatigue?" hint="Technique → lighter variation, no extra accessories. Fatigue → less volume, nothing new.">
+                    <Seg options={WEAK_TYPE} value={settings.weakType || 'strength'} onChange={(v) => set('weakType', v)} />
+                  </Field>
+                  {st && settings.weakType !== 'fatigue' && (
+                    <Field label="Variation (secondary lift)" hint="Default is first; pick what fits you and your gym">
+                      <Seg options={st.variations.map((v, i) => ({ v: i, l: v.name }))} value={settings.variationIdx || 0} onChange={(v) => set('variationIdx', v)} />
+                    </Field>
                   )}
-                </Field>
+                  {st && settings.weakType === 'strength' && (
+                    <Field label="Weak-point accessory" hint={st.note}>
+                      <Seg options={st.accessories.map((a, i) => ({ v: i, l: a.name, s: a.sr }))} value={settings.accIdx || 0} onChange={(v) => set('accIdx', v)} />
+                    </Field>
+                  )}
+                </>
               )}
+
+              <Field label="Gym Setup" hint="Machine/cable accessories are swapped for what you actually have">
+                <Seg options={EQUIP} value={settings.equipment || 'commercial'} onChange={(v) => set('equipment', v)} />
+              </Field>
 
               <Field label="Injury / Issue" hint="Swaps risky accessories and caps RPE on the affected lifts" pro={!isPro} locked={!isPro} onLockedClick={lockedClick}>
                 <Seg multi options={INJ} value={settings.injuries} onChange={(v) => set('injuries', v)} locked={!isPro} />
@@ -262,7 +253,7 @@ export default function GenerateProgram() {
               </div>
 
               <button onClick={handleGenerate} className="w-full bg-gray-900 hover:bg-gray-800 text-white px-10 py-4 rounded-xl text-sm font-semibold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5">
-                Generate 4-Week Block →
+                {meetLocked ? 'Build my plan to the meet →' : 'Build my block →'}
               </button>
               {!isPro && (
                 <p className="text-xs text-gray-400 mt-3 text-center">Free tier: one program, balanced focus. <button onClick={() => setShowUpgradeModal(true)} className="text-blue-600 hover:text-blue-800 font-medium">Unlock Pro</button> for sticking-point work, injury-aware swaps and unlimited blocks.</p>
@@ -272,35 +263,10 @@ export default function GenerateProgram() {
         )}
 
         {appStatus === 'generating' && (
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 md:p-10 shadow-2xl">
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest">Engine Running</h2>
-              <span className="text-xs text-gray-600 font-mono">{Math.round(((currentStage + 1) / STAGES.length) * 100)}%</span>
-            </div>
-            <div className="h-1 w-full bg-gray-800 rounded-full overflow-hidden mb-10">
-              <motion.div className="h-full bg-white rounded-full" initial={{ width: 0 }} animate={{ width: `${((currentStage + 1) / STAGES.length) * 100}%` }} transition={{ duration: 0.4, ease: "easeInOut" }} />
-            </div>
-            <div className="space-y-6">
-              {STAGES.map((stage) => {
-                const isComplete = currentStage > stage.id;
-                const isActive = currentStage === stage.id;
-                const detail = isComplete ? getStageDetail(stage.id) : null;
-                return (
-                  <div key={stage.id} className="flex items-start space-x-4">
-                    <div className="flex-shrink-0 mt-0.5">
-                      {isComplete ? <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center"><svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg></div> : isActive ? <div className="w-5 h-5 rounded-full border-2 border-white border-t-transparent animate-spin"></div> : <div className="w-5 h-5 rounded-full border-2 border-gray-700"></div>}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className={`text-sm font-medium transition-colors ${isActive ? 'text-white' : isComplete ? 'text-gray-400' : 'text-gray-600'}`}>{stage.name}</h3>
-                      <AnimatePresence>
-                        {isActive && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-gray-500 mt-1 font-mono">{stage.description}...</motion.p>}
-                        {isComplete && detail && <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-xs text-green-400 mt-1 font-mono">{detail}</motion.p>}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-10 text-center shadow-2xl">
+            <div className="w-10 h-10 rounded-full border-2 border-white border-t-transparent animate-spin mx-auto mb-6"></div>
+            <h2 className="text-lg font-semibold text-white mb-2">Building your block</h2>
+            <p className="text-sm text-gray-400">Reading your assessment, the meet date and your weak points — then saving the plan.</p>
           </div>
         )}
 

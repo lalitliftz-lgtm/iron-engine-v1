@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSubscription } from '../context/SubscriptionContext';
-import { supabase } from '../lib/supabase';
 import { marketingAssets } from '../config/marketingConfig';
 
 export default function UpgradeModal({ isOpen, onClose }) {
@@ -9,25 +9,11 @@ export default function UpgradeModal({ isOpen, onClose }) {
   const isExpired = status === 'pro_expired';
   const isFreeLimitReached = status === 'free' && programCount >= 1;
   
+  const navigate = useNavigate();
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
-  const [athleteCount, setAthleteCount] = useState(0);
 
-  useEffect(() => {
-    if (isOpen) {
-      const fetchSocialProof = async () => {
-        const { count } = await supabase
-          .from('subscriptions')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'active')
-          .gte('end_date', new Date().toISOString());
-          
-        setAthleteCount(count || 0);
-      };
-      
-      fetchSocialProof();
-      setIsVideoPlaying(false);
-    }
-  }, [isOpen]);
+  useEffect(() => { if (isOpen) setIsVideoPlaying(false); }, [isOpen]);
+  const goToCheckout = () => { onClose?.(); navigate('/dashboard/subscription'); };
 
   const headerTitle = isExpired ? 'Renew Your Pro Access' : isFreeLimitReached ? 'Your Free Trial is Complete' : 'Upgrade to Iron Engine Pro';
   const headerSubtitle = isExpired ? 'Renew your subscription to continue generating programs and logging your workouts.' : isFreeLimitReached ? 'You’ve experienced the power of the Iron Engine. Unlock unlimited generation and advanced features to keep progressing.' : 'You\'ve seen the basics. Unlock the full power of automated, science-based programming.';
@@ -78,11 +64,11 @@ export default function UpgradeModal({ isOpen, onClose }) {
                 
                 <div className="space-y-3">
                   <ComparisonRow feature="Program Generation" free="1 Sample" pro="Unlimited" />
-                  <ComparisonRow feature="Advanced Weak-Point Mapping" free={<CrossIcon />} pro={<CheckIcon />} />
-                  <ComparisonRow feature="Training Blocks (Base/Strength/Peak)" free={<CrossIcon />} pro={<CheckIcon />} />
-                  <ComparisonRow feature="Workout Logger" free="View Only" pro="Full Logging" />
-                  <ComparisonRow feature="Technique Lab Access" free="Limited" pro="Full Library" />
-                  <ComparisonRow feature="Cloud Sync & History" free={<CrossIcon />} pro={<CheckIcon />} />
+                  <ComparisonRow feature="Weak-point variations + accessories" free={<CrossIcon />} pro={<CheckIcon />} />
+                  <ComparisonRow feature="Block focus (squat / bench / deadlift)" free={<CrossIcon />} pro={<CheckIcon />} />
+                  <ComparisonRow feature="Meet-aware peaking + taper" free="1 block" pro="Every block" />
+                  <ComparisonRow feature="Injury-safe load caps + swaps" free={<CheckIcon />} pro={<CheckIcon />} />
+                  <ComparisonRow feature="Workout logger + history" free={<CheckIcon />} pro={<CheckIcon />} />
                 </div>
               </div>
 
@@ -97,13 +83,9 @@ export default function UpgradeModal({ isOpen, onClose }) {
                 </div>
                 <p className="text-xs text-gray-400 mb-8">Full access for 365 days. All Iron Engine updates included during your active subscription.</p>
 
-                <button className="w-full md:w-auto bg-gray-900 hover:bg-gray-800 text-white px-12 py-4 rounded-xl text-sm font-semibold transition-colors shadow-lg hover:shadow-xl">
+                <button onClick={goToCheckout} className="w-full md:w-auto bg-gray-900 hover:bg-gray-800 text-white px-12 py-4 rounded-xl text-sm font-semibold transition-colors shadow-lg hover:shadow-xl">
                   {isExpired ? 'Renew Pro Access' : 'Upgrade to Pro'}
                 </button>
-                
-                {athleteCount >= 10 && (
-                  <p className="text-xs text-gray-500 mt-6 font-medium">Join {athleteCount}+ athletes already using Iron Engine.</p>
-                )}
                 <p className="text-xs text-gray-400 mt-4">Secure payment. Instant access after successful payment verification.</p>
               </div>
 

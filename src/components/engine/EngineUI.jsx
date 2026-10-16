@@ -98,7 +98,7 @@ function PrintView({ program, form, maxes }) {
     <div style={{ maxWidth: 900, margin: "0 auto" }}>
       <div style={{ borderBottom: "3px solid #000", paddingBottom: 8, marginBottom: 14 }}>
         <div style={{ fontSize: 26, fontWeight: 900, fontFamily: "'Archivo Black', sans-serif" }}>
-          IRON ENGINE — 4 WEEK PROGRAM
+          IRON ENGINE — {program.weeks.length} WEEK PROGRAM
         </div>
         <div style={{ fontSize: 13, marginTop: 4 }}>
           {form.name ? `Athlete: ${form.name} · ` : ""}
@@ -164,9 +164,11 @@ function PrintView({ program, form, maxes }) {
         <div style={{ fontSize: 11, marginTop: 6 }}>
           <b>Warm-up:</b> Bar ×8 → 40% ×5 → 55% ×3 → 70% ×2 → 80% ×1 · <b>RPE:</b> 7 = 3 left, 8 = 2 left, 9 = 1 left · <b>Rest:</b> mains 3–5 min, accessories 1.5–2 min
         </div>
-        <div style={{ fontSize: 11, marginTop: 4 }}>
-          <b>Test Day (Week 5):</b> 70% → 80% → 87.5% → 92.5% → 97–100% → PR attempt only if bar speed looks good. Max 3 heavy singles.
-        </div>
+        {program.testDay && (
+          <div style={{ fontSize: 11, marginTop: 4 }}>
+            <b>Test Day (Week 5):</b> 70% → 80% → 87.5% → 92.5% → 97–100% → PR attempt only if bar speed looks good. Max 3 heavy singles.
+          </div>
+        )}
       </div>
       <div style={{ textAlign: "center", fontSize: 11, marginTop: 12 }}>
         1:1 coaching · technique review · meet-day strategy → DM <b>@{CONFIG.insta}</b>
@@ -304,7 +306,7 @@ export function IronEngine({ full, onUpgrade }) {
                 <Label hint="The overall goal of this block">Block Goal</Label>
                 <Seg value={form.goal} onChange={(v) => set("goal", v)} options={[
                   { v: "hyp", l: "Base Block", s: "muscle + capacity" },
-                  { v: "str", l: "Strength Block", s: "heavy 4–6 range" },
+                  { v: "str", l: "Strength Block", s: "heavy 2–4s at 80–90%" },
                   { v: "peak", l: "Peaking", s: "meet / 1RM prep" },
                 ]} />
 
@@ -511,7 +513,7 @@ export function IronEngine({ full, onUpgrade }) {
 
           {result.weeks[wk].deload && full && (
             <div style={{ marginBottom: 14, fontSize: 13.5, background: C.steel2, padding: "10px 14px", borderRadius: 8, borderLeft: `3px solid ${C.red}` }}>
-              <b>Deload week.</b> The weight will feel light — that's the point. Test Day comes in Week 5 (protocol in the rules below).
+              <b>Deload week.</b> The weight will feel light — that's the point.{result.testDay ? " Test Day comes in Week 5 (protocol in the rules below)." : ""}
             </div>
           )}
 
@@ -571,8 +573,10 @@ export function IronEngine({ full, onUpgrade }) {
               ["RPE", "RPE 7 = 3 reps in the tank. RPE 8 = 2. RPE 9 = 1. On a bad day, drop the % and follow RPE — RPE is the final judge."],
               ["Auto-regulation", "If RPE runs higher than prescribed → reduce the weight by 5%. Ego lifting ruins programs."],
               ["Rest", "Main lifts: 3–5 min. Accessories: 1.5–2 min."],
-              ["Test Day (Week 5)", "After the deload: 70% → 80% → 87.5% → 92.5% → 97–100% → PR attempt only if bar speed looks good. Max 3 heavy singles."],
-              ["PR Reality", "Beginners: a PR is almost certain. Intermediates: 2.5–5 kg is realistic. Big PRs come from block sequencing — Base → Strength → Peak."],
+              ...(result.testDay ? [
+                ["Test Day (Week 5)", "After the deload: 70% → 80% → 87.5% → 92.5% → 97–100% → PR attempt only if bar speed looks good. Max 3 heavy singles."],
+                ["PR Reality", "Beginners: a PR is almost certain. Intermediates: 2.5–5 kg is realistic. Big PRs come from block sequencing — Base → Strength → Peak."],
+              ] : []),
             ].map(([h, b], i) => (
               <div key={i} style={{ marginBottom: 10 }}>
                 <span style={{ fontWeight: 700 }}>{h}: </span>

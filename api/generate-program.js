@@ -3,10 +3,31 @@ import { profileToForm, buildProgram, toSnapshot } from '../src/lib/engine.js';
 
 const supabaseAdmin = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
-// Settings the dashboard may override on top of the assessment defaults.
-const OVERRIDE_KEYS = ['goal', 'focus', 'weak', 'sticking', 'injuries', 'sleep', 'stress', 'days', 'exp'];
 // Features the free tier cannot use (mirrors the landing-page free sample).
-const PRO_ONLY = { focus: 'bal', weak: 'none', sticking: null, injuries: { back: false, knee: false, shoulder: false } };
+// Injury flags are deliberately NOT here: safety is never a premium feature.
+const ENGINE_VERSION = '2.0';
+const PRO_ONLY = { focus: 'bal', weak: 'none', sticking: null, variationIdx: 0, accIdx: 0 };
+const ENUMS = {
+  goal: ['hyp', 'str', 'peak'], focus: ['bal', 'squat', 'bench', 'dead'], weak: ['none', 'squat', 'bench', 'deadlift'],
+  weakType: ['strength', 'technique', 'fatigue'], sleep: ['high', 'mid', 'low'], stress: ['low', 'mid', 'high'],
+  exp: ['beg', 'int', 'adv'], equipment: ['commercial', 'basic', 'minimal'],
+};
+const INJ_KEYS = ['back', 'knee', 'shoulder'];
+
+/** Coerce and clamp dashboard overrides — a bad value is dropped, never crashes the engine. */
+function cleanOverrides(body) {
+  const out = {};
+  if (!body || typeof body !== 'object') return out;
+  for (const k of Object.keys(ENUMS)) if (ENUMS[k].includes(body[k])) out[k] = body[k];
+  if (typeof body.sticking === 'string' && /^[a-z]{1,20}$/.test(body.sticking)) out.sticking = body.sticking;
+  for (const k of ['variationIdx', 'accIdx']) { const n = Number(body[k]); if (Number.isInteger(n) && n >= 0 && n < 10) out[k] = n; }
+  const days = Number(body.days); if (Number.isInteger(days) && days >= 3 && days <= 6) out.days = days;
+  if (body.injuries && typeof body.injuries === 'object') {
+    out.injuries = {};
+    for (const k of INJ_KEYS) out.injuries[k] = body.injuries[k] === true;
+  }
+  return out;
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
@@ -20,51 +41,65 @@ export default async function handler(req, res) {
 
     const { data: profile, error: profileError } = await supabaseAdmin.from('athlete_profiles').select('*').eq('user_id', user.id).maybeSingle();
     if (profileError || !profile) return res.status(404).json({ error: 'Athlete profile not found' });
-    if (!profile.squat_1rm || !profile.bench_1rm || !profile.deadlift_1rm) {
-      return res.status(400).json({ error: 'Add all three 1RMs in your assessment first' });
+    // Beginners can train without maxes (working weights are given instead); everyone else needs them.
+    if (profile.experience_level !== 'Beginner' && (!profile.squat_1rm || !profile.bench_1rm || !profile.deadlift_1rm)) {
+      return res.status(400).json({ error: 'Add your three lifts (a 1RM or a recent heavy set) in your assessment first' });
     }
 
     const { data: activeSub } = await supabaseAdmin.from('subscriptions').select('id').eq('user_id', user.id).eq('status', 'active').gte('end_date', new Date().toISOString()).order('end_date', { ascending: false }).limit(1).maybeSingle();
-    const { count: programCount } = await supabaseAdmin.from('generated_programs').select('id', { count: 'exact', head: true }).eq('user_id', user.id);
+    const { count: programCount } = await supabaseAdmin.from('generated_programs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_deleted', false);
 
     const isPro = !!activeSub;
     if (!isPro && programCount >= 1) return res.status(403).json({ error: 'UPGRADE_REQUIRED' });
 
-    const overrides = {};
-    for (const k of OVERRIDE_KEYS) if (req.body?.[k] !== undefined) overrides[k] = req.body[k];
+    const overrides = cleanOverrides(req.body);
     if (!isPro) Object.assign(overrides, PRO_ONLY);
 
     const { form, maxes, decisions } = profileToForm(profile, overrides);
+    // The meet date is never overridable from the UI: the engine always plans around it.
     const program = buildProgram(form, maxes);
+    program.notes.forEach((n) => decisions.push({ step: 'Engine Note', decision: program.blockLabel, reason: n }));
     const snapshot = toSnapshot(program, form, maxes, decisions);
 
-    const { data: engineVersion } = await supabaseAdmin.from('engine_versions').select('id, version_string').eq('is_active', true).maybeSingle();
-
-    // Only one block is "active" at a time — the newest one.
-    await supabaseAdmin.from('generated_programs').update({ is_active: false }).eq('user_id', user.id).eq('is_active', true);
+    // The snapshot must reference an engine version (NOT NULL FK). A freshly restored
+    // database may have no seed row, so create/activate one instead of failing the save.
+    let { data: engineVersion } = await supabaseAdmin.from('engine_versions').select('id, version_string').eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (!engineVersion) {
+      const { data: created, error: evError } = await supabaseAdmin.from('engine_versions')
+        .upsert({ version_string: ENGINE_VERSION, is_active: true, release_notes: 'Iron Engine v2 — Lalit Lifts Powerlifting System' }, { onConflict: 'version_string' })
+        .select('id, version_string').single();
+      if (evError) throw evError;
+      engineVersion = created;
+    }
 
     const { data: newProgram, error: saveError } = await supabaseAdmin.from('generated_programs').insert({
       user_id: user.id,
       athlete_profile_id: profile.id,
-      engine_version_id: engineVersion?.id ?? null,
+      engine_version_id: engineVersion.id,
       program_snapshot: snapshot,
       is_active: true
     }).select('id').single();
 
     if (saveError) throw saveError;
 
-    if (engineVersion?.id) {
-      await supabaseAdmin.from('decision_audit_logs').insert({
-        program_id: newProgram.id,
-        engine_version_id: engineVersion.id,
-        decision_log: decisions
-      });
-    }
+    // Only one block is "active" at a time — the newest one. Done AFTER the insert so a failed
+    // save never leaves the athlete with no active program.
+    await supabaseAdmin.from('generated_programs').update({ is_active: false }).eq('user_id', user.id).eq('is_active', true).neq('id', newProgram.id);
+
+    // Audit log is best-effort — never fail the save because of it.
+    const { error: logError } = await supabaseAdmin.from('decision_audit_logs').insert({
+      program_id: newProgram.id,
+      engine_version_id: engineVersion.id,
+      decision_log: decisions
+    });
+    if (logError) console.error('Decision log insert failed:', logError.message);
 
     return res.status(200).json({ success: true, programId: newProgram.id, engineData: { blockType: snapshot.blockType, log: decisions } });
 
   } catch (error) {
     console.error('Engine Error:', error);
-    return res.status(500).json({ error: 'Failed to generate program' });
+    // Surface the database/engine reason so the athlete (and we) can see what actually failed.
+    const detail = error?.message || error?.details || String(error);
+    return res.status(500).json({ error: `Program could not be saved: ${detail}` });
   }
 }
