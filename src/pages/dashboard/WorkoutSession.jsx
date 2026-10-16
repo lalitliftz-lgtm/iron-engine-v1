@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { platesPerSide } from '../../lib/engine';
+import { platesPerSide, round25 } from '../../lib/engine';
 import { applyAdjustments } from '../../lib/autoreg';
 import { readDraft, saveDraft, clearDraft } from '../../lib/workoutDraft';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -12,6 +12,30 @@ const ACC_REST = 90;
 const RPE_OPTIONS = ['6', '7', '7.5', '8', '8.5', '9', '9.5', '10'];
 // A gap with no taps longer than this is "left the gym / forgot the app", not training time.
 const IDLE_CAP = 20 * 60 * 1000;
+
+/**
+ * In-session autoregulation (Helms: RPE steers the load). After a main set with RPE:
+ * ≥2 over target → −7.5%, ≥1 over → −5%, ≥1.5 under → +2.5 kg (+5 kg squat/deadlift when ≥2 under).
+ * Technique/low-RPE work (target ≤ 6) is meant to feel easy, so it never suggests more.
+ */
+function suggestFor(ex, set) {
+  const target = parseFloat(String(ex.rpe).replace(/[^\d.]/g, '')) || null;
+  const rpe = parseFloat(set.rpe);
+  const kg = parseFloat(set.weight);
+  if (!target || !rpe || !kg || set.pain || target <= 6 || /Technique/i.test(ex.name)) return null;
+  if (!ex.loggedSets.some((x) => !x.completed)) return null; // nothing left to change
+  const diff = rpe - target;
+  if (diff >= 1) {
+    const next = round25(kg * (diff >= 2 ? 0.925 : 0.95));
+    return next < kg ? { kg: next, tone: 'down', text: `RPE ${rpe} vs ${target} planned — too heavy today. Next sets ${next} kg.` } : null;
+  }
+  if (diff <= -1.5) {
+    const next = kg + (diff <= -2 && ex.lift !== 'bench' ? 5 : 2.5);
+    return { kg: next, tone: 'up', text: `RPE ${rpe} vs ${target} planned — moving well. Next sets ${next} kg.` };
+  }
+  return null;
+}
+
 const newId = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
 const newSets = (ex) => Array.from({ length: Number(ex.sets) || 1 }, () => ({
@@ -131,13 +155,35 @@ export default function WorkoutSession() {
     bump();
     setExercises((prev) => prev.map((ex, i) => i !== exIdx ? ex : { ...ex, loggedSets: ex.loggedSets.map((s, j) => (j === setIdx ? { ...s, ...patch } : s)) }));
   };
+  // Sets go in order: only the next set can be ticked, only the last ticked one undone.
+  const nextIdx = (ex) => ex.loggedSets.findIndex((x) => !x.completed);
+  const lastDoneIdx = (ex) => { const i = nextIdx(ex); return i === -1 ? ex.loggedSets.length - 1 : i - 1; };
   const toggleSetComplete = (exIdx, setIdx) => {
     const ex = exercises[exIdx];
-    const nowComplete = !ex.loggedSets[setIdx].completed;
+    const set = ex.loggedSets[setIdx];
+    if (!set.completed && setIdx !== nextIdx(ex)) return;
+    if (set.completed && setIdx !== lastDoneIdx(ex)) return;
+    const nowComplete = !set.completed;
     updateSet(exIdx, setIdx, { completed: nowComplete });
     setRestOver(false);
-    if (nowComplete) setRestEndsAt(Date.now() + (ex.type === 'Main' ? MAIN_REST : ACC_REST) * 1000);
+    if (!nowComplete) { setSuggest(exIdx, null); return; } // undo never touches the rest clock
+    const after = exercises.map((e, i) => (i !== exIdx ? e : { ...e, loggedSets: e.loggedSets.map((x, j) => (j === setIdx ? { ...x, completed: true } : x)) }));
+    const anyLeft = after.some((e) => !e.skipped && e.loggedSets.some((x) => !x.completed));
+    // Rest starts from THIS set. The last set of the session needs no rest — it's Finish time.
+    setRestEndsAt(anyLeft ? Date.now() + (ex.type === 'Main' ? MAIN_REST : ACC_REST) * 1000 : null);
+    if (ex.type === 'Main') setSuggest(exIdx, suggestFor(after[exIdx], { ...set, completed: true }));
   };
+  const setSuggest = (exIdx, suggest) => setExercises((prev) => prev.map((e, i) => (i === exIdx ? { ...e, suggest } : e)));
+  const setRpe = (exIdx, setIdx, rpe) => {
+    updateSet(exIdx, setIdx, { rpe });
+    const ex = exercises[exIdx];
+    const set = { ...ex.loggedSets[setIdx], rpe };
+    // RPE is usually tapped right after ticking — re-read the last finished set.
+    if (set.completed && setIdx === lastDoneIdx(ex)) setSuggest(exIdx, rpe ? suggestFor(ex, set) : null);
+  };
+  const applySuggest = (exIdx) => setExercises((prev) => prev.map((e, i) => (i !== exIdx ? e : {
+    ...e, suggest: null, loggedSets: e.loggedSets.map((x) => (x.completed ? x : { ...x, weight: String(e.suggest.kg) })),
+  })));
   const skipExercise = (exIdx) => setExercises((prev) => prev.map((ex, i) => (i === exIdx ? { ...ex, skipped: true } : ex)));
 
   const handleCancel = () => {
@@ -306,8 +352,14 @@ export default function WorkoutSession() {
           {dayData.notes && <p className="text-sm text-gray-500 mt-1">{dayData.notes}</p>}
         </div>
         {saveError && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl p-4">{saveError} — your sets are still here, try Finish again.</div>}
+        {(() => {
+          const allDone = exercises.length > 0 && exercises.every((e) => e.skipped || e.loggedSets.every((x) => x.completed));
+          return allDone ? <div className="bg-green-50 border border-green-200 text-green-700 text-sm font-semibold rounded-xl p-4">All sets done — tap Finish to save the session.</div> : null;
+        })()}
         {exercises.map((ex, exIdx) => {
           const isMain = ex.type === 'Main';
+          const nIdx = ex.skipped ? -1 : nextIdx(ex);
+          const lIdx = lastDoneIdx(ex);
           const plates = isMain && ex.weight ? platesPerSide(Number(ex.weight)) : null;
           return (
             <div key={exIdx} className={`bg-white rounded-2xl border ${ex.skipped ? 'border-gray-100 opacity-50' : isMain ? 'border-gray-300 shadow-md' : 'border-gray-200 shadow-sm'} overflow-hidden`}>
@@ -330,7 +382,7 @@ export default function WorkoutSession() {
                     };
                     const btn = 'w-9 h-10 rounded-lg border border-gray-200 text-lg font-bold text-gray-700 disabled:opacity-40 active:scale-95';
                     return (
-                      <div key={setIdx} className={`px-4 py-3 ${set.completed ? 'bg-green-50' : ''}`}>
+                      <div key={setIdx} className={`px-4 py-3 ${set.completed ? 'bg-green-50' : setIdx === nIdx ? '' : 'opacity-60'}`} style={setIdx === nIdx ? { boxShadow: 'inset 3px 0 0 var(--ll-red)' } : undefined}>
                         <div className="flex items-center gap-2">
                           <span className="w-6 text-sm font-semibold text-gray-500 tabular-nums">{setIdx + 1}</span>
                           <div className="flex items-center gap-1 flex-1 min-w-0">
@@ -343,15 +395,18 @@ export default function WorkoutSession() {
                             <input type="text" inputMode="numeric" aria-label="Reps" value={set.reps} onChange={(e) => updateSet(exIdx, setIdx, { reps: e.target.value })} placeholder="reps" disabled={set.completed} className="w-full min-w-0 h-10 text-center bg-gray-50 border border-gray-200 rounded-lg text-base font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:opacity-60" />
                             <button type="button" aria-label="One rep more" disabled={set.completed} onClick={() => step('reps', 1)} className={btn}>+</button>
                           </div>
-                          <button onClick={() => toggleSetComplete(exIdx, setIdx)} aria-label={set.completed ? 'Undo set' : 'Set done'} className={`w-11 h-11 shrink-0 rounded-xl border-2 flex items-center justify-center transition-colors ${set.completed ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-gray-400 hover:border-gray-400'}`}>
+                          <button onClick={() => toggleSetComplete(exIdx, setIdx)} aria-label={set.completed ? 'Undo set' : 'Set done'}
+                            disabled={set.completed ? setIdx !== lIdx : setIdx !== nIdx}
+                            title={!set.completed && setIdx !== nIdx ? `Finish set ${nIdx + 1} first` : undefined}
+                            className={`w-11 h-11 shrink-0 rounded-xl border-2 flex items-center justify-center transition-colors disabled:cursor-not-allowed ${set.completed ? 'bg-green-500 border-green-500 text-white' : setIdx === nIdx ? 'border-red-500 text-red-500' : 'border-gray-200 text-gray-300'}`}>
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
                           </button>
                         </div>
                         {isMain && (
                           <div className="flex items-center gap-1.5 mt-2 pl-8 overflow-x-auto">
-                            <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mr-1">RPE</span>
+                            <span className={`text-[11px] font-semibold uppercase tracking-wider mr-1 ${set.completed && !set.rpe ? 'text-amber-700' : 'text-gray-400'}`}>{set.completed && !set.rpe ? 'RPE?' : 'RPE'}</span>
                             {RPE_OPTIONS.map((r) => (
-                              <button key={r} type="button" onClick={() => updateSet(exIdx, setIdx, { rpe: set.rpe === r ? '' : r })}
+                              <button key={r} type="button" onClick={() => setRpe(exIdx, setIdx, set.rpe === r ? '' : r)}
                                 className={`min-w-[2.4rem] h-8 px-1.5 rounded-lg text-sm font-semibold border tabular-nums ${set.rpe === r ? 'bg-gray-100 border-gray-300 text-gray-900' : 'border-gray-200 text-gray-500'}`}>{r}</button>
                             ))}
                             <button type="button" title="Pain on this set" onClick={() => updateSet(exIdx, setIdx, { pain: !set.pain })} className={`ml-1 h-8 px-2 rounded-lg text-xs font-bold border ${set.pain ? 'bg-red-600 border-red-600 text-white' : 'border-gray-200 text-gray-500'}`}>Pain</button>
@@ -360,7 +415,16 @@ export default function WorkoutSession() {
                       </div>
                     );
                   })}
-                  {isMain && <p className="px-4 py-2 text-[11px] text-gray-400">RPE 7 = 3 reps left · 8 = 2 left · 9 = 1 left. Tap Pain if a set hurt.</p>}
+                  {isMain && ex.suggest && (
+                    <div className={`mx-4 my-3 rounded-xl border p-3 ${ex.suggest.tone === 'down' ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
+                      <p className={`text-sm ${ex.suggest.tone === 'down' ? 'text-amber-700' : 'text-green-700'}`}>{ex.suggest.text}</p>
+                      <div className="flex gap-2 mt-2">
+                        <button type="button" onClick={() => applySuggest(exIdx)} className="text-sm font-semibold bg-gray-900 text-white px-3 py-1.5 rounded-lg">Use {ex.suggest.kg} kg</button>
+                        <button type="button" onClick={() => setSuggest(exIdx, null)} className="text-sm font-semibold border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg">Keep plan</button>
+                      </div>
+                    </div>
+                  )}
+                  {isMain && <p className="px-4 py-2 text-[11px] text-gray-400">RPE 7 = 3 reps left · 8 = 2 left · 9 = 1 left. Log RPE after each set — the plan adjusts the next sets. Tap Pain if a set hurt.</p>}
                 </div>
               )}
             </div>
