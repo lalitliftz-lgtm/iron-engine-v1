@@ -87,3 +87,25 @@ a.bg-gray-900:hover { background-color: var(--ll-red-dim) !important; }
 .prose :where(h1,h2,h3,h4,strong):not(:where([class~="not-prose"] *)) { color: var(--ll-chalk); }
 .prose :where(p,li):not(:where([class~="not-prose"] *)) { color: var(--ll-knurl); }
 .prose :where(a):not(:where([class~="not-prose"] *)) { color: var(--ll-brass); }
+
+/* ============================================================
+   COLOUR ROLES (psychology, used consistently)
+   red   = the one action that matters on a screen (Start, Save, Build)
+   green = done / progress / good recovery
+   amber = caution: adjust, check in, fatigue
+   neutral iron/chalk = everything else
+   The light tint utilities below are remapped to dark-friendly tints.
+   ============================================================ */
+:root { --ll-good: #4fbf86; --ll-warn: #e2b04a; --ll-bad: #ff6b81; }
+.bg-green-50, .bg-green-100 { background-color: rgba(79,191,134,.12) !important; }
+.text-green-500, .text-green-600, .text-green-700, .text-green-800, .text-green-900, .text-green-400 { color: var(--ll-good) !important; }
+.border-green-200, .border-green-300 { border-color: rgba(79,191,134,.4) !important; }
+.bg-amber-50, .bg-amber-100, .bg-yellow-50 { background-color: rgba(226,176,74,.12) !important; }
+.text-amber-700, .text-amber-800, .text-amber-900 { color: var(--ll-warn) !important; }
+.border-amber-200, .border-amber-300 { border-color: rgba(226,176,74,.45) !important; }
+.bg-red-50, .bg-red-100 { background-color: rgba(200,16,46,.14) !important; }
+.text-red-600, .text-red-700, .text-red-800, .text-red-900 { color: var(--ll-bad) !important; }
+.border-red-100, .border-red-200, .border-red-300 { border-color: rgba(255,107,129,.4) !important; }
+.text-blue-600, .text-blue-700, .text-blue-800 { color: var(--ll-brass) !important; }
+.hover\:text-blue-800:hover { color: #e3c06f !important; }
+.text-red-500 { color: #ef3b55 !important; }

@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const MAIN_REST = 180; // System 2.0: main lifts 3–5 min
 const ACC_REST = 90;
-const RPE_OPTIONS = ['6', '6.5', '7', '7.5', '8', '8.5', '9', '9.5', '10'];
+const RPE_OPTIONS = ['6', '7', '7.5', '8', '8.5', '9', '9.5', '10'];
 
 const newSets = (ex) => Array.from({ length: Number(ex.sets) || 1 }, () => ({
   weight: ex.weight ? String(ex.weight) : '',
@@ -132,10 +132,12 @@ export default function WorkoutSession() {
   const nextSession = useMemo(() => {
     const weeks = program?.program_snapshot?.weeks || [];
     const w = weeks.find((x) => x.week === week);
-    const nextDay = w?.days.find((d) => d.day === day + 1);
-    if (nextDay) return { week, day: day + 1, label: `${nextDay.weekday || `Day ${day + 1}`} · ${nextDay.focus}` };
+    const train = (d) => !d.rest && !d.meetDay;
+    const nextDay = w?.days.find((d) => d.day > day && train(d));
+    if (nextDay) return { week, day: nextDay.day, label: `${nextDay.weekday || `Day ${nextDay.day}`} · ${nextDay.focus}` };
     const nw = weeks.find((x) => x.week === week + 1);
-    if (nw?.days?.[0]) return { week: week + 1, day: nw.days[0].day, label: `${nw.label || `Week ${week + 1}`} · ${nw.days[0].focus}` };
+    const first = nw?.days?.find(train);
+    if (first) return { week: week + 1, day: first.day, label: `${nw.label || `Week ${week + 1}`} · ${first.focus}` };
     return null;
   }, [program, week, day]);
 
@@ -191,13 +193,15 @@ export default function WorkoutSession() {
         </div>
         <AnimatePresence>
           {restTimer !== null && restTimer > 0 && (
-            <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="bg-gray-900 text-white overflow-hidden">
-              <div className="max-w-2xl mx-auto px-4 py-2 flex justify-between items-center">
-                <span className="text-sm font-medium">Rest</span>
-                <div className="flex items-center gap-3">
-                  <span className="text-lg font-bold tabular-nums">{formatTime(restTimer)}</span>
-                  <button onClick={() => setRestTimer(restTimer + 60)} className="text-xs bg-white/10 hover:bg-white/20 px-2 py-1 rounded">+1 min</button>
-                  <button onClick={() => setRestTimer(null)} className="text-xs bg-white/10 hover:bg-white/20 px-2 py-1 rounded">Skip</button>
+            <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden border-t border-gray-200" style={{ background: 'var(--ll-steel2)' }}>
+              <div className="max-w-2xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Rest</p>
+                  <p className="text-3xl font-bold tabular-nums text-gray-900" style={{ fontFamily: "'Archivo Black', sans-serif" }}>{formatTime(restTimer)}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setRestTimer(restTimer + 60)} className="text-sm font-semibold border border-gray-300 text-gray-800 px-3 py-2 rounded-lg">+1 min</button>
+                  <button onClick={() => setRestTimer(null)} className="text-sm font-semibold border border-gray-300 text-gray-800 px-3 py-2 rounded-lg">Skip</button>
                 </div>
               </div>
             </motion.div>
@@ -227,32 +231,45 @@ export default function WorkoutSession() {
                 {!ex.skipped && <button onClick={() => skipExercise(exIdx)} className="text-xs text-gray-400 hover:text-gray-900 font-medium border border-gray-200 px-2 py-1 rounded-md whitespace-nowrap">Skip</button>}
               </div>
               {!ex.skipped && (
-                <div className="divide-y divide-gray-50">
-                  <div className={`grid ${isMain ? 'grid-cols-12' : 'grid-cols-10'} gap-2 px-5 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400`}>
-                    <div className="col-span-1">Set</div><div className="col-span-3">kg</div><div className="col-span-3">Reps</div>{isMain && <div className="col-span-3">RPE</div>}<div className={`${isMain ? 'col-span-2' : 'col-span-3'} text-right`}>Done</div>
-                  </div>
-                  {ex.loggedSets.map((set, setIdx) => (
-                    <div key={setIdx} className={`grid ${isMain ? 'grid-cols-12' : 'grid-cols-10'} gap-2 px-5 py-3 items-center ${set.completed ? 'bg-green-50/50' : ''}`}>
-                      <div className="col-span-1 text-sm font-medium text-gray-500">{setIdx + 1}</div>
-                      <div className="col-span-3"><input type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(exIdx, setIdx, { weight: e.target.value })} placeholder="kg" disabled={set.completed} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:opacity-50" /></div>
-                      <div className="col-span-3"><input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(exIdx, setIdx, { reps: e.target.value })} placeholder="reps" disabled={set.completed} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:opacity-50" /></div>
-                      {isMain && (
-                        <div className="col-span-3 flex items-center gap-1">
-                          <select value={set.rpe} onChange={(e) => updateSet(exIdx, setIdx, { rpe: e.target.value })} disabled={set.completed} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-1 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:opacity-50">
-                            <option value="">—</option>
-                            {RPE_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                          </select>
-                          <button type="button" title="Pain on this set" onClick={() => updateSet(exIdx, setIdx, { pain: !set.pain })} className={`text-[10px] font-bold px-1.5 py-1.5 rounded-md border ${set.pain ? 'bg-red-600 border-red-600 text-white' : 'border-gray-200 text-gray-400'}`}>!</button>
+                <div className="divide-y divide-gray-100">
+                  {ex.loggedSets.map((set, setIdx) => {
+                    const step = (field, by, min = 0) => {
+                      const cur = parseFloat(set[field]) || 0;
+                      updateSet(exIdx, setIdx, { [field]: String(Math.max(min, Math.round((cur + by) * 100) / 100)) });
+                    };
+                    const btn = 'w-9 h-10 rounded-lg border border-gray-200 text-lg font-bold text-gray-700 disabled:opacity-40 active:scale-95';
+                    return (
+                      <div key={setIdx} className={`px-4 py-3 ${set.completed ? 'bg-green-50' : ''}`}>
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 text-sm font-semibold text-gray-500 tabular-nums">{setIdx + 1}</span>
+                          <div className="flex items-center gap-1 flex-1 min-w-0">
+                            <button type="button" aria-label="Less weight" disabled={set.completed} onClick={() => step('weight', -2.5)} className={btn}>−</button>
+                            <input type="text" inputMode="decimal" aria-label="Weight in kg" value={set.weight} onChange={(e) => updateSet(exIdx, setIdx, { weight: e.target.value })} placeholder="kg" disabled={set.completed} className="w-full min-w-0 h-10 text-center bg-gray-50 border border-gray-200 rounded-lg text-base font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:opacity-60" />
+                            <button type="button" aria-label="More weight" disabled={set.completed} onClick={() => step('weight', 2.5)} className={btn}>+</button>
+                          </div>
+                          <div className="flex items-center gap-1 w-[7.5rem] shrink-0">
+                            <button type="button" aria-label="One rep less" disabled={set.completed} onClick={() => step('reps', -1)} className={btn}>−</button>
+                            <input type="text" inputMode="numeric" aria-label="Reps" value={set.reps} onChange={(e) => updateSet(exIdx, setIdx, { reps: e.target.value })} placeholder="reps" disabled={set.completed} className="w-full min-w-0 h-10 text-center bg-gray-50 border border-gray-200 rounded-lg text-base font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:opacity-60" />
+                            <button type="button" aria-label="One rep more" disabled={set.completed} onClick={() => step('reps', 1)} className={btn}>+</button>
+                          </div>
+                          <button onClick={() => toggleSetComplete(exIdx, setIdx)} aria-label={set.completed ? 'Undo set' : 'Set done'} className={`w-11 h-11 shrink-0 rounded-xl border-2 flex items-center justify-center transition-colors ${set.completed ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-gray-400 hover:border-gray-400'}`}>
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                          </button>
                         </div>
-                      )}
-                      <div className={`${isMain ? 'col-span-2' : 'col-span-3'} flex justify-end`}>
-                        <button onClick={() => toggleSetComplete(exIdx, setIdx)} className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center transition-colors ${set.completed ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-transparent hover:border-gray-400'}`}>
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
-                        </button>
+                        {isMain && (
+                          <div className="flex items-center gap-1.5 mt-2 pl-8 overflow-x-auto">
+                            <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mr-1">RPE</span>
+                            {RPE_OPTIONS.map((r) => (
+                              <button key={r} type="button" onClick={() => updateSet(exIdx, setIdx, { rpe: set.rpe === r ? '' : r })}
+                                className={`min-w-[2.4rem] h-8 px-1.5 rounded-lg text-sm font-semibold border tabular-nums ${set.rpe === r ? 'bg-gray-100 border-gray-300 text-gray-900' : 'border-gray-200 text-gray-500'}`}>{r}</button>
+                            ))}
+                            <button type="button" title="Pain on this set" onClick={() => updateSet(exIdx, setIdx, { pain: !set.pain })} className={`ml-1 h-8 px-2 rounded-lg text-xs font-bold border ${set.pain ? 'bg-red-600 border-red-600 text-white' : 'border-gray-200 text-gray-500'}`}>Pain</button>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
-                  {isMain && <p className="px-5 py-2 text-[11px] text-gray-400">RPE 7 = 3 reps left · 8 = 2 left · 9 = 1 left. Tap <b>!</b> if a set hurt.</p>}
+                    );
+                  })}
+                  {isMain && <p className="px-4 py-2 text-[11px] text-gray-400">RPE 7 = 3 reps left · 8 = 2 left · 9 = 1 left. Tap Pain if a set hurt.</p>}
                 </div>
               )}
             </div>

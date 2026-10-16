@@ -1,24 +1,25 @@
-import { useState } from 'react';
-import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { NavLink, Outlet, Link, useLocation } from 'react-router-dom';
 import Footer from '../Footer';
 
+// Four places a lifter actually goes. Everything else lives inside one of them.
+const TABS = [
+  { to: '/dashboard', label: 'Today', end: true, icon: 'M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10' },
+  { to: '/dashboard/programs', label: 'Program', icon: 'M4 5h16M4 10h16M4 15h10M4 20h7' },
+  { to: '/dashboard/history', label: 'History', icon: 'M12 8v4l3 2M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5' },
+  { to: '/dashboard/account', label: 'Account', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0' },
+];
+// Pages reached from inside a tab still light up their parent tab.
+const PARENT = { '/dashboard/generate': '/dashboard/programs', '/dashboard/checkin': '/dashboard', '/dashboard/workout': '/dashboard', '/dashboard/assessment': '/dashboard/account', '/dashboard/subscription': '/dashboard/account', '/dashboard/products': '/dashboard/account', '/dashboard/library': '/dashboard/account', '/dashboard/athlete-profile': '/dashboard/account', '/dashboard/settings': '/dashboard/account' };
+
+function Icon({ d }) {
+  return <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d={d} /></svg>;
+}
+
 export default function DashboardLayout() {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { signOut, user } = useAuth();
-  const navigate = useNavigate();
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/');
-  };
-
-  const navLinkClass = ({ isActive }) =>
-    `block py-2.5 px-4 rounded-lg text-sm font-semibold transition duration-200 ${
-      isActive
-        ? 'bg-red-600 text-white'
-        : 'text-knurl hover:bg-steel2 hover:text-chalk'
-    }`;
+  const { pathname } = useLocation();
+  const parent = PARENT[Object.keys(PARENT).find((p) => pathname.startsWith(p))];
+  const isActive = (t, navActive) => navActive || parent === t.to;
+  const inWorkout = pathname.startsWith('/dashboard/workout');
 
   const Brand = (
     <Link to="/" className="text-2xl no-underline" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
@@ -26,54 +27,39 @@ export default function DashboardLayout() {
     </Link>
   );
 
-  const links = [
-    ['/dashboard', 'Overview', true],
-    ['/dashboard/generate', 'Generate Program', false],
-    ['/dashboard/subscription', 'My Subscription', false],
-    ['/dashboard/products', 'My Products', false],
-    ['/dashboard/library', 'My Library', false],
-    ['/dashboard/athlete-profile', 'Athlete Profile', false],
-    ['/dashboard/programs', 'Generated Programs', false],
-    ['/dashboard/technique-lab', 'Technique Lab', false],
-    ['/dashboard/history', 'Workout History', false],
-    ['/dashboard/settings', 'Settings', false],
-  ];
-
   return (
     <div className="min-h-screen bg-iron flex flex-col md:flex-row" style={{ fontFamily: "'Barlow', sans-serif" }}>
-      {/* Mobile bar */}
-      <div className="md:hidden bg-steel border-b border-line p-4 flex justify-between items-center">
-        {Brand}
-        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-chalk focus:outline-none">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-              d={isSidebarOpen ? 'M6 18L18 6M6 6l12 12' : 'M4 6h16M4 12h16M4 18h16'} />
-          </svg>
-        </button>
-      </div>
+      {/* Phone: brand bar on top, tabs at the bottom (thumb reach in the gym) */}
+      {!inWorkout && <div className="md:hidden bg-steel border-b border-line px-4 py-3">{Brand}</div>}
 
-      <aside className={`w-64 bg-steel border-r border-line flex-col ${isSidebarOpen ? 'flex' : 'hidden'} md:flex`}>
-        <div className="p-5 hidden md:block border-b border-line">{Brand}</div>
-        <nav className="flex-1 px-3 py-4 space-y-1.5">
-          {links.map(([to, label, end]) => (
-            <NavLink key={to} to={to} end={end} className={navLinkClass} onClick={() => setIsSidebarOpen(false)}>
-              {label}
+      {/* Laptop: slim sidebar */}
+      <aside className="hidden md:flex w-56 bg-steel border-r border-line flex-col">
+        <div className="p-5 border-b border-line">{Brand}</div>
+        <nav className="flex-1 px-3 py-4 space-y-1">
+          {TABS.map((t) => (
+            <NavLink key={t.to} to={t.to} end={t.end}
+              className={({ isActive: a }) => `flex items-center gap-3 py-2.5 px-3 rounded-lg text-sm font-semibold transition ${isActive(t, a) ? 'bg-steel2 text-chalk' : 'text-knurl hover:bg-steel2 hover:text-chalk'}`}>
+              {({ isActive: a }) => (<><span className={isActive(t, a) ? 'text-red-500' : ''}><Icon d={t.icon} /></span>{t.label}</>)}
             </NavLink>
           ))}
         </nav>
-        <div className="p-4 border-t border-line">
-          <p className="text-xs text-dim truncate mb-2">{user?.email}</p>
-          <button onClick={handleSignOut}
-            className="w-full border border-line hover:border-red-600 text-knurl hover:text-chalk py-2 px-4 rounded-lg text-sm font-semibold transition">
-            Sign out
-          </button>
-        </div>
       </aside>
 
-      <main className="flex-1 p-6 md:p-10 overflow-y-auto flex flex-col bg-iron">
+      <main className={`flex-1 overflow-y-auto flex flex-col bg-iron ${inWorkout ? '' : 'pb-20 md:pb-0'}`}>
         <div className="flex-1"><Outlet /></div>
-        <Footer />
+        <div className="hidden md:block"><Footer /></div>
       </main>
+
+      {!inWorkout && (
+        <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-steel border-t border-line grid grid-cols-4" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }} aria-label="Main">
+          {TABS.map((t) => (
+            <NavLink key={t.to} to={t.to} end={t.end}
+              className={({ isActive: a }) => `flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold ${isActive(t, a) ? 'text-red-500' : 'text-knurl'}`}>
+              <Icon d={t.icon} />{t.label}
+            </NavLink>
+          ))}
+        </nav>
+      )}
     </div>
   );
 }

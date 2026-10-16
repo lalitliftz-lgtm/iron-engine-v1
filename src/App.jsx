@@ -13,18 +13,14 @@ import PurchaseSuccess from './pages/PurchaseSuccess';
 import DashboardLayout from './components/dashboard/DashboardLayout';
 import Overview from './pages/dashboard/Overview';
 import Subscription from './pages/dashboard/Subscription';
-import MyProducts from './pages/dashboard/MyProducts';
-import AthleteProfile from './pages/dashboard/AthleteProfile';
 import Programs from './pages/dashboard/Programs';
 import WorkoutHistory from './pages/dashboard/WorkoutHistory';
-import Settings from './pages/dashboard/Settings';
 import AssessmentWizard from './pages/dashboard/AssessmentWizard';
 import GenerateProgram from './pages/dashboard/GenerateProgram';
 import WorkoutSession from './pages/dashboard/WorkoutSession';
 import WeeklyCheckin from './pages/dashboard/WeeklyCheckin';
+import Account from './pages/dashboard/Account';
 import MyLibrary from './pages/dashboard/MyLibrary';
-import TechniqueLab from './pages/dashboard/TechniqueLab';
-import ExerciseDetail from './pages/dashboard/ExerciseDetail';
 
 import PrivacyPolicy from './pages/legal/PrivacyPolicy';
 import Terms from './pages/legal/Terms';
@@ -56,18 +52,17 @@ export default function App() {
             <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
               <Route index element={<Overview />} />
               <Route path="subscription" element={<Subscription />} />
-              <Route path="products" element={<MyProducts />} />
-              <Route path="athlete-profile" element={<AthleteProfile />} />
+              <Route path="products" element={<Navigate to="/dashboard/library" replace />} />
+              <Route path="athlete-profile" element={<Navigate to="/dashboard/account" replace />} />
               <Route path="programs" element={<Programs />} />
               <Route path="generate" element={<GenerateProgram />} />
               <Route path="workout" element={<WorkoutSession />} />
               <Route path="checkin" element={<WeeklyCheckin />} />
+              <Route path="account" element={<Account />} />
               <Route path="history" element={<WorkoutHistory />} />
               <Route path="library" element={<MyLibrary />} />
-              <Route path="technique-lab" element={<TechniqueLab />} />
-              <Route path="technique-lab/:id" element={<ExerciseDetail />} />
               <Route path="assessment" element={<AssessmentWizard />} />
-              <Route path="settings" element={<Settings />} />
+              <Route path="settings" element={<Navigate to="/dashboard/account" replace />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />
