@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { applyAdjustments, attemptPlan } from '../../lib/autoreg';
 import { LIFT_NAMES } from '../../lib/engine';
 import StalePlanBanner from '../../components/dashboard/StalePlanBanner';
+import { readDraft, draftSetsDone } from '../../lib/workoutDraft';
 
 export default function Overview() {
   const { user } = useAuth();
@@ -58,6 +59,9 @@ export default function Overview() {
   const totalWeeks = snap?.weeks?.length || 4;
   // Next session = first session of the block that has no log yet (skipped days shift the plan, they don't vanish).
   const done = new Set(logs.map((l) => `${l.week_number}-${l.day_number}`));
+  // An unfinished session in this browser (same block, day not logged yet) → Resume instead of Start.
+  const savedDraft = readDraft(user.id);
+  const draft = savedDraft && program && savedDraft.programId === program.id && !done.has(`${savedDraft.week}-${savedDraft.day}`) ? savedDraft : null;
   let next = null;
   for (const w of snap?.weeks || []) {
     for (const d of w.days || []) {
@@ -125,7 +129,14 @@ export default function Overview() {
               ))}
               {nextMains.length === 0 && <p className="text-sm text-gray-500 py-2">Accessories + technique day</p>}
             </div>
-            <Link to={`/dashboard/workout?week=${next.week.week}&day=${next.day.day}`} className="mt-5 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Start session</Link>
+            {draft ? (
+              <>
+                <p className="mt-5 text-xs text-green-600">In progress{draft.focus ? ` · W${draft.week} D${draft.day} ${draft.focus}` : ''} · {draftSetsDone(draft)} set{draftSetsDone(draft) === 1 ? '' : 's'} ticked</p>
+                <Link to={`/dashboard/workout?week=${draft.week}&day=${draft.day}`} className="mt-2 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Resume session</Link>
+              </>
+            ) : (
+              <Link to={`/dashboard/workout?week=${next.week.week}&day=${next.day.day}`} className="mt-5 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Start session</Link>
+            )}
           </>
         ) : blockDone ? (
           <>
