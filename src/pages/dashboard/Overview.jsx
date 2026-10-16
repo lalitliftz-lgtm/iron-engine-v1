@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { Link } from 'react-router-dom';
+import { applyAdjustments, attemptPlan } from '../../lib/autoreg';
+import { LIFT_NAMES } from '../../lib/engine';
 
 export default function Overview() {
   const { user } = useAuth();
@@ -49,7 +51,8 @@ export default function Overview() {
   const hasMeet = profile?.competition_date;
   const daysToMeet = hasMeet ? Math.ceil((new Date(hasMeet) - new Date()) / (1000 * 60 * 60 * 24)) : null;
 
-  const snap = program?.program_snapshot;
+  const snap = program ? applyAdjustments(program.program_snapshot, program.program_snapshot.adjustments) : null;
+  const checkins = program?.program_snapshot?.adjustments?.checkins || {};
   const currentBlock = snap?.blockType || null;
   const totalWeeks = snap?.weeks?.length || 4;
   // Next session = first session of the block that has no log yet (skipped days shift the plan, they don't vanish).
@@ -63,6 +66,14 @@ export default function Overview() {
     if (next) break;
   }
   const blockDone = !!snap && !next;
+  // A finished training week with no check-in yet → ask for it (Pro). The latest such week wins.
+  let checkinWeek = null;
+  for (const w of snap?.weeks || []) {
+    if (w.meetWeek || w.taper) continue;
+    const allLogged = (w.days || []).length && w.days.every((d) => done.has(`${w.week}-${d.day}`));
+    if (allLogged && !checkins[String(w.week)]) checkinWeek = w.week;
+  }
+  const attempts = snap && daysToMeet !== null && daysToMeet <= 14 && daysToMeet >= 0 ? attemptPlan(snap.meta?.maxes || {}, logs, snap.meta?.form?.exp) : null;
   const currentWeek = next ? next.week.week : totalWeeks;
   const nextMains = next ? next.day.exercises.filter((e) => e.type === 'Main').slice(0, 3) : [];
   const sessionsDone = logs.length;
@@ -120,6 +131,16 @@ export default function Overview() {
             )}
           </div>
 
+          {checkinWeek && (
+            <div className="bg-gray-900 text-white rounded-xl p-6 shadow-sm flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Week {checkinWeek} done</h2>
+                <p className="text-sm">60-second check-in: sleep, soreness, mood, pain. The engine reads it with your logged RPE and sets next week's kg.</p>
+              </div>
+              <Link to={`/dashboard/checkin?week=${checkinWeek}`} className="bg-white text-gray-900 text-sm font-semibold px-5 py-2.5 rounded-lg whitespace-nowrap">Weekly check-in →</Link>
+            </div>
+          )}
+
           <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
             <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Current Training Block</h2>
             {currentBlock ? (
@@ -153,6 +174,13 @@ export default function Overview() {
               <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Meet Prep</h2>
               <p className="text-4xl font-bold tracking-tight">{daysToMeet}</p>
               <p className="text-sm text-gray-400 mt-1">Days to competition</p>
+              {attempts && (
+                <div className="mt-4 space-y-2 border-t border-gray-800 pt-4">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Suggested attempts (kg)</p>
+                  {['squat', 'bench', 'deadlift'].filter((l) => attempts[l]).map((l) => <p key={l} className="text-sm"><span className="text-gray-400">{LIFT_NAMES[l]}</span> {attempts[l].opener} · {attempts[l].second} · {attempts[l].third}</p>)}
+                  <p className="text-[11px] text-gray-500">{attempts.rule}</p>
+                </div>
+              )}
             </div>
           )}
 

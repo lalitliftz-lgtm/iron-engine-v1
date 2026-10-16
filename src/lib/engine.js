@@ -484,9 +484,13 @@ export function applyEquipment(accList, equipment) {
 export function recoveryProfile(form) {
   const poor = form.sleep === "low" || form.stress === "high";
   const mid = !poor && (form.sleep === "mid" || form.stress === "mid");
-  if (poor) return { level: "poor", setDelta: -1, rpeCap: 7.5, note: "Recovery is POOR (sleep/stress) — volume reduced by 1 set, RPE capped at 7.5. Fix sleep first; the volume comes back." };
-  if (mid) return { level: "mid", setDelta: 0, rpeCap: null, note: "Recovery is borderline — take the deload week seriously. Don't skip it." };
-  return { level: "good", setDelta: 0, rpeCap: null, note: null };
+  let r;
+  if (poor) r = { level: "poor", setDelta: -1, rpeCap: 7.5, note: "Recovery is POOR (sleep/stress) — volume reduced by 1 set, RPE capped at 7.5. Fix sleep first; the volume comes back." };
+  else if (mid) r = { level: "mid", setDelta: 0, rpeCap: null, note: "Recovery is borderline — take the deload week seriously. Don't skip it." };
+  else r = { level: "good", setDelta: 0, rpeCap: null, note: null };
+  // Block-end evaluation can ask for less volume this block (repeat with −20% volume).
+  if (form.volumeDelta) { r.setDelta = Math.max(-2, Math.min(0, r.setDelta + form.volumeDelta)); r.note = [r.note, "Last block showed fatigue — one set less on the main lifts this block."].filter(Boolean).join(" "); }
+  return r;
 }
 
 export function resolveMaxes(form) {

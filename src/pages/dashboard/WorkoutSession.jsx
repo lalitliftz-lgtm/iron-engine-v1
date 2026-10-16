@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { platesPerSide } from '../../lib/engine';
+import { applyAdjustments } from '../../lib/autoreg';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const MAIN_REST = 180; // System 2.0: main lifts 3–5 min
@@ -52,7 +53,8 @@ export default function WorkoutSession() {
       const { data } = await supabase.from('generated_programs').select('id, program_snapshot').eq('user_id', user.id).eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
       if (data) {
         setProgram(data);
-        const wData = data.program_snapshot.weeks.find((w) => w.week === week);
+        const snap = applyAdjustments(data.program_snapshot, data.program_snapshot.adjustments);
+        const wData = snap.weeks.find((w) => w.week === week);
         const dData = wData?.days.find((d) => d.day === day);
         if (dData) {
           setDayData(dData);

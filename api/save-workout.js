@@ -32,6 +32,8 @@ export default async function handler(req, res) {
       lift: ['squat', 'bench', 'deadlift'].includes(ex.lift) ? ex.lift : null,
       sets: int(ex.sets, 0, 20) ?? 0,
       reps: String(ex.reps ?? '').slice(0, 10),
+      rpe: String(ex.rpe ?? '').slice(0, 12),      // planned RPE — the weekly decision matrix compares against it
+      pct: ex.pct === null || ex.pct === undefined ? null : Number(ex.pct) || null,
       weight: ex.weight === '' || ex.weight === null || ex.weight === undefined ? '' : Number(ex.weight) || '',
       skipped: ex.skipped === true,
       loggedSets: Array.isArray(ex.loggedSets) ? ex.loggedSets.slice(0, 20).map((st) => ({

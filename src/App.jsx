@@ -21,6 +21,7 @@ import Settings from './pages/dashboard/Settings';
 import AssessmentWizard from './pages/dashboard/AssessmentWizard';
 import GenerateProgram from './pages/dashboard/GenerateProgram';
 import WorkoutSession from './pages/dashboard/WorkoutSession';
+import WeeklyCheckin from './pages/dashboard/WeeklyCheckin';
 import MyLibrary from './pages/dashboard/MyLibrary';
 import TechniqueLab from './pages/dashboard/TechniqueLab';
 import ExerciseDetail from './pages/dashboard/ExerciseDetail';
@@ -60,6 +61,7 @@ export default function App() {
               <Route path="programs" element={<Programs />} />
               <Route path="generate" element={<GenerateProgram />} />
               <Route path="workout" element={<WorkoutSession />} />
+              <Route path="checkin" element={<WeeklyCheckin />} />
               <Route path="history" element={<WorkoutHistory />} />
               <Route path="library" element={<MyLibrary />} />
               <Route path="technique-lab" element={<TechniqueLab />} />

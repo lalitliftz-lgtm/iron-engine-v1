@@ -3,7 +3,8 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { buildProgram, downloadXLSX } from '../../lib/engine';
+import { buildProgram, downloadXLSX, LIFT_NAMES } from '../../lib/engine';
+import { applyAdjustments, attemptPlan } from '../../lib/autoreg';
 
 const EXECUTION_RULES = [
   ["Warm-up", "Bar × 8 → 40% × 5 → 55% × 3 → 70% × 2 → 80% × 1 → work sets."],
@@ -19,6 +20,7 @@ export default function Programs() {
   const [program, setProgram] = useState(null);
   const [activeWeek, setActiveWeek] = useState(1);
   const [activeDay, setActiveDay] = useState(1);
+  const [logs, setLogs] = useState([]);
 
   useEffect(() => {
     const fetchProgram = async () => {
@@ -31,7 +33,11 @@ export default function Programs() {
         .limit(1)
         .maybeSingle();
 
-      if (data) setProgram(data);
+      if (data) {
+        setProgram(data);
+        const { data: l } = await supabase.from('workout_logs').select('week_number, day_number, date_completed, logged_exercises').eq('program_id', data.id).eq('user_id', user.id).order('date_completed', { ascending: false }).limit(100);
+        setLogs(l || []);
+      }
       setLoading(false);
     };
     fetchProgram();
@@ -64,8 +70,13 @@ export default function Programs() {
     );
   }
 
-  const snap = program.program_snapshot;
+  const snap = applyAdjustments(program.program_snapshot, program.program_snapshot.adjustments);
   const { blockType, weeks, meta } = snap;
+  const checkins = program.program_snapshot.adjustments?.checkins || {};
+  const isBeg = meta?.form?.exp === 'beg';
+  const logged = new Set(logs.map((l) => `${l.week_number}-${l.day_number}`));
+  const attempts = weeks.some((w) => w.meetWeek) ? attemptPlan(meta?.maxes || {}, logs, meta?.form?.exp) : null;
+  const LIGHT_DOT = { green: 'bg-green-500', yellow: 'bg-amber-400', red: 'bg-red-500' };
   const currentWeekData = weeks.find(w => w.week === activeWeek) || weeks[0];
   const currentDayData = currentWeekData.days.find(d => d.day === activeDay) || currentWeekData.days[0];
   const mains = currentDayData.exercises.filter((e) => e.type === 'Main');
@@ -130,6 +141,7 @@ export default function Programs() {
           <div className="flex space-x-2 mb-6 overflow-x-auto pb-2 no-print">
             {weeks.map((w) => (
               <button key={w.week} onClick={() => { setActiveWeek(w.week); setActiveDay(1); }} className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeWeek === w.week ? 'bg-gray-900 text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                {checkins[String(w.week)] && <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${LIGHT_DOT[checkins[String(w.week)].light]}`} title={`Check-in: ${checkins[String(w.week)].light}`}></span>}
                 {w.label || `Week ${w.week}`}{w.meetWeek ? null : w.taper ? <span className="ml-1.5 text-[10px] uppercase tracking-wider opacity-75">Taper</span> : w.deload ? <span className="ml-1.5 text-[10px] uppercase tracking-wider opacity-75">Deload</span> : null}
               </button>
             ))}
@@ -138,11 +150,32 @@ export default function Programs() {
           <div className="flex space-x-2 mb-8 overflow-x-auto pb-2 no-print">
             {currentWeekData.days.map((d) => (
               <button key={d.day} onClick={() => setActiveDay(d.day)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeDay === d.day ? 'bg-gray-100 text-gray-900 ring-1 ring-gray-200' : 'text-gray-500 hover:bg-gray-50'}`}>
-                {d.weekday ? d.weekday.slice(0, 3) : `Day ${d.day}`}{d.date ? <span className="text-gray-400 ml-1 text-xs">{d.date}</span> : null} <span className="text-gray-400 ml-1 text-xs">{d.focus}</span>
+                {logged.has(`${activeWeek}-${d.day}`) && <span className="text-green-600 mr-1">✓</span>}{d.weekday ? d.weekday.slice(0, 3) : `Day ${d.day}`}{d.date ? <span className="text-gray-400 ml-1 text-xs">{d.date}</span> : null} <span className="text-gray-400 ml-1 text-xs">{d.focus}</span>
               </button>
             ))}
           </div>
 
+          {currentWeekData.adjusted && (
+            <div className={`border rounded-xl p-4 mb-6 text-sm no-print ${currentWeekData.light === 'red' ? 'bg-red-50 border-red-200 text-red-900' : currentWeekData.light === 'yellow' ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-green-50 border-green-200 text-green-900'}`}>
+              <p className="text-xs font-bold uppercase tracking-wider mb-1">Adjusted from last week's check-in</p>
+              {currentWeekData.adjustNotes?.map((n, i) => <p key={i}>{n}</p>)}
+            </div>
+          )}
+          {!currentWeekData.meetWeek && !currentWeekData.taper && currentWeekData.days.every((d) => logged.has(`${activeWeek}-${d.day}`)) && !checkins[String(activeWeek)] && (
+            <div className="bg-gray-900 text-white rounded-xl p-4 mb-6 flex items-center justify-between gap-4 flex-wrap no-print">
+              <p className="text-sm">Every session this week is logged. Do the 60-second check-in and the engine sets next week's kg.</p>
+              <Link to={`/dashboard/checkin?week=${activeWeek}`} className="bg-white text-gray-900 text-sm font-semibold px-4 py-2 rounded-lg whitespace-nowrap">Weekly check-in →</Link>
+            </div>
+          )}
+          {isBeg && activeWeek === 1 && (
+            <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 text-sm text-gray-700 space-y-1.5 no-print">
+              <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">How to read this (beginner)</p>
+              <p><b className="text-gray-900">kg, not %.</b> Do the weight written. If every rep was clean and you had 2+ reps left (RPE ≤ 8), add the jump next week. Missed a rep? Same weight next week.</p>
+              <p><b className="text-gray-900">Every rep = a competition rep.</b> Same setup, same depth, pause on the chest, full lockout. A rep you couldn't repeat on a platform doesn't count.</p>
+              <p><b className="text-gray-900">Warm-up:</b> bar × 8 → 40% × 5 → 60% × 3 → 80% × 1 → work sets. Warm-ups never tire you.</p>
+              <p><b className="text-gray-900">Fix one thing per week.</b> Film one set per session. Technique first — strength comes through it, not before it.</p>
+            </div>
+          )}
           {currentWeekData.meetWeek ? (
             <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 text-sm text-gray-700 space-y-1.5 no-print">
               <p><b className="text-gray-900">Meet week.</b> Nothing new, nothing heavy. Train the plan, trust the plan.</p>
@@ -172,6 +205,18 @@ export default function Programs() {
                   <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Meet day</p>
                   <p className="text-sm">{currentDayData.notes}</p>
                   <p className="text-sm text-gray-300 mt-3">Opener = a weight you make on any day (~90%). Second = your real lift. Third = a small PR only if the first two were clean.</p>
+                  {attempts && (
+                    <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {['squat', 'bench', 'deadlift'].filter((l) => attempts[l]).map((l) => (
+                        <div key={l} className="bg-white/10 rounded-lg p-3">
+                          <p className="text-xs font-bold uppercase tracking-wider text-gray-300">{LIFT_NAMES[l]}</p>
+                          <p className="text-sm mt-1">1st <b>{attempts[l].opener}</b> · 2nd <b>{attempts[l].second}</b> · 3rd <b>{attempts[l].third}</b> kg</p>
+                          <p className="text-[11px] text-gray-400 mt-1">{attempts[l].notes[0]}</p>
+                        </div>
+                      ))}
+                      <p className="sm:col-span-3 text-xs text-gray-400">{attempts.rule} These are the engine's suggestion from your 1RM and your logged singles — decide the 3rd after the 2nd.</p>
+                    </div>
+                  )}
                 </div>
               )}
 
