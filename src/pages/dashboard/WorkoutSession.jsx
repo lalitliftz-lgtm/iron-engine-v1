@@ -19,8 +19,17 @@ const IDLE_CAP = 20 * 60 * 1000;
  * ≥2 over target → −7.5%, ≥1 over → −5%, ≥1.5 under → +2.5 kg (+5 kg squat/deadlift when ≥2 under).
  * Technique/low-RPE work (target ≤ 6) is meant to feel easy, so it never suggests more.
  */
+/** "8" → {lo: 8, hi: 8}; "6–8" / "RPE 6-8" → {lo: 6, hi: 8}. (Stripping non-digits turned "6–8" into 68.) */
+function rpeRange(str) {
+  const m = String(str ?? '').match(/\d+(\.\d+)?/g);
+  if (!m) return null;
+  const n = m.map(Number).filter((x) => x >= 1 && x <= 10);
+  return n.length ? { lo: Math.min(...n), hi: Math.max(...n) } : null;
+}
+
 function suggestFor(ex, set) {
-  const target = parseFloat(String(ex.rpe).replace(/[^\d.]/g, '')) || null;
+  const range = rpeRange(ex.rpe);
+  const target = range?.hi ?? null;
   const rpe = parseFloat(set.rpe);
   const kg = parseFloat(set.weight);
   if (!kg || set.pain || /Technique/i.test(ex.name)) return null;
@@ -33,14 +42,15 @@ function suggestFor(ex, set) {
     return next < kg ? { kg: next, tone: 'down', text: `Got ${gotReps} of ${plannedReps} reps — next sets ${next} kg so the reps are clean.` } : null;
   }
   if (!target || !rpe || target <= 6) return null;
-  const diff = rpe - target;
+  // Over the TOP of the range = too heavy; under the BOTTOM of the range = too light.
+  const diff = rpe > range.hi ? rpe - range.hi : rpe < range.lo ? rpe - range.lo : 0;
   if (diff >= 1) {
     const next = round25(kg * (diff >= 2 ? 0.925 : 0.95));
-    return next < kg ? { kg: next, tone: 'down', text: `RPE ${rpe} vs ${target} planned — too heavy today. Next sets ${next} kg.` } : null;
+    return next < kg ? { kg: next, tone: 'down', text: `RPE ${rpe} vs ${range.lo === range.hi ? range.hi : `${range.lo}–${range.hi}`} planned — too heavy today. Next sets ${next} kg.` } : null;
   }
   if (diff <= -1.5) {
     const next = kg + (diff <= -2 && ex.lift !== 'bench' ? 5 : 2.5);
-    return { kg: next, tone: 'up', text: `RPE ${rpe} vs ${target} planned — moving well. Next sets ${next} kg.` };
+    return { kg: next, tone: 'up', text: `RPE ${rpe} vs ${range.lo === range.hi ? range.hi : `${range.lo}–${range.hi}`} planned — moving well. Next sets ${next} kg.` };
   }
   return null;
 }
@@ -257,9 +267,9 @@ export default function WorkoutSession() {
         const top = done.reduce((a, b) => ((parseFloat(b.weight) || 0) > (parseFloat(a.weight) || 0) ? b : a));
         topSets.push({ name: ex.name, weight: top.weight, reps: top.reps, rpe: top.rpe });
         const rpes = done.map((s) => parseFloat(s.rpe)).filter(Boolean);
-        const target = parseFloat(String(ex.rpe).replace(/[^\d.]/g, '')) || null;
+        const target = rpeRange(ex.rpe)?.hi ?? null;
         if (target && rpes.length && Math.max(...rpes) >= target + 1) flags.push(`${ex.name}: RPE ran ${Math.max(...rpes)} vs ${target} planned → take 2.5–5% off next time or repeat the weight.`);
-        if (target && rpes.length && Math.max(...rpes) <= target - 1.5) flags.push(`${ex.name}: felt easy (RPE ${Math.max(...rpes)}) → +2.5 kg next session is earned.`);
+        if (target && rpes.length && Math.max(...rpes) <= (rpeRange(ex.rpe)?.lo ?? target) - 1.5) flags.push(`${ex.name}: felt easy (RPE ${Math.max(...rpes)}) → +2.5 kg next session is earned.`);
         if (done.some((s) => s.pain)) flags.push(`${ex.name}: pain logged — the set ends at pain, not at the rep count. Two sessions with pain = tell the engine (injury flag) before the next block.`);
       }
     });
@@ -478,6 +488,12 @@ export default function WorkoutSession() {
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
                           </button>
                         </div>
+                        {isMain && set.completed && setIdx === lIdx && ex.loggedSets.some((x) => !x.completed) && !set.rpe && !set.pain && (
+                          <p className="text-xs text-amber-700 mt-2 pl-8">How hard was it? Tap the RPE — the next sets adjust from it.</p>
+                        )}
+                        {isMain && set.completed && set.pain && setIdx === lIdx && ex.loggedSets.filter((x) => x.pain).length === 1 && ex.loggedSets.some((x) => !x.completed) && (
+                          <p className="text-xs text-red-600 mt-2 pl-8">Pain noted — no load change. Next set lighter or skip it; if it hurts again, stop this lift for today.</p>
+                        )}
                         {isMain && (
                           <div className="flex items-center gap-1.5 mt-2 pl-8 overflow-x-auto">
                             <span className={`text-[11px] font-semibold uppercase tracking-wider mr-1 ${set.completed && !set.rpe ? 'text-amber-700' : 'text-gray-400'}`}>{set.completed && !set.rpe ? 'RPE?' : 'RPE'}</span>
