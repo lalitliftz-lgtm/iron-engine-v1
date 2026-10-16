@@ -142,7 +142,7 @@ export default function GenerateProgram() {
       const { data } = await supabase.from('athlete_profiles').select('*').eq('user_id', user.id).maybeSingle();
       setProfile(data || null);
       if (data) {
-        const d = profileToForm(data);
+        const d = profileToForm(data, { today: localYmd(appNow()) });
         setDefaults(d);
         const { goal, focus, weak, sticking, weakType, variationIdx, accIdx, injuries, sleep, stress, days, equipment } = d.form;
         setSettings({ goal, focus, weak, sticking, weakType, variationIdx, accIdx, injuries, sleep, stress, days, equipment });
