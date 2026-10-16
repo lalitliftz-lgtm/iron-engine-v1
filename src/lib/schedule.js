@@ -1,9 +1,11 @@
 /**
  * Real-life schedule logic for an active block: missed days, breaks, catching up.
  * Coach rules (Helms / System 2.0 spirit):
- *  - No meet: the plan is a SEQUENCE. A missed day isn't lost, it's simply next; dates slide.
- *  - Meet block: the CALENDAR wins. The meet doesn't move, so missed sessions are dropped
- *    and you continue with today's session — never cram two sessions to catch up.
+ *  - The CALENDAR leads: Today shows the session dated today. Rest day or already done →
+ *    the next dated session. Never cram two sessions to catch up.
+ *  - Missed sessions (date passed, not logged): no meet → can be done later on a free day,
+ *    or skipped; meet block → dropped, the meet doesn't move.
+ *  - Every remaining date already passed (long break) and no meet → continue in order.
  *  - Back after a break: first session lighter (8–14 days −5%, 15–28 days −10%);
  *    a month or more off → a fresh block from current strength.
  */
@@ -35,7 +37,13 @@ export function planSchedule(snap, logs = [], createdAt, now = new Date()) {
     .map((d) => ({ week: w, day: d, key: `${w.week}-${d.day}`, at: labelToDate(d.date, createdAt) })));
   const pending = sessions.filter((s) => !done.has(s.key));
   const overdue = pending.filter((s) => s.at && s.at < today);
-  const next = meetLocked ? (pending.find((s) => !s.at || s.at >= today) || null) : (pending[0] || null);
+  const sameDay = (a) => a && a.getTime() === today.getTime();
+  const todaySession = sessions.find((s) => sameDay(s.at)) || null;
+  const todayDone = !!todaySession && done.has(todaySession.key);
+  const upcoming = pending.find((s) => !s.at || s.at >= today) || null; // today's (if pending) or the next dated one
+  const next = upcoming || (meetLocked ? null : pending[0] || null);
+  const when = !next?.at ? 'next' : sameDay(next.at) ? 'today' : next.at > today ? 'upcoming' : 'overdue';
+  const todayRest = !todaySession && (snap?.weeks || []).some((w) => (w.days || []).some((d) => d.rest && sameDay(labelToDate(d.date, createdAt))));
 
   const trainedLogs = logs.filter(trained);
   const last = trainedLogs.reduce((a, l) => (!a || new Date(l.date_completed) > new Date(a.date_completed) ? l : a), null);
@@ -49,8 +57,11 @@ export function planSchedule(snap, logs = [], createdAt, now = new Date()) {
 
   return {
     next,
+    when,               // 'today' | 'upcoming' (rest day / today done / ahead) | 'overdue' (all dates passed) | 'next'
+    todayDone,
+    todayRest,
     meetLocked,
-    behind: meetLocked ? 0 : overdue.length,       // sessions the dates are behind (sequence mode)
+    missed: meetLocked ? [] : overdue,                // can still be done on a free day
     droppedForMeet: meetLocked ? overdue.length : 0, // missed sessions the meet calendar left behind
     gapDays,
     repeatLifts,

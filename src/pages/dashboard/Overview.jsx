@@ -70,6 +70,9 @@ export default function Overview() {
   const next = sched?.next || null;
   const blockDone = !!snap && !next;
   const back = sched ? reentry(sched.gapDays) : null;
+  // Only the last week's misses are worth a mention; older ones simply count as missed in the block review.
+  const weekAgo = new Date(new Date().setHours(0, 0, 0, 0) - 7 * 864e5);
+  const recentMissed = sched && sched.when !== 'overdue' ? sched.missed.filter((m) => m.at && m.at >= weekAgo).slice(-3) : [];
   // A finished training week with no check-in yet → ask for it (Pro). The latest such week wins.
   let checkinWeek = null;
   for (const w of snap?.weeks || []) {
@@ -115,14 +118,26 @@ export default function Overview() {
         {program && next ? (
           <>
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-              {restToday ? 'Today is a rest day · next session' : 'Next session'} · {next.week.label || `Week ${currentWeek}`}{next.at && next.at < new Date(new Date().setHours(0, 0, 0, 0)) ? ' · today (planned ' + next.day.date + ')' : next.day.weekday ? ` · ${next.day.weekday}${next.day.date ? ' ' + next.day.date : ''}` : ''}
+              {sched.when === 'today' ? "Today's session"
+                : sched.when === 'overdue' ? `Pending session · planned ${next.day.date}`
+                : sched.todayDone ? "Today's session done ✓ · next"
+                : restToday || sched.todayRest ? 'Rest day today · next session'
+                : 'Next session'} · {next.week.label || `Week ${currentWeek}`}{sched.when !== 'overdue' && next.day.weekday ? ` · ${next.day.weekday}${next.day.date ? ' ' + next.day.date : ''}` : ''}
             </p>
             <h2 className="text-xl md:text-2xl font-bold text-gray-900 mt-1">{next.day.focus}</h2>
             {restToday && <p className="text-sm text-gray-500 mt-1">{restToday.notes}</p>}
-            {!draft && (back || sched.behind > 0 || sched.droppedForMeet > 0 || sched.repeatLifts.length > 0) && (
+            {sched.when === 'upcoming' && !restToday && !draft && (
+              <p className="text-sm text-gray-500 mt-1">{sched.todayDone ? 'Recover today — this one is up next.' : 'Nothing planned for today.'} Training early is fine if you feel fresh; the plan just moves up.</p>
+            )}
+            {!draft && (back || recentMissed.length > 0 || sched.droppedForMeet > 0 || sched.repeatLifts.length > 0) && (
               <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700 space-y-1">
                 {back && <p>{back.text}{back.rebuild && <> <Link to="/dashboard/generate" className="underline font-semibold">Build a fresh block</Link></>}</p>}
-                {!back && sched.behind > 0 && <p>You're {sched.behind} session{sched.behind > 1 ? 's' : ''} behind the dates — that's fine. The plan simply continues in order; don't double up to catch up.</p>}
+                {recentMissed.length > 0 && (
+                  <p>
+                    Missed: {recentMissed.map((m) => `${m.day.weekday || ''} ${m.day.date} ${m.day.focus}`.trim()).join(', ')}. Do it on a free day if you feel fresh (never two in one day), or just leave it.{' '}
+                    <Link to={`/dashboard/workout?week=${recentMissed[recentMissed.length - 1].week.week}&day=${recentMissed[recentMissed.length - 1].day.day}`} className="underline font-semibold">Do it instead</Link>
+                  </p>
+                )}
                 {sched.droppedForMeet > 0 && <p>{sched.droppedForMeet} missed session{sched.droppedForMeet > 1 ? 's' : ''} left behind — your meet date doesn't move, so the plan continues with today's session. Don't try to make them up.</p>}
                 {sched.repeatLifts.length > 0 && <p>You already trained {sched.repeatLifts.map((l) => LIFT_NAMES[l]).join(' and ')} today. This session has it again — best tomorrow; the same lift needs ~48 h between hard sessions.</p>}
               </div>

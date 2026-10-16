@@ -36,9 +36,17 @@ export default function Programs() {
 
       if (data) {
         setProgram(data);
-        const w1 = data.program_snapshot?.weeks?.[0];
-        const firstTrain = w1?.days?.find((d) => !d.rest);
-        if (firstTrain) setActiveDay(firstTrain.day);
+        // Open on today's date when the block has one; otherwise on the first training day.
+        const todayLbl = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        const weeksArr = data.program_snapshot?.weeks || [];
+        const todayWeek = weeksArr.find((w) => (w.days || []).some((d) => d.date === todayLbl));
+        if (todayWeek) {
+          setActiveWeek(todayWeek.week);
+          setActiveDay(todayWeek.days.find((d) => d.date === todayLbl).day);
+        } else {
+          const firstTrain = weeksArr[0]?.days?.find((d) => !d.rest);
+          if (firstTrain) setActiveDay(firstTrain.day);
+        }
         const { data: l } = await supabase.from('workout_logs').select('week_number, day_number, date_completed, logged_exercises').eq('program_id', data.id).eq('user_id', user.id).order('date_completed', { ascending: false }).limit(100);
         setLogs(l || []);
       }
@@ -145,7 +153,7 @@ export default function Programs() {
           <div className="flex space-x-2 mb-8 overflow-x-auto pb-2 no-print">
             {currentWeekData.days.map((d) => (
               <button key={d.day} onClick={() => setActiveDay(d.day)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeDay === d.day ? 'bg-gray-100 text-gray-900 ring-1 ring-gray-200' : 'text-gray-500 hover:bg-gray-50'}`}>
-                {d.rest && <span className="text-gray-300 mr-1">○</span>}{logged.has(`${activeWeek}-${d.day}`) && <span className="text-green-600 mr-1">✓</span>}{d.weekday ? d.weekday.slice(0, 3) : `Day ${d.day}`}{d.date ? <span className="text-gray-400 ml-1 text-xs">{d.date}</span> : null} <span className="text-gray-400 ml-1 text-xs">{d.focus}</span>
+                {d.rest && <span className="text-gray-300 mr-1">○</span>}{logged.has(`${activeWeek}-${d.day}`) && <span className="text-green-600 mr-1">✓</span>}{d.weekday ? d.weekday.slice(0, 3) : `Day ${d.day}`}{d.date ? <span className="text-gray-400 ml-1 text-xs">{d.date}</span> : null}{d.date === new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) && <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wider text-red-500">Today</span>} <span className="text-gray-400 ml-1 text-xs">{d.focus}</span>
               </button>
             ))}
           </div>
