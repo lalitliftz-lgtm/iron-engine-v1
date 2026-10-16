@@ -525,14 +525,31 @@ export function resolveMaxes(form) {
    weeks-out using the System 2.0 timeline:
    >10 wk out → Base · 5–10 wk → Strength · ≤5 wk → Peaking → Taper → Meet week.
    Edge cases are handled explicitly (meet in 10 days, meet passed, …). */
-export function daysToMeet(profile) {
+/* Calendar days are the ATHLETE's dates, not the server's. The program is built on a server running in UTC:
+   at 4 am in India it is still "yesterday" there, which dated sessions a day early. Every date is therefore
+   computed from the athlete's local "today" (YYYY-MM-DD sent by their device) as a UTC-midnight timestamp. */
+const DAY_MS = 86400000;
+export function calToday(ymd) {
+  if (typeof ymd === "string" && /^\d{4}-\d{2}-\d{2}$/.test(ymd)) { const [y, m, d] = ymd.split("-").map(Number); return Date.UTC(y, m - 1, d); }
+  const n = new Date();
+  return Date.UTC(n.getFullYear(), n.getMonth(), n.getDate());
+}
+/** The device's local date as YYYY-MM-DD (send this to the server). */
+export function localYmd(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+const calLabel = (ms) => new Date(ms).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+
+export function daysToMeet(profile, today) {
   if (!profile?.competition_date) return null;
-  return Math.ceil((new Date(profile.competition_date) - new Date()) / 86400000);
+  const meet = calToday(String(profile.competition_date).slice(0, 10));
+  return Math.round((meet - calToday(today)) / DAY_MS);
 }
 
 /** Days from today until the next Monday (0 when today is Monday) — training weeks run Monday → Sunday. */
-export function leadDays(now = new Date()) {
-  return (8 - now.getDay()) % 7;
+export function leadDays(t = calToday()) {
+  const dow = typeof t === "number" ? new Date(t).getUTCDay() : t.getDay();
+  return (8 - dow) % 7;
 }
 
 export function meetPhase(days, exp, lead = leadDays()) {
@@ -774,9 +791,9 @@ function finalStretch(startOffset, form, maxes, rec, tmpl, wdays) {
   const taperDays = [], meetDays = [];
   let taperIdx = 0, openerDone = false;
   for (let off = Math.max(0, startOffset); off <= D; off++) {
-    const date = new Date(Date.now() + off * 86400000);
-    const weekday = ALL_DAYS[(date.getDay() + 6) % 7];
-    const dateLabel = date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    const ms = calToday(form.today) + off * DAY_MS;
+    const weekday = ALL_DAYS[(new Date(ms).getUTCDay() + 6) % 7];
+    const dateLabel = calLabel(ms);
     const before = D - off;
     const day = (title, main, extra = {}) => ({ weekday, date: dateLabel, title, optional: false, main, acc: [], ...extra });
     const count = taperDays.length + meetDays.length;
@@ -846,7 +863,8 @@ const MEET_WEEK_NOTES = [
 
 export function buildProgram(form, maxes) {
   const rec = recoveryProfile(form);
-  const meet = meetPhase(form.meetDays ?? null, form.exp);
+  const T = calToday(form.today);
+  const meet = meetPhase(form.meetDays ?? null, form.exp, leadDays(T));
   const plan = weekPlan(form, meet);
   const isBeg = form.exp === "beg";
   let tmpl = isBeg ? dayTemplates(form.days, "beg", form.focus) : dayTemplates(form.days, form.exp, form.focus);
@@ -935,8 +953,8 @@ export function buildProgram(form, maxes) {
     w.days.sort((a, b) => ALL_DAYS.indexOf(a.weekday) - ALL_DAYS.indexOf(b.weekday));
   }
   // Put a real date on every training day: week 1 starts on the next Monday (or today if it is Monday).
-  const lead = plan.final && plan.weeks.length ? (meet.lead ?? leadDays()) : leadDays();
-  const fmt = (off) => new Date(Date.now() + off * 86400000).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const lead = plan.final && plan.weeks.length ? (meet.lead ?? leadDays(T)) : leadDays(T);
+  const fmt = (off) => calLabel(T + off * DAY_MS);
   weeks.forEach((w, wi) => w.days.forEach((d) => { const i = ALL_DAYS.indexOf(d.weekday); if (i >= 0) d.date = fmt(lead + wi * 7 + i); }));
   if (weeks.length) weeks[0].startsOn = fmt(lead);
   if (lead > 0 && weeks.length) notes.push(`Week 1 starts Monday ${fmt(lead)}. Until then: rest, or one light technique session (singles @ 70–75%) — no hard training.`);
@@ -1052,10 +1070,11 @@ export function profileToForm(profile, overrides = {}) {
   const expFromYears = EXP_MAP[profile?.experience_level] || "int";
   const exp = PROGRESS_EXP[a.progress_rate] || expFromYears;
   const days = Math.min(6, Math.max(3, Number(profile?.training_days_per_week) || 4));
-  const meetDays = daysToMeet(profile);
+  const today = typeof overrides.today === "string" ? overrides.today : localYmd();
+  const meetDays = daysToMeet(profile, today);
   const EVENTS = { full: ["squat", "bench", "deadlift"], bench: ["bench"], deadlift: ["deadlift"], pushpull: ["bench", "deadlift"] };
   const events = EVENTS[a.meet_events] ? a.meet_events : "full";
-  const meet = meetPhase(meetDays, exp);
+  const meet = meetPhase(meetDays, exp, leadDays(calToday(today)));
 
   // Block goal: the meet timeline decides; otherwise the stated goal.
   let goal = "str";
@@ -1104,6 +1123,7 @@ export function profileToForm(profile, overrides = {}) {
   if (equipment !== "commercial") decisions.push({ step: "Equipment", decision: equipment === "basic" ? "Barbell + DB gym" : "Barbell only", reason: "Machine/cable accessories swapped for barbell, dumbbell or bodyweight versions" });
 
   const form = {
+    today, // the athlete's calendar day this block was built on — re-exports reproduce the same dates
     name: profile?.full_name || "",
     exp, days, goal,
     focus: "bal",

@@ -23,6 +23,11 @@ function cleanOverrides(body) {
   if (typeof body.sticking === 'string' && /^[a-z]{1,20}$/.test(body.sticking)) out.sticking = body.sticking;
   for (const k of ['variationIdx', 'accIdx']) { const n = Number(body[k]); if (Number.isInteger(n) && n >= 0 && n < 10) out[k] = n; }
   const days = Number(body.days); if (Number.isInteger(days) && days >= 3 && days <= 6) out.days = days;
+  // The athlete's local calendar date — sessions are dated from it, not from the server's UTC clock.
+  if (typeof body.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.today)) {
+    const diff = Math.abs(Date.parse(`${body.today}T00:00:00Z`) - Date.now()) / 864e5;
+    if (diff < 2) out.today = body.today;
+  }
   if (body.injuries && typeof body.injuries === 'object') {
     out.injuries = {};
     for (const k of INJ_KEYS) out.injuries[k] = body.injuries[k] === true;
