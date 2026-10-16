@@ -109,3 +109,13 @@ a.bg-gray-900:hover { background-color: var(--ll-red-dim) !important; }
 .text-blue-600, .text-blue-700, .text-blue-800 { color: var(--ll-brass) !important; }
 .hover\:text-blue-800:hover { color: #e3c06f !important; }
 .text-red-500 { color: #ef3b55 !important; }
+
+/* --- tap-card choices (assessment) --- */
+.ll-choice-box { border-color: var(--ll-line); background: var(--ll-iron); color: var(--ll-chalk); transition: border-color .15s, background-color .15s; }
+.ll-choice-sub { color: var(--ll-dim); }
+.ll-choice:hover .ll-choice-box { border-color: #4a515e; }
+.ll-choice input:checked + .ll-choice-box { border-color: var(--ll-red); background: rgba(200,16,46,.12); }
+.ll-choice input:checked + .ll-choice-box .ll-choice-sub { color: var(--ll-knurl); }
+.ll-choice input:focus-visible + .ll-choice-box { outline: 2px solid var(--ll-red); outline-offset: 2px; }
+.divide-gray-200 > :not([hidden]) ~ :not([hidden]) { border-color: var(--ll-line) !important; }
+summary::-webkit-details-marker { display: none; }

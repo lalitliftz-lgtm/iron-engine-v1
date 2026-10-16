@@ -19,7 +19,8 @@ export default function DashboardLayout() {
   const { pathname } = useLocation();
   const parent = PARENT[Object.keys(PARENT).find((p) => pathname.startsWith(p))];
   const isActive = (t, navActive) => navActive || parent === t.to;
-  const inWorkout = pathname.startsWith('/dashboard/workout');
+  // Focused flows (logging a workout, filling the assessment) hide the tab bar.
+  const inWorkout = pathname.startsWith('/dashboard/workout') || pathname.startsWith('/dashboard/assessment');
 
   const Brand = (
     <Link to="/" className="text-2xl no-underline" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
