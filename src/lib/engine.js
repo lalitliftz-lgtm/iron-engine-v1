@@ -526,8 +526,8 @@ export function meetPhase(days, exp) {
   // Full template weeks that fit before the final ~7–14 calendar days (taper sessions → activation → light single → rest → meet).
   const fullWeeks = Math.max(0, Math.floor((days - 1) / 7) - 1);
   const finalDays = days - fullWeeks * 7;
-  if (days <= 5) return { phase: "meetweek", fullWeeks: 0, finalDays, reason: `Meet in ${days} day${days === 1 ? "" : "s"} — this is MEET WEEK. No new block, no changes, no PR attempts in the gym. One light session at most, then rest. Rest is training now.` };
-  if (days <= 14) return { phase: "taper", fullWeeks: 0, finalDays, reason: `Meet in ${days} days — TAPER into the meet. Volume −40–50%, 70–75%, nothing above 75%, nothing new. Last 2 days: complete rest.` };
+  if (days <= 5) return { phase: "meetweek", fullWeeks: 0, finalDays, reason: `Meet in ${days} day${days === 1 ? "" : "s"} — MEET WEEK. Only light singles (80% → 77.5%, RPE ≤ 6) to stay sharp, nothing else, day before off. No changes, no PRs in the gym.` };
+  if (days <= 14) return { phase: "taper", fullWeeks: 0, finalDays, reason: `Meet in ${days} days — TAPER. Volume down 50–70%, intensity stays (singles/doubles at 77.5–85%), all three lifts together, accessories half. Opener practice ~7 days out, then meet week.` };
   if (exp === "beg") {
     if (days <= 35) return { phase: "beginner", fullWeeks, finalDays, reason: `Meet in ${days} days — beginner stays on linear progression for ${fullWeeks} week${fullWeeks === 1 ? "" : "s"}, then the plan tapers into the meet. Practice commands and pauses every session.` };
     return { phase: "beginner", fullWeeks: 4, finalDays: 0, reason: `Meet in ${days} days — beginner stays on linear progression; the taper comes in the last block before the meet.` };
@@ -640,7 +640,7 @@ export function buildLift(slot, wk, form, maxes, rec, scheme) {
       rpe = Math.min(rpe, rpeFor(pct, reps));
     }
     if (w.note && !w.deload && !noExtras) notes.push(w.note);
-    if (w.taper) notes.push("Taper — nothing above 75%. Freshness is the goal.");
+    if (w.taper) notes.push("Taper — volume down, intensity stays. Crisp, never hard.");
     else if (w.deload) notes.push("Deload — the weight will feel light. Keep it light.");
     const realism = pct ? rpeFor(pct, reps) : null;
     if (realism && !w.deload && !w.extras && !capped && Math.abs(realism - rpe) >= 1.5) notes.push(`If this feels ≤ RPE ${realism}, the % is light for you today — add 2.5 kg. RPE is the final judge.`);
@@ -695,42 +695,62 @@ function weekPlan(form, meet) {
   }
 }
 
-/** The last days before a meet are laid out from the meet DATE, not from a template:
- *  taper sessions on the lifter's normal training days while ≥ 6 days out, activation 5 days out,
- *  one light single 3 days out, complete rest the last 2 days, then the meet. Beginners taper on their own template. */
+/** The last ~14 days before a meet are laid out from the meet DATE, not from a template.
+ *  Taper principle: cut VOLUME 50–70%, keep INTENSITY (no more than ~10% lower), all three lifts together,
+ *  low reps at 77.5–85% so RPE stays low; accessories half the sets. ~7 days out: opener practice
+ *  (singles ≈ 90%, RPE 7.5–8.5). Meet week: singles at 82.5% → 80% → a 77.5% primer 2 days out, day before off. */
 function finalStretch(startOffset, form, maxes, rec, tmpl, wdays) {
   const D = form.meetDays;
-  const taperScheme = { ...SCHEMES.peak.weeks[3], label: "Taper" };
-  const meetScheme = { meetweek: true, deload: true, sets: 2, reps: 2, pct: 60, rpe: 5, acc: 0 };
+  const beg = form.exp === "beg";
+  const kgOf = (lift, pct) => (maxes[lift] ? round25((pct / 100) * maxes[lift]) : null);
+  const single = (lift, sets, pct, rpe, note) => ({ name: LIFT_NAMES[lift], sets, reps: 1, pct, kg: kgOf(lift, pct), rpe, note: note || null, lift });
   const taperDays = [], meetDays = [];
+  let taperIdx = 0, openerDone = false;
   for (let off = Math.max(0, startOffset); off <= D; off++) {
     const date = new Date(Date.now() + off * 86400000);
     const weekday = ALL_DAYS[(date.getDay() + 6) % 7];
     const dateLabel = date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
     const before = D - off;
     const day = (title, main, extra = {}) => ({ weekday, date: dateLabel, title, optional: false, main, acc: [], ...extra });
-    if (before === 0) meetDays.push(day("MEET DAY", [], { meetDay: true, note: "Warm-up to opener: bar → 40% ×4 → 60% ×3 → 80% ×2 → 90% ×1 → 5–10 min → Attempt 1. Nothing new today." }));
-    else if (before === 5) meetDays.push(day("Activation", ["squat", "bench", "deadlift"].map((l) => buildLift(S(l, "activation"), 0, form, maxes, rec, meetScheme))));
-    else if (before === 3) meetDays.push(day("Light Singles + Commands", ["squat", "bench"].map((l) => buildLift(S(l, "primer"), 0, form, maxes, rec, meetScheme))));
-    else if (before >= 6) {
+    if (before === 0) {
+      meetDays.push(day("MEET DAY", [], { meetDay: true, note: "Warm-up to opener: bar → 40% ×4 → 60% ×3 → 80% ×2 → 90% ×1 → 5–10 min → Attempt 1. Nothing new today." }));
+    } else if (before === 1) {
+      continue; // day before: off
+    } else if (before === 2) {
+      meetDays.push(day("Primer — one light single", ["squat", "bench"].map((l) => single(l, 1, beg ? 72.5 : 77.5, "RPE ≤ 5", "Primer 48 h out: one crisp single, bar speed only. Leave feeling strong, not tired. No deadlift.")), {}));
+    } else if (before === 3 || before === 4) {
+      if (!meetDays.some((d) => d.title.startsWith("Singles @ 80"))) meetDays.push(day("Singles @ 80% — commands", [single("squat", 2, beg ? 75 : 80, "RPE 4–6", "Competition commands on every rep"), single("bench", 2, beg ? 75 : 80, "RPE 4–6", "Competition commands on every rep"), single("deadlift", 1, beg ? 75 : 80, "RPE 4–6", "One crisp pull, done")]));
+    } else if (before === 5) {
+      meetDays.push(day("Singles @ 82.5% — all three lifts", [single("squat", 3, beg ? 77.5 : 82.5, "RPE 5–7"), single("bench", 3, beg ? 77.5 : 82.5, "RPE 5–7"), single("deadlift", 2, beg ? 77.5 : 82.5, "RPE 5–7", "Deadlift fewer sets — highest fatigue cost")]));
+    } else if (before >= 6 && before <= 8 && !openerDone && (wdays.includes(weekday) || before === 6)) {
+      // Opener practice ~7 days out: work up to the planned openers (≈90%), RPE 7.5–8.5, one single each, then nothing.
+      openerDone = true;
+      taperDays.push(day("Opener practice — work up to your openers", ["squat", "bench", "deadlift"].map((l) => single(l, 1, beg ? 85 : 90, "RPE 7.5–8.5", "This is your opener rehearsal: same warm-up ladder as meet day (40 → 60 → 80 → 90%). One single, judge the speed, stop.")), {}));
+    } else if (before >= 6 && !openerDone && wdays.includes(weekday)) {
+      // Taper sessions (opener practice is the last session of the taper — nothing heavy after it): all three lifts, 1–3 reps at 77.5–85%, volume 50–70% down, accessories half.
       const di = wdays.indexOf(weekday);
-      const t = di >= 0 ? tmpl[di] : null;
+      const t = tmpl[di];
       if (!t || t.support) continue;
-      const main = t.slots.map((sl) => buildLift(sl, 0, form, maxes, rec, taperScheme)).filter(Boolean);
-      if (main.length) taperDays.push(day(t.title, main));
+      const variant = taperIdx++ % 2; // alternate doubles @ 80 and triples @ 77.5 so no two sessions are identical
+      const main = variant === 0
+        ? [{ ...single("squat", 3, beg ? 75 : 80, "RPE 6–7"), reps: 2 }, { ...single("bench", 3, beg ? 75 : 80, "RPE 6–7"), reps: 2 }, { ...single("deadlift", 2, beg ? 75 : 80, "RPE 6–7"), reps: 2 }]
+        : [{ ...single("squat", 3, beg ? 72.5 : 77.5, "RPE 6–7"), reps: 3 }, { ...single("bench", 3, beg ? 72.5 : 77.5, "RPE 6–7"), reps: 3 }, { ...single("deadlift", 2, beg ? 72.5 : 77.5, "RPE 6–7"), reps: 3 }];
+      main[0].note = "Taper: intensity stays, volume halves. Low reps keep the RPE low — this should feel crisp, never hard.";
+      const acc = applyEquipment(applySwaps([...(ACC[t.acc] || [])], form.injuries), form.equipment).slice(0, 2).map((a) => ({ ...a, sr: a.sr.includes("×") ? a.sr.replace(/^\d+/, "2") : a.sr, rpe: a.rpe === "—" ? a.rpe : "RPE 7" }));
+      taperDays.push(day(`Taper — all three lifts (${variant === 0 ? "doubles" : "triples"})`, main, { acc }));
     }
   }
   const restOf = (days) => ALL_DAYS.filter((d) => !days.some((x) => x.weekday === d));
   const out = [];
-  if (taperDays.length) out.push({ label: "Taper", deload: false, taper: true, phase: "Taper", days: taperDays, restDays: restOf(taperDays), notes: ["Taper: same lifts, 70–75%, half the sets, no accessories. You should leave every session feeling you could have done much more — that is the point."] });
+  if (taperDays.length) out.push({ label: "Taper", deload: false, taper: true, phase: "Taper", days: taperDays, restDays: restOf(taperDays), notes: ["Taper: main-lift volume down 50–70%, loads stay at 77.5–85% (never more than ~10% below the block), all three lifts together for specificity, accessories at half the sets. Ends with opener practice ~7 days out."] });
   const meetWeekday = meetDays.at(-1)?.weekday;
   out.push({ label: "Meet Week", deload: true, meetWeek: true, phase: "Meet Week", days: meetDays, restDays: restOf(meetDays), notes: [`Meet day: ${meetWeekday}. ` + MEET_WEEK_NOTES[0], ...MEET_WEEK_NOTES.slice(1)] });
   return out;
 }
 const MEET_WEEK_NOTES = [
-  "Activation 5 days out, one light single 3 days out, then COMPLETE REST the last 2 days. Rest is training now.",
+  "Singles at 82.5% five days out, singles at 80% three to four days out, one 77.5% primer 48 h out, the day before OFF. Intensity stays, volume is tiny — that is what lets strength show up on the platform.",
   "Nothing new on meet day: same belt, same shoes, same setup, same warm-up you trained with.",
-  "Attempts: 1st = the lift you make on any day (~90%). 2nd = your real lift (~95–100%). 3rd = small PR only if 1 and 2 were clean.",
+  "Attempts: 1st = your current 3RM (~90%, a lift you make on any day). 2nd = your current 2RM (~95–97%). 3rd = the next small PR (+2.5 kg) only if it is there; otherwise a conservative jump. Build the biggest TOTAL, not three lift PRs.",
   "Warm-up to opener: 4×1 @40% → 3×1 @60% → 2×1 @80% → 1×1 @90% → 5–10 min rest → Attempt 1.",
   "Between lifts: walk 2–3 min, eat (carbs + protein), hydrate, 10–15 min calm, 5-min activation before the next lift.",
 ];

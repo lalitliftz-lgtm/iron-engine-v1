@@ -183,7 +183,7 @@ export default function Programs() {
             </div>
           ) : currentWeekData.taper ? (
             <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 text-sm text-gray-700 no-print">
-              <b className="text-gray-900">Taper week.</b> Volume cut, nothing above 75%, no singles. Sleep, eat, hydrate — freshness is the goal.
+              <b className="text-gray-900">Taper.</b> Volume down 50–70%, intensity stays (77.5–85%), all three lifts together, accessories half. Sleep, eat, hydrate — fatigue leaves, strength stays.
             </div>
           ) : currentWeekData.deload ? (
             <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 text-sm text-gray-700 no-print">
