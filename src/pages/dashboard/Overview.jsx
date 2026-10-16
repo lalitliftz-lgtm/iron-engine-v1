@@ -8,6 +8,7 @@ import StalePlanBanner from '../../components/dashboard/StalePlanBanner';
 import { readDraft, draftSetsDone } from '../../lib/workoutDraft';
 import { planSchedule, reentry, appNow } from '../../lib/schedule';
 import SessionActions from '../../components/dashboard/SessionActions';
+import { seasonRoadmap } from '../../lib/roadmap';
 
 export default function Overview() {
   const { user } = useAuth();
@@ -70,6 +71,8 @@ export default function Overview() {
   const next = sched?.next || null;
   const blockDone = !!snap && !next;
   const back = sched ? reentry(sched.gapDays) : null;
+  // What the season roadmap says comes next (named on the "block finished" card).
+  const nextBlockName = snap ? seasonRoadmap(snap, program.created_at, profile?.competition_date, snap.meta?.form?.exp)?.blocks?.[1]?.name || null : null;
   // Only the last week's misses are worth a mention; older ones simply count as missed in the block review.
   const weekAgo = new Date(new Date(appNow()).setHours(0, 0, 0, 0) - 7 * 864e5);
   const recentMissed = sched && sched.when !== 'overdue' ? sched.missed.filter((m) => m.at && m.at >= weekAgo).slice(-3) : [];
@@ -147,6 +150,17 @@ export default function Overview() {
             </div>
             <Link to={`/dashboard/workout?week=${next.week.week}&day=${next.day.day}`} className="mt-5 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Start session</Link>
             <SessionActions programId={program.id} week={next.week} day={next.day} onDone={() => setReloadKey((k) => k + 1)} />
+          </>
+        ) : program && sched?.blockOver ? (
+          <>
+            {/* The block's calendar is over: the next block is due, whatever got logged. */}
+            <p className="text-xs font-semibold uppercase tracking-wider text-green-700">Block finished · {sched.blockEnd.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p>
+            <h2 className="text-xl font-bold text-gray-900 mt-1">Time for your next block{nextBlockName ? `: ${nextBlockName}` : ''}.</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              {sessionsDone} of {sessionsTotal} sessions logged. The engine reviews them (RPE, misses, check-ins) and builds the next block
+              {profile?.competition_date ? ' for the time left to your meet.' : ' from your results.'}
+            </p>
+            <Link to="/dashboard/generate" className="mt-5 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Build next block</Link>
           </>
         ) : program && next && sched.when !== 'overdue' ? (
           <>

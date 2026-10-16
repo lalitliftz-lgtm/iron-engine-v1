@@ -7,6 +7,7 @@ import UpgradeModal from '../../components/UpgradeModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { profileToForm, STICKING, LIFT_NAMES, daysToMeet, SCHEMES, buildProgram, localYmd } from '../../lib/engine';
 import { evaluateBlock } from '../../lib/autoreg';
+import { appNow } from '../../lib/schedule';
 
 // Settings the athlete can tune on top of the assessment defaults.
 const GOALS = [
@@ -172,7 +173,8 @@ export default function GenerateProgram() {
     setError('');
     setSaved(false);
     setSlideIdx(0);
-    try { setSlides(buildSlides(profile, settings)); } catch { setSlides([]); }
+    const today = localYmd(appNow()); // test mode builds the block as of the test date
+    try { setSlides(buildSlides(profile, { ...(settings || {}), today })); } catch { setSlides([]); }
     setAppStatus('generating');
 
     try {
@@ -182,7 +184,7 @@ export default function GenerateProgram() {
       const response = await fetch('/api/generate-program', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...(settings || {}), today: localYmd() }),
+        body: JSON.stringify({ ...(settings || {}), today }),
       });
 
       if (response.status === 403) {
@@ -227,7 +229,7 @@ export default function GenerateProgram() {
   }
 
   const isBeg = defaults?.form.exp === 'beg';
-  const dtm = daysToMeet(profile);
+  const dtm = daysToMeet(profile, localYmd(appNow()));
   const meet = defaults?.meet || { phase: 'none' };
   // With a meet booked, the engine owns the block choice; the athlete can't pick a goal that fights the timeline.
   const meetLocked = meet.phase !== 'none';
