@@ -60,8 +60,14 @@ export default function WorkoutHistory() {
   // Soft delete (is_deleted) — the row is kept for safety but leaves History, Today and block stats.
   const removeLog = async (log) => {
     if (!window.confirm(`Remove the session from ${fmtDate(log.date_completed)}? Use this for a wrong or test log — it no longer counts anywhere.`)) return;
-    const { error } = await supabase.from('workout_logs').update({ is_deleted: true }).eq('id', log.id).eq('user_id', user.id);
-    if (error) { window.alert(`Could not remove it: ${error.message}`); return; }
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch('/api/remove-workout', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ logId: log.id }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) { window.alert(`Could not remove it: ${body.error || 'please try again'}`); return; }
     setLogs((prev) => prev.filter((l) => l.id !== log.id));
   };
 
