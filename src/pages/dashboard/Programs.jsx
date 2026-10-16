@@ -7,6 +7,7 @@ import { buildProgram, downloadXLSX, LIFT_NAMES } from '../../lib/engine';
 import { applyAdjustments, attemptPlan } from '../../lib/autoreg';
 import StalePlanBanner from '../../components/dashboard/StalePlanBanner';
 import { planSchedule, lockReason } from '../../lib/schedule';
+import SeasonRoadmap from '../../components/dashboard/SeasonRoadmap';
 
 const EXECUTION_RULES = [
   ["Warm-up", "Bar × 8 → 40% × 5 → 55% × 3 → 70% × 2 → 80% × 1 → work sets."],
@@ -119,6 +120,7 @@ export default function Programs() {
         </div>
 
         <StalePlanBanner profile={program.athlete_profiles} program={program} className="mb-5" />
+        <SeasonRoadmap program={program} />
 
         {(meta?.notes?.length > 0 || meta?.decisions?.length > 0) && (
           <details className="bg-white border border-gray-200 rounded-xl mb-6 no-print group">
