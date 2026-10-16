@@ -127,7 +127,7 @@ export default function WorkoutHistory() {
 
 function Block({ block, open, onRemove }) {
   const snap = block.snapshot;
-  const trainable = snap?.weeks ? snap.weeks.flatMap((w) => w.days.filter((d) => !d.rest && !d.meetDay).map((d) => `${w.week}-${d.day}`)) : [];
+  const trainable = snap?.weeks ? snap.weeks.flatMap((w) => w.days.filter((d) => !d.rest && !d.meetDay && !d.optional).map((d) => `${w.week}-${d.day}`)) : [];
   // A session counts only when at least one set was ticked — an empty "Finish" is not a trained day.
   const done = new Set(block.logs.filter((l) => setCounts(l).done > 0).map((l) => `${l.week_number}-${l.day_number}`).filter((k) => trainable.includes(k))).size;
   const pct = trainable.length ? Math.min(100, Math.round((done / trainable.length) * 100)) : null;

@@ -35,13 +35,21 @@ export function planSchedule(snap, logs = [], createdAt, now = new Date()) {
   const sessions = (snap?.weeks || []).flatMap((w) => (w.days || [])
     .filter((d) => !d.rest && !d.meetDay)
     .map((d) => ({ week: w, day: d, key: `${w.week}-${d.day}`, at: labelToDate(d.date, createdAt) })));
+  // Optional days (Technique + GPP, support days) never become "the" next session, never count as missed.
   const pending = sessions.filter((s) => !done.has(s.key));
-  const overdue = pending.filter((s) => s.at && s.at < today);
+  const required = pending.filter((s) => !s.day.optional);
+  const overdue = required.filter((s) => s.at && s.at < today);
   const sameDay = (a) => a && a.getTime() === today.getTime();
   const todaySession = sessions.find((s) => sameDay(s.at)) || null;
   const todayDone = !!todaySession && done.has(todaySession.key);
-  const upcoming = pending.find((s) => !s.at || s.at >= today) || null; // today's (if pending) or the next dated one
-  const next = upcoming || (meetLocked ? null : pending[0] || null);
+  const todayPending = todaySession && !todayDone ? todaySession : null;           // today's session, optional or not
+  const upcoming = todayPending || required.find((s) => !s.at || s.at > today) || null;
+  const next = upcoming || (meetLocked ? null : required[0] || null);
+  // An optional day between today and the next required session: offered, not pushed.
+  const optionalBefore = next && !todayPending ? pending.find((s) => s.day.optional && s.at && s.at >= today && (!next.at || s.at < next.at)) || null : null;
+  // Before the block's first dated session (blocks start on a Monday).
+  const firstAt = sessions.map((s) => s.at).filter(Boolean).sort((a, b) => a - b)[0] || null;
+  const startsOn = firstAt && firstAt > today ? firstAt : null;
   const when = !next?.at ? 'next' : sameDay(next.at) ? 'today' : next.at > today ? 'upcoming' : 'overdue';
   const todayRest = !todaySession && (snap?.weeks || []).some((w) => (w.days || []).some((d) => d.rest && sameDay(labelToDate(d.date, createdAt))));
 
@@ -55,23 +63,42 @@ export function planSchedule(snap, logs = [], createdAt, now = new Date()) {
   // Warn only when the next session hits a lift already trained today. Accessory days, other lifts: no note.
   const repeatLifts = [...nextLifts].filter((l) => todayLifts.has(l));
 
+  // What can be STARTED (Program page + logger): what Today offers — the next session, today's optional
+  // day or the optional day before the next one, and sessions missed in the last 7 days.
+  // Everything else is viewable but locked until its date. Done sessions are locked too (no duplicate logs).
+  const weekAgo = new Date(today.getTime() - 7 * DAY);
+  const allowed = new Set([next, optionalBefore, todayPending, ...overdue.filter((m) => m.at && m.at >= weekAgo)].filter(Boolean).map((x) => x.key));
+
   return {
     next,
+    allowed,
+    doneKeys: done,
     when,               // 'today' | 'upcoming' (rest day / today done / ahead) | 'overdue' (all dates passed) | 'next'
     todayDone,
+    optionalBefore,
+    startsOn,
     todayRest,
     meetLocked,
     missed: meetLocked ? [] : overdue,                // can still be done on a free day
     droppedForMeet: meetLocked ? overdue.length : 0, // missed sessions the meet calendar left behind
     gapDays,
     repeatLifts,
-    sessionsDone: trainedLogs.length,
-    sessionsTotal: sessions.length,
-    noneLeftBeforeMeet: meetLocked && !next && pending.length > 0,
+    sessionsDone: new Set(trainedLogs.map((l) => `${l.week_number}-${l.day_number}`).filter((k) => sessions.some((x) => x.key === k && !x.day.optional))).size,
+    sessionsTotal: sessions.filter((x) => !x.day.optional).length,
+    noneLeftBeforeMeet: meetLocked && !next && required.length > 0,
   };
 }
 
 /** Load factor for the first session back after a break (null = no change). */
+/** Why a session can't be started right now (null = it can). */
+export function lockReason(sched, week, day, createdAt) {
+  if (!sched || sched.allowed.has(`${week.week}-${day.day}`)) return null;
+  if (sched.doneKeys?.has(`${week.week}-${day.day}`)) return { kind: 'done', text: 'Already logged — see it in History.' };
+  const at = labelToDate(day.date, createdAt);
+  if (at && at > startOfDay(new Date())) return { kind: 'future', text: `Opens ${at.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} — do today's session first.` };
+  return { kind: 'past', text: 'This date has passed — the plan has moved on.' };
+}
+
 export function reentry(gapDays) {
   if (gapDays === null || gapDays < 8) return null;
   if (gapDays <= 14) return { factor: 0.95, text: `Back after ${gapDays} days — main lifts 5% lighter today. Full loads from the next session.` };
