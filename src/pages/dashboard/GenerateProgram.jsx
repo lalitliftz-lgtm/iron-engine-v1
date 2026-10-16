@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import UpgradeModal from '../../components/UpgradeModal';
 import { motion, AnimatePresence } from 'framer-motion';
-import { profileToForm, STICKING, LIFT_NAMES, daysToMeet, SCHEMES, buildProgram } from '../../lib/engine';
+import { profileToForm, STICKING, LIFT_NAMES, daysToMeet, SCHEMES, buildProgram, localYmd } from '../../lib/engine';
 import { evaluateBlock } from '../../lib/autoreg';
 
 // Settings the athlete can tune on top of the assessment defaults.
@@ -182,7 +182,7 @@ export default function GenerateProgram() {
       const response = await fetch('/api/generate-program', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings || {}),
+        body: JSON.stringify({ ...(settings || {}), today: localYmd() }),
       });
 
       if (response.status === 403) {
