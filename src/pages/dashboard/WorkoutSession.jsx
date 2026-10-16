@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { platesPerSide, round25 } from '../../lib/engine';
 import { applyAdjustments } from '../../lib/autoreg';
 import { readDraft, saveDraft, clearDraft } from '../../lib/workoutDraft';
+import { reentry, trained, startOfDay } from '../../lib/schedule';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const MAIN_REST = 180; // System 2.0: main lifts 3–5 min
@@ -22,8 +23,16 @@ function suggestFor(ex, set) {
   const target = parseFloat(String(ex.rpe).replace(/[^\d.]/g, '')) || null;
   const rpe = parseFloat(set.rpe);
   const kg = parseFloat(set.weight);
-  if (!target || !rpe || !kg || set.pain || target <= 6 || /Technique/i.test(ex.name)) return null;
+  if (!kg || set.pain || /Technique/i.test(ex.name)) return null;
   if (!ex.loggedSets.some((x) => !x.completed)) return null; // nothing left to change
+  // Missed reps = the set was a grind (RPE 10) whatever was tapped.
+  const plannedReps = /^\d+$/.test(String(ex.reps)) ? Number(ex.reps) : null;
+  const gotReps = parseFloat(set.reps);
+  if (plannedReps && gotReps && gotReps < plannedReps && kg) {
+    const next = round25(kg * (plannedReps - gotReps >= 2 ? 0.925 : 0.95));
+    return next < kg ? { kg: next, tone: 'down', text: `Got ${gotReps} of ${plannedReps} reps — next sets ${next} kg so the reps are clean.` } : null;
+  }
+  if (!target || !rpe || target <= 6) return null;
   const diff = rpe - target;
   if (diff >= 1) {
     const next = round25(kg * (diff >= 2 ? 0.925 : 0.95));
@@ -68,6 +77,8 @@ export default function WorkoutSession() {
   const [clientId, setClientId] = useState(newId);     // lets a retried save never create a duplicate log
   const [offline, setOffline] = useState(false);
   const [screenLock, setScreenLock] = useState('');
+  const [startNote, setStartNote] = useState(''); // re-entry after a break / already logged
+  const [dayMode, setDayMode] = useState('');      // '' | 'low' | 'short'
   const savingRef = useRef(false); // one save at a time (the "online" event and the retry timer can fire together)
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -134,7 +145,21 @@ export default function WorkoutSession() {
             if (draft.clientId) setClientId(draft.clientId);
             setResumed(true);
           } else {
-            setExercises(dData.exercises.map((ex) => ({ ...ex, loggedSets: newSets(ex), skipped: false })));
+            let fresh = dData.exercises.map((ex) => ({ ...ex, loggedSets: newSets(ex), skipped: false }));
+            const { data: recent } = await supabase.from('workout_logs').select('program_id, week_number, day_number, date_completed, logged_exercises').eq('user_id', user.id).order('date_completed', { ascending: false }).limit(20);
+            const startNotes = [];
+            if ((recent || []).some((l) => l.program_id === data.id && l.week_number === week && l.day_number === day)) {
+              startNotes.push('This session is already in your History. Logging it again adds a second entry — remove one in History if that was a mistake.');
+            }
+            const lastTrained = (recent || []).find(trained);
+            const gap = lastTrained ? Math.floor((startOfDay(new Date()) - startOfDay(lastTrained.date_completed)) / 864e5) : null;
+            const back = reentry(gap);
+            if (back) {
+              fresh = fresh.map((ex) => (ex.type !== 'Main' ? ex : { ...ex, loggedSets: ex.loggedSets.map((x) => (x.weight ? { ...x, weight: String(round25(Number(x.weight) * back.factor)) } : x)) }));
+              startNotes.push(back.text);
+            }
+            setExercises(fresh);
+            setStartNote(startNotes.join(' '));
           }
         }
       }
@@ -153,7 +178,15 @@ export default function WorkoutSession() {
 
   const updateSet = (exIdx, setIdx, patch) => {
     bump();
-    setExercises((prev) => prev.map((ex, i) => i !== exIdx ? ex : { ...ex, loggedSets: ex.loggedSets.map((s, j) => (j === setIdx ? { ...s, ...patch } : s)) }));
+    setExercises((prev) => prev.map((ex, i) => {
+      if (i !== exIdx) return ex;
+      const nx = { ...ex, loggedSets: ex.loggedSets.map((s, j) => (j === setIdx ? { ...s, ...patch } : s)) };
+      // Editing reps/kg/RPE of the set just finished re-reads it (e.g. "got 3, not 5").
+      const done = nx.loggedSets.findIndex((x) => !x.completed);
+      const last = done === -1 ? nx.loggedSets.length - 1 : done - 1;
+      if (nx.type === 'Main' && setIdx === last && nx.loggedSets[setIdx].completed && !('completed' in patch)) nx.suggest = suggestFor(nx, nx.loggedSets[setIdx]);
+      return nx;
+    }));
   };
   // Sets go in order: only the next set can be ticked, only the last ticked one undone.
   const nextIdx = (ex) => ex.loggedSets.findIndex((x) => !x.completed);
@@ -174,17 +207,37 @@ export default function WorkoutSession() {
     if (ex.type === 'Main') setSuggest(exIdx, suggestFor(after[exIdx], { ...set, completed: true }));
   };
   const setSuggest = (exIdx, suggest) => setExercises((prev) => prev.map((e, i) => (i === exIdx ? { ...e, suggest } : e)));
-  const setRpe = (exIdx, setIdx, rpe) => {
-    updateSet(exIdx, setIdx, { rpe });
-    const ex = exercises[exIdx];
-    const set = { ...ex.loggedSets[setIdx], rpe };
-    // RPE is usually tapped right after ticking — re-read the last finished set.
-    if (set.completed && setIdx === lastDoneIdx(ex)) setSuggest(exIdx, rpe ? suggestFor(ex, set) : null);
-  };
+  const setRpe = (exIdx, setIdx, rpe) => updateSet(exIdx, setIdx, { rpe });
   const applySuggest = (exIdx) => setExercises((prev) => prev.map((e, i) => (i !== exIdx ? e : {
     ...e, suggest: null, loggedSets: e.loggedSets.map((x) => (x.completed ? x : { ...x, weight: String(e.suggest.kg) })),
   })));
   const skipExercise = (exIdx) => setExercises((prev) => prev.map((ex, i) => (i === exIdx ? { ...ex, skipped: true } : ex)));
+  const unskipExercise = (exIdx) => setExercises((prev) => prev.map((ex, i) => (i === exIdx ? { ...ex, skipped: false, skipNote: undefined } : ex)));
+  // Rack taken, no machine, pain on one movement: log what was actually done. It stops counting as the competition lift.
+  const swapExercise = (exIdx) => {
+    const ex = exercises[exIdx];
+    const name = window.prompt(`What are you doing instead of ${ex.originalName || ex.name}?`, '');
+    if (!name || !name.trim()) return;
+    setExercises((prev) => prev.map((e, i) => (i !== exIdx ? e : { ...e, originalName: e.originalName || e.name, name: `${name.trim().slice(0, 50)} (instead of ${e.originalName || e.name})`, lift: null, suggest: null })));
+  };
+  // End a lift early (pain): keep the sets done, drop the rest.
+  const stopExercise = (exIdx) => setExercises((prev) => prev.map((e, i) => (i !== exIdx ? e : { ...e, stopped: true, suggest: null, loggedSets: e.loggedSets.filter((x) => x.completed) })));
+
+  // Day options (Helms: on a bad day reduce, don't skip). Only touches sets not started yet; tap again to undo.
+  const applyDayMode = (mode) => {
+    const next = dayMode === mode ? '' : mode;
+    setExercises((prev) => prev.map((ex) => {
+      const base = ex.dayBase || { loggedSets: ex.loggedSets, skipped: ex.skipped };
+      const restored = { ...ex, loggedSets: base.loggedSets.map((x, j) => (ex.loggedSets[j]?.completed ? ex.loggedSets[j] : x)), skipped: base.skipped, dayBase: undefined };
+      if (!next) return restored;
+      const started = restored.loggedSets.some((x) => x.completed);
+      if (next === 'short') return ex.type === 'Main' || started ? { ...restored, dayBase: base } : { ...restored, skipped: true, skipNote: 'short on time', dayBase: base };
+      if (ex.type !== 'Main' || started) return { ...restored, dayBase: base };
+      const sets = restored.loggedSets.length > 2 ? restored.loggedSets.slice(0, -1) : restored.loggedSets;
+      return { ...restored, dayBase: base, loggedSets: sets.map((x) => (x.weight ? { ...x, weight: String(round25(Number(x.weight) * 0.925)) } : x)) };
+    }));
+    setDayMode(next);
+  };
 
   const handleCancel = () => {
     const touched = exercises.some((ex) => ex.loggedSets.some((s) => s.completed));
@@ -217,6 +270,12 @@ export default function WorkoutSession() {
   const handleFinishWorkout = async (auto = false) => {
     const anyTicked = exercises.some((ex) => ex.loggedSets.some((s) => s.completed));
     if (!auto && !anyTicked && !window.confirm('No sets ticked yet. Tap ✓ on each set you did so it counts.\n\nSave this session as empty anyway?')) return;
+    if (!auto && anyTicked) {
+      const live = exercises.filter((ex) => !ex.skipped);
+      const total = live.reduce((n, ex) => n + ex.loggedSets.length, 0);
+      const doneN = live.reduce((n, ex) => n + ex.loggedSets.filter((x) => x.completed).length, 0);
+      if (total && doneN / total < 0.5 && !window.confirm(`Only ${doneN} of ${total} sets ticked. Finish now? Sets not ticked count as not done.`)) return;
+    }
     if (!navigator.onLine) { setOffline(true); setSaveError(''); return; }
     if (savingRef.current) return;
     savingRef.current = true;
@@ -351,6 +410,15 @@ export default function WorkoutSession() {
           <h1 className="text-2xl font-bold text-gray-900">{dayData.focus}</h1>
           {dayData.notes && <p className="text-sm text-gray-500 mt-1">{dayData.notes}</p>}
         </div>
+        {startNote && <div className="bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-xl p-4">{startNote}</div>}
+        {!exercises.some((e) => e.loggedSets.some((x) => x.completed)) || dayMode ? (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-gray-400 font-semibold uppercase tracking-wider">Today</span>
+            <button type="button" onClick={() => applyDayMode('low')} className={`px-3 py-1.5 rounded-lg border font-semibold ${dayMode === 'low' ? 'bg-amber-50 border-amber-300 text-amber-700' : 'border-gray-200 text-gray-600'}`}>Low energy</button>
+            <button type="button" onClick={() => applyDayMode('short')} className={`px-3 py-1.5 rounded-lg border font-semibold ${dayMode === 'short' ? 'bg-amber-50 border-amber-300 text-amber-700' : 'border-gray-200 text-gray-600'}`}>Short on time</button>
+            {dayMode && <span className="text-gray-500 w-full">{dayMode === 'low' ? 'Main lifts 7.5% lighter, one set less. A reduced session beats a skipped one.' : 'Main lifts only — accessories skipped. Tap again to undo.'}</span>}
+          </div>
+        ) : null}
         {saveError && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl p-4">{saveError} — your sets are still here, try Finish again.</div>}
         {(() => {
           const allDone = exercises.length > 0 && exercises.every((e) => e.skipped || e.loggedSets.every((x) => x.completed));
@@ -360,7 +428,8 @@ export default function WorkoutSession() {
           const isMain = ex.type === 'Main';
           const nIdx = ex.skipped ? -1 : nextIdx(ex);
           const lIdx = lastDoneIdx(ex);
-          const plates = isMain && ex.weight ? platesPerSide(Number(ex.weight)) : null;
+          const curKg = Number((ex.loggedSets.find((x) => !x.completed) || ex.loggedSets[ex.loggedSets.length - 1] || {}).weight) || Number(ex.weight);
+          const plates = isMain && curKg ? platesPerSide(curKg) : null;
           return (
             <div key={exIdx} className={`bg-white rounded-2xl border ${ex.skipped ? 'border-gray-100 opacity-50' : isMain ? 'border-gray-300 shadow-md' : 'border-gray-200 shadow-sm'} overflow-hidden`}>
               <div className="p-5 border-b border-gray-100 flex justify-between items-start gap-3">
@@ -370,8 +439,15 @@ export default function WorkoutSession() {
                   <p className="text-xs text-gray-500 mt-0.5">{ex.sets} × {ex.reps}{ex.weight ? ` @ ${ex.weight} kg` : ''}{ex.rpe && ex.rpe !== '—' ? ` · RPE ${ex.rpe}` : ''}</p>
                   {plates && <p className="text-[11px] text-gray-400 mt-0.5">Per side: {plates.length ? plates.map((p) => p.w).join(' + ') : 'bar only'}</p>}
                   {ex.note && isMain && <p className="text-xs text-gray-500 mt-1">→ {ex.note}</p>}
+                  {ex.skipped && <p className="text-xs text-gray-500 mt-1">Skipped{ex.skipNote ? ` — ${ex.skipNote}` : ''}</p>}
+                  {ex.stopped && <p className="text-xs text-amber-700 mt-1">Stopped early — remaining sets dropped.</p>}
                 </div>
-                {!ex.skipped && <button onClick={() => skipExercise(exIdx)} className="text-xs text-gray-400 hover:text-gray-900 font-medium border border-gray-200 px-2 py-1 rounded-md whitespace-nowrap">Skip</button>}
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                  {ex.skipped
+                    ? <button onClick={() => unskipExercise(exIdx)} className="text-xs text-gray-700 font-semibold border border-gray-300 px-2 py-1 rounded-md whitespace-nowrap">Undo skip</button>
+                    : <button onClick={() => { if (!ex.loggedSets.some((x) => x.completed) || window.confirm(`Skip the rest of ${ex.name}?`)) skipExercise(exIdx); }} className="text-xs text-gray-400 hover:text-gray-900 font-medium border border-gray-200 px-2 py-1 rounded-md whitespace-nowrap">Skip</button>}
+                  {!ex.skipped && !ex.stopped && <button onClick={() => swapExercise(exIdx)} className="text-xs text-gray-400 hover:text-gray-900 font-medium px-2 py-0.5 whitespace-nowrap">Swap</button>}
+                </div>
               </div>
               {!ex.skipped && (
                 <div className="divide-y divide-gray-100">
@@ -386,14 +462,14 @@ export default function WorkoutSession() {
                         <div className="flex items-center gap-2">
                           <span className="w-6 text-sm font-semibold text-gray-500 tabular-nums">{setIdx + 1}</span>
                           <div className="flex items-center gap-1 flex-1 min-w-0">
-                            <button type="button" aria-label="Less weight" disabled={set.completed} onClick={() => step('weight', -2.5)} className={btn}>−</button>
-                            <input type="text" inputMode="decimal" aria-label="Weight in kg" value={set.weight} onChange={(e) => updateSet(exIdx, setIdx, { weight: e.target.value })} placeholder="kg" disabled={set.completed} className="w-full min-w-0 h-10 text-center bg-gray-50 border border-gray-200 rounded-lg text-base font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:opacity-60" />
-                            <button type="button" aria-label="More weight" disabled={set.completed} onClick={() => step('weight', 2.5)} className={btn}>+</button>
+                            <button type="button" aria-label="Less weight" onClick={() => step('weight', -2.5)} className={btn}>−</button>
+                            <input type="text" inputMode="decimal" aria-label="Weight in kg" value={set.weight} onChange={(e) => updateSet(exIdx, setIdx, { weight: e.target.value })} placeholder="kg" className="w-full min-w-0 h-10 text-center bg-gray-50 border border-gray-200 rounded-lg text-base font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:opacity-60" />
+                            <button type="button" aria-label="More weight" onClick={() => step('weight', 2.5)} className={btn}>+</button>
                           </div>
                           <div className="flex items-center gap-1 w-[7.5rem] shrink-0">
-                            <button type="button" aria-label="One rep less" disabled={set.completed} onClick={() => step('reps', -1)} className={btn}>−</button>
-                            <input type="text" inputMode="numeric" aria-label="Reps" value={set.reps} onChange={(e) => updateSet(exIdx, setIdx, { reps: e.target.value })} placeholder="reps" disabled={set.completed} className="w-full min-w-0 h-10 text-center bg-gray-50 border border-gray-200 rounded-lg text-base font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:opacity-60" />
-                            <button type="button" aria-label="One rep more" disabled={set.completed} onClick={() => step('reps', 1)} className={btn}>+</button>
+                            <button type="button" aria-label="One rep less" onClick={() => step('reps', -1)} className={btn}>−</button>
+                            <input type="text" inputMode="numeric" aria-label="Reps" value={set.reps} onChange={(e) => updateSet(exIdx, setIdx, { reps: e.target.value })} placeholder="reps" className="w-full min-w-0 h-10 text-center bg-gray-50 border border-gray-200 rounded-lg text-base font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:opacity-60" />
+                            <button type="button" aria-label="One rep more" onClick={() => step('reps', 1)} className={btn}>+</button>
                           </div>
                           <button onClick={() => toggleSetComplete(exIdx, setIdx)} aria-label={set.completed ? 'Undo set' : 'Set done'}
                             disabled={set.completed ? setIdx !== lIdx : setIdx !== nIdx}
@@ -415,6 +491,12 @@ export default function WorkoutSession() {
                       </div>
                     );
                   })}
+                  {!ex.stopped && ex.loggedSets.filter((x) => x.pain).length >= 2 && ex.loggedSets.some((x) => !x.completed) && (
+                    <div className="mx-4 my-3 rounded-xl border p-3 bg-red-50 border-red-200">
+                      <p className="text-sm text-red-700">Two painful sets — stop this lift for today. Pain is a signal, not effort. Do pain-free work instead; if it comes back next session, add it to injuries in your profile.</p>
+                      <button type="button" onClick={() => stopExercise(exIdx)} className="mt-2 text-sm font-semibold bg-gray-900 text-white px-3 py-1.5 rounded-lg">Stop {ex.name}</button>
+                    </div>
+                  )}
                   {isMain && ex.suggest && (
                     <div className={`mx-4 my-3 rounded-xl border p-3 ${ex.suggest.tone === 'down' ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
                       <p className={`text-sm ${ex.suggest.tone === 'down' ? 'text-amber-700' : 'text-green-700'}`}>{ex.suggest.text}</p>

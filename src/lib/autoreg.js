@@ -161,7 +161,7 @@ export function e1rmFromLogs(logs) {
     if (ex.type !== "Main" || !ex.lift || ex.skipped || NOT_STEERED.test(ex.name)) continue;
     for (const s of ex.loggedSets || []) {
       const kg = num(s.weight), reps = num(s.reps), rpe = num(s.rpe);
-      if (!s.completed || !kg || !reps || reps > 5 || s.pain) continue;
+      if (!s.completed || s.planned || !kg || !reps || reps > 5 || s.pain) continue;
       if (rpe !== null && rpe > 8.5) continue;
       const rir = rpe === null ? 2 : Math.max(0, 10 - rpe);
       const est = round25(epley(kg, reps + rir));
@@ -214,7 +214,7 @@ export function attemptPlan(maxes, logs = [], exp = "int", compLifts = LIFTS) {
     let bestSingle = 0;
     for (const log of logs) for (const ex of log.logged_exercises || []) {
       if (ex.lift !== l || ex.type !== "Main") continue;
-      for (const s of ex.loggedSets || []) { const kg = num(s.weight), reps = num(s.reps), rpe = num(s.rpe); if (s.completed && kg && reps && reps <= 2 && (rpe === null || rpe <= 8) && !s.pain && kg > bestSingle) bestSingle = kg; }
+      for (const s of ex.loggedSets || []) { const kg = num(s.weight), reps = num(s.reps), rpe = num(s.rpe); if (s.completed && !s.planned && kg && reps && reps <= 2 && (rpe === null || rpe <= 8) && !s.pain && kg > bestSingle) bestSingle = kg; }
     }
     const ref = Math.max(max, e1[l]?.e1rm || 0);
     const conservative = exp === "beg" || maxes.estimated;
