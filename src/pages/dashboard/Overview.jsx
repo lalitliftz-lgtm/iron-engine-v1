@@ -119,12 +119,12 @@ export default function Overview() {
             </p>
             <h2 className="text-xl md:text-2xl font-bold text-gray-900 mt-1">{next.day.focus}</h2>
             {restToday && <p className="text-sm text-gray-500 mt-1">{restToday.notes}</p>}
-            {!draft && (back || sched.behind > 0 || sched.droppedForMeet > 0 || sched.trainedToday) && (
+            {!draft && (back || sched.behind > 0 || sched.droppedForMeet > 0 || sched.repeatLifts.length > 0) && (
               <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700 space-y-1">
                 {back && <p>{back.text}{back.rebuild && <> <Link to="/dashboard/generate" className="underline font-semibold">Build a fresh block</Link></>}</p>}
                 {!back && sched.behind > 0 && <p>You're {sched.behind} session{sched.behind > 1 ? 's' : ''} behind the dates — that's fine. The plan simply continues in order; don't double up to catch up.</p>}
                 {sched.droppedForMeet > 0 && <p>{sched.droppedForMeet} missed session{sched.droppedForMeet > 1 ? 's' : ''} left behind — your meet date doesn't move, so the plan continues with today's session. Don't try to make them up.</p>}
-                {sched.trainedToday && <p>You already trained today. Best to do this one tomorrow — the same lift needs ~48 h between hard sessions.</p>}
+                {sched.repeatLifts.length > 0 && <p>You already trained {sched.repeatLifts.map((l) => LIFT_NAMES[l]).join(' and ')} today. This session has it again — best tomorrow; the same lift needs ~48 h between hard sessions.</p>}
               </div>
             )}
             <div className="mt-4 divide-y divide-gray-100">
