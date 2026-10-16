@@ -45,6 +45,14 @@ export default async function handler(req, res) {
       })) : [],
     }));
 
+    // A retry after a dropped connection must not create a second log for the same session.
+    const clientId = typeof req.body?.clientId === 'string' ? req.body.clientId.slice(0, 64) : null;
+    if (clientId) {
+      const { data: existing } = await supabaseAdmin.from('workout_logs').select('id')
+        .eq('user_id', user.id).eq('program_id', programId).eq('recovery_checklist->>client_id', clientId).limit(1).maybeSingle();
+      if (existing) return res.status(200).json({ success: true, logId: existing.id, duplicate: true });
+    }
+
     const { data, error: insertError } = await supabaseAdmin.from('workout_logs').insert({
       user_id: user.id,
       program_id: programId,
@@ -52,7 +60,7 @@ export default async function handler(req, res) {
       day_number: dayNumber,
       logged_exercises: exercises,
       duration_seconds: int(durationSeconds, 0, 6 * 3600) ?? 0,
-      recovery_checklist: { session_notes: String(sessionNotes || '').slice(0, 2000) }
+      recovery_checklist: { session_notes: String(sessionNotes || '').slice(0, 2000), ...(clientId ? { client_id: clientId } : {}) }
     }).select('id').single();
 
     if (insertError) throw insertError;

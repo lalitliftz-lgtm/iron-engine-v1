@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { supabase } from '../../lib/supabase';
+import InstallApp from '../../components/dashboard/InstallApp';
 
 const EXP = { Beginner: 'Novice', Intermediate: 'Intermediate', Advanced: 'Advanced' };
 
@@ -75,6 +76,8 @@ export default function Account() {
         <LinkRow to="/dashboard/subscription" title={pro ? 'Manage Pro' : 'Iron Engine Pro'} sub={pro ? 'Validity, renewal, receipts' : 'Unlimited blocks, weak-point work, weekly check-ins'} />
         <LinkRow to="/dashboard/library" title="My guides" sub="Download the PDFs you bought" />
       </section>
+
+      <InstallApp />
 
       <section className="bg-white border border-gray-200 rounded-xl p-5">
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Login & security</h2>
