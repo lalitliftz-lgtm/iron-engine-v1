@@ -550,8 +550,23 @@ export function meetPhase(days, exp, lead = leadDays()) {
     return { phase: "beginner", fullWeeks: 4, finalDays: 0, reason: `Meet in ${days} days — beginner stays on linear progression; the taper comes in the last block before the meet.` };
   }
   if (days <= 35) return { phase: "peak", fullWeeks, finalDays, lead, reason: `Meet in ${days} days — PEAKING: ${fullWeeks} peaking week${fullWeeks === 1 ? "" : "s"}, then taper into the meet. Competition lifts only, accessories minimal.` };
-  if (days <= 70) return { phase: "strength", fullWeeks: 4, finalDays: 0, reason: `Meet in ${days} days — STRENGTH block now (heavy 2–5s); peaking starts ~5 weeks out.` };
-  return { phase: "base", fullWeeks: 4, finalDays: 0, reason: `Meet in ${days} days — enough time for a BASE block first (muscle + work capacity), strength and peaking later.` };
+  // Season fitted BACKWARD from the meet (Helms: accumulation → intensification → peak/taper):
+  // peaking starts ~5 weeks out, the strength block fills the weeks before that, base blocks before that.
+  const ds = days - lead; // days from this block's first Monday
+  if (ds <= 41) { // too close for a strength block that ends before peaking: peak now
+    const fw = Math.max(0, Math.floor((days - lead - 1) / 7) - 1);
+    return { phase: "peak", fullWeeks: fw, finalDays: days - lead - fw * 7, lead, reason: `Meet in ${days} days — PEAKING: ${Math.min(3, fw)} peaking weeks, then taper into the meet. Competition lifts only, accessories minimal.` };
+  }
+  if (ds <= 76) { // strength window; 64–76 days → 4 weeks now, the last week or so comes right before peaking
+    const n = Math.min(4, Math.max(1, Math.floor((ds - 35) / 7)));
+    return { phase: "strength", fullWeeks: n, blockWeeks: n, finalDays: 0, reason: `Meet in ${days} days — STRENGTH block now (${n} week${n === 1 ? "" : "s"} of heavy 2–5s), sized so peaking starts ~5 weeks out.` };
+  }
+  // Base sized so the remaining base time is whole 4-week blocks and Strength starts ~9 weeks out:
+  // 2–3 weeks → short base ending in a deload; 1 spare week → an intro week first (Helms: ~75% volume, RPE −1).
+  const room = Math.floor((ds - 63) / 7);
+  const r = room % 4;
+  const n = r === 0 ? 4 : r === 1 ? 5 : r;
+  return { phase: "base", fullWeeks: n, blockWeeks: n, finalDays: 0, reason: `Meet in ${days} days — BASE block first (${n} weeks: muscle + work capacity), then Strength, then peaking ~5 weeks out.` };
 }
 
 /* ---------------- Lift builders ---------------- */
@@ -726,8 +741,17 @@ function weekPlan(form, meet) {
     case "beginner":
       if (meet.finalDays && meet.fullWeeks < 1) return { weeks: [], final: true, blockLabel: "Taper → Meet" };
       return meet.finalDays ? { weeks: begWeeks(meet.fullWeeks), final: true, blockLabel: "Beginner Linear → Meet", goal: "beg" } : { weeks: begWeeks(4), blockLabel: "Beginner Linear Block", goal: "beg" };
-    case "strength": return { weeks: SCHEMES.str.weeks, blockLabel: SCHEMES.str.label, goal: "str" };
-    case "base": return { weeks: SCHEMES.hyp.weeks, blockLabel: SCHEMES.hyp.label, goal: "hyp" };
+    case "strength": {
+      // Shorter than 4 weeks only when the meet calendar needs it (it runs straight into peaking, no deload).
+      const n = meet.blockWeeks || 4;
+      return { weeks: n >= 4 ? SCHEMES.str.weeks : SCHEMES.str.weeks.slice(0, n), blockLabel: SCHEMES.str.label, goal: "str" };
+    }
+    case "base": {
+      const n = meet.blockWeeks || 4; // 2–3 → loading weeks then the deload; 5 → intro week + full block
+      const H = SCHEMES.hyp.weeks;
+      const intro = { ...H[0], sets: H[0].sets - 1, rpe: H[0].rpe - 1, acc: 3, label: "Intro Week", note: "Intro week: about 75% of the volume at RPE ~1 lower — eases you into the block." };
+      return { weeks: n === 5 ? [intro, ...H] : n >= 4 ? H : [...H.slice(0, n - 1), H[3]], blockLabel: SCHEMES.hyp.label, goal: "hyp" };
+    }
     case "post": return { weeks: [{ ...SCHEMES.hyp.weeks[3], label: "Post-meet Deload" }, ...SCHEMES.hyp.weeks.slice(0, 3)], blockLabel: "Post-meet Recovery → Base" };
     default:
       if (form.exp === "beg") return { weeks: SCHEMES.hyp.weeks.map((w) => ({ ...w, deload: false, acc: 2 })), blockLabel: "Beginner Linear Block", goal: "beg" };
