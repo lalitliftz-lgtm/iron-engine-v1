@@ -519,16 +519,18 @@ export function meetPhase(days, exp) {
   if (days === null || days === undefined) return { phase: "none" };
   if (days <= 0 && days > -14) return { phase: "post", reason: "Meet just happened — one deload week (volume −50%, light technique), then a Base block. No heavy work this week." };
   if (days <= -14) return { phase: "none", reason: "Meet date is in the past — planning a normal block. Update the date when the next meet is booked." };
-  const weeksOut = Math.floor((days - 1) / 7); // full training weeks before meet week
-  if (days <= 6) return { phase: "meetweek", weeksOut: 0, reason: `Meet in ${days} day${days === 1 ? "" : "s"} — this is MEET WEEK. No new training block, no changes, no PR attempts in the gym. Light activation, rest, opener warm-up practice.` };
-  if (weeksOut === 1) return { phase: "taper", weeksOut, reason: `Meet in ${days} days — TAPER WEEK then meet week. Volume −40–50%, 70–75%, no singles above 75%. Nothing new.` };
+  // Full template weeks that fit before the final ~7–14 calendar days (taper sessions → activation → light single → rest → meet).
+  const fullWeeks = Math.max(0, Math.floor((days - 1) / 7) - 1);
+  const finalDays = days - fullWeeks * 7;
+  if (days <= 5) return { phase: "meetweek", fullWeeks: 0, finalDays, reason: `Meet in ${days} day${days === 1 ? "" : "s"} — this is MEET WEEK. No new block, no changes, no PR attempts in the gym. One light session at most, then rest. Rest is training now.` };
+  if (days <= 14) return { phase: "taper", fullWeeks: 0, finalDays, reason: `Meet in ${days} days — TAPER into the meet. Volume −40–50%, 70–75%, nothing above 75%, nothing new. Last 2 days: complete rest.` };
   if (exp === "beg") {
-    if (weeksOut <= 2) return { phase: "taper", weeksOut, reason: `Meet in ${days} days — beginner: keep the linear plan light, then taper + meet week. Practice commands and pauses.` };
-    return { phase: "beginner", weeksOut, reason: `Meet in ${days} days — beginner stays on linear progression; the last 2 weeks become taper + meet week.` };
+    if (days <= 35) return { phase: "beginner", fullWeeks, finalDays, reason: `Meet in ${days} days — beginner stays on linear progression for ${fullWeeks} week${fullWeeks === 1 ? "" : "s"}, then the plan tapers into the meet. Practice commands and pauses every session.` };
+    return { phase: "beginner", fullWeeks: 4, finalDays: 0, reason: `Meet in ${days} days — beginner stays on linear progression; the taper comes in the last block before the meet.` };
   }
-  if (weeksOut <= 4) return { phase: "peak", weeksOut, reason: `Meet in ${days} days — PEAKING: ${weeksOut - 1} peaking week${weeksOut - 1 === 1 ? "" : "s"} + taper + meet week. Competition lifts only, accessories minimal.` };
-  if (weeksOut <= 9) return { phase: "strength", weeksOut, reason: `Meet in ${days} days — STRENGTH block now (heavy 2–5s); peaking starts ~5 weeks out.` };
-  return { phase: "base", weeksOut, reason: `Meet in ${days} days — enough time for a BASE block first (muscle + work capacity), strength and peaking later.` };
+  if (days <= 35) return { phase: "peak", fullWeeks, finalDays, reason: `Meet in ${days} days — PEAKING: ${fullWeeks} peaking week${fullWeeks === 1 ? "" : "s"}, then taper into the meet. Competition lifts only, accessories minimal.` };
+  if (days <= 70) return { phase: "strength", fullWeeks: 4, finalDays: 0, reason: `Meet in ${days} days — STRENGTH block now (heavy 2–5s); peaking starts ~5 weeks out.` };
+  return { phase: "base", fullWeeks: 4, finalDays: 0, reason: `Meet in ${days} days — enough time for a BASE block first (muscle + work capacity), strength and peaking later.` };
 }
 
 /* ---------------- Lift builders ---------------- */
@@ -539,8 +541,9 @@ function stickingFor(form) {
   if (form.weak === "none" || !form.sticking) return null;
   const st = STICKING[form.weak]?.[form.sticking];
   if (!st) return null;
-  const variation = st.variations[Math.min(form.variationIdx || 0, st.variations.length - 1)];
-  const acc = st.accessories[Math.min(form.accIdx || 0, st.accessories.length - 1)];
+  const idx = (v, arr) => { const n = Number(v); return Number.isInteger(n) && n >= 0 && n < arr.length ? n : 0; };
+  const variation = st.variations[idx(form.variationIdx, st.variations)];
+  const acc = st.accessories[idx(form.accIdx, st.accessories)];
   return { ...st, variation, acc, l: st.l, note: st.note };
 }
 
@@ -549,6 +552,7 @@ export function buildLift(slot, wk, form, maxes, rec, scheme) {
   const max = maxes[lift] || 0;
   const stick = stickingFor(form);
   const weakType = form.weakType || "strength";
+  const w = scheme || {};
   const mk = (name, sets, reps, pct, rpe, note, kgOverride) => ({
     name, sets, reps, rpe,
     pct: pct || null,
@@ -559,24 +563,34 @@ export function buildLift(slot, wk, form, maxes, rec, scheme) {
   // ---- Beginner linear: fixed kg jumps while RPE ≤ 8 (System 2.0 / A–Z)
   if (role === "beg" || role === "begLight" || role === "begDL" || role === "begPause") {
     const light = role === "begLight", pause = role === "begPause", dl = role === "begDL";
+    // 1.25 kg bench jumps need 0.625 kg micro-plates — only assume them in a commercial gym.
+    const micro = lift === "bench" && form.equipment === "commercial";
+    const rnd = micro ? round125 : round25;
+    const liftInc = micro ? BEG_INC.bench : lift === "bench" ? 2.5 : BEG_INC[lift];
     const startPct = light ? BEG_START[lift] - 7.5 : pause ? BEG_START[lift] - 10 : BEG_START[lift];
-    const inc = (light || pause ? 0.5 : 1) * BEG_INC[lift];
-    const base = max ? (lift === "bench" ? round125 : round25)((startPct / 100) * max) : null;
-    const kg = base ? (lift === "bench" ? round125 : round25)(base + wk * inc) : null;
+    const inc = (light || pause ? 0.5 : 1) * liftInc;
+    const base = max ? rnd((startPct / 100) * max) : null;
+    let kg = base ? rnd(base + wk * inc) : null;
+    let sets = dl ? 2 : light || pause ? 2 : 3;
+    let reps = 5;
+    const notes = [];
+    if (w.taper || w.meetweek) {
+      // Beginner taper: same lifts, lighter, fewer sets — practice the commands.
+      kg = base ? rnd(base * 0.9) : null;
+      sets = 2; reps = w.meetweek ? 2 : 3;
+      notes.push(w.meetweek ? "Meet week — light and crisp. Pause every squat/bench rep like on the platform." : "Taper — lighter than last week on purpose. Clean reps, full commands, walk out feeling fresh.");
+    }
     const pct = max && kg ? Math.round((kg / max) * 200) / 2 : null;
     const name = pause ? PAUSED[lift] : LIFT_NAMES[lift] + (light ? " (Light)" : "");
-    const sets = dl ? 2 : light || pause ? 2 : 3;
-    const rpe = light ? "RPE 6–7" : pause ? "RPE 7" : "RPE ≤ 8";
-    const notes = [];
-    if (wk === 0 && !light && !pause) notes.push(`+${BEG_INC[lift]} kg each week while every rep stays clean and RPE ≤ 8. Miss reps → repeat the weight. Miss twice → −10%, then half the jump.`);
+    const rpe = w.taper || w.meetweek ? "RPE 6" : light ? "RPE 6–7" : pause ? "RPE 7" : "RPE ≤ 8";
+    if (wk === 0 && !light && !pause && !w.taper) notes.push(`+${liftInc} kg each week while every rep stays clean and RPE ≤ 8. Miss reps → repeat the weight. Miss twice → −10%, then half the jump.${lift === "bench" && !micro ? " Have 0.5 kg micro-plates? Use +1.25 kg jumps instead." : ""}`);
     if (light) notes.push("Technique focus — same setup every rep, bar speed first");
     if (dl) notes.push("Deadlift carries a high fatigue cost — 2 clean sets is enough");
     if (!max) notes.push("No 1RM needed: pick a weight you can do for 5 clean reps with 3 reps left, then add 2.5 kg weekly");
-    return mk(name, sets, 5, pct, rpe, notes.join(" · ") || null, kg);
+    return mk(name, sets, reps, pct, rpe, notes.join(" · ") || null, kg);
   }
 
   const notes = [];
-  const w = scheme;
   const base = lift === "deadlift" && w.dl ? w.dl : w;
 
   if (role === "tech") {
@@ -587,14 +601,17 @@ export function buildLift(slot, wk, form, maxes, rec, scheme) {
     return mk(LIFT_NAMES[lift] + " (Activation)", 2, 2, 60, "RPE 5", "Meet week — grease the groove, nothing heavy. Feel the commands.");
   }
   if (role === "primer") {
-    return mk(LIFT_NAMES[lift] + " (Opener feel)", 1, 1, 70, "RPE 5–6", "One crisp single. Walk away feeling strong, not tired.");
+    return mk(LIFT_NAMES[lift] + " (Light single · commands)", 1, 1, 70, "RPE 5–6", "NOT your opener — your opener (~90%) happens on the platform. This is one crisp 70% single to groove the commands. Walk away feeling strong, not tired.");
   }
 
   if (role === "primary") {
     let sets = base.sets;
     let reps = base.reps;
     let rpe = w.rpe;
-    const pct = base.pct;
+    let pct = base.pct;
+    let capped = false;   // the load was actually lowered → no "+2.5 kg" notes, RPE re-derived
+    let noExtras = false; // heavy singles removed (pain flag / technique / estimated max)
+    const cap = (limit, why, soft) => { noExtras = true; if (pct > limit) { pct = limit; capped = true; notes.push(why); } else if (soft) notes.push(soft); };
     if (form.weak === lift && !w.deload && weakType === "strength") {
       sets += 1;
       notes.push(stick ? stick.note : "+1 set (weakest lift — extra volume)");
@@ -602,32 +619,43 @@ export function buildLift(slot, wk, form, maxes, rec, scheme) {
     if (!w.deload && rec.setDelta) sets = Math.max(2, sets + rec.setDelta);
     if (!w.deload && weakType === "fatigue") { sets = Math.max(2, sets - 1); rpe = Math.min(rpe, 7); notes.push("Warm-ups felt heavy → volume −1 set, RPE capped at 7 this block. Recover first, then push."); }
     if (!w.deload && rec.rpeCap) rpe = Math.min(rpe, rec.rpeCap);
+    // Pain flags gate the LOAD, not just the label (System 2.0: pain = the set ends, load comes down first).
     if (form.injuries?.back && (lift === "squat" || lift === "deadlift")) {
       rpe = Math.min(rpe, 7.5);
-      notes.push("Lower-back flag — RPE capped at 7.5. Any pain = end the set");
+      cap(80, "Lower-back flag — load capped at 80%, no heavy singles until 2 pain-free weeks. Any pain = end the set", "Lower-back flag — RPE capped at 7.5, no heavy singles. Any pain = end the set");
     }
-    if (form.injuries?.knee && lift === "squat") notes.push("Knee flag — controlled tempo, pain-free depth only");
-    if (form.injuries?.shoulder && lift === "bench") notes.push("Shoulder flag — slightly narrower grip, tuck the elbows");
-    if (w.note && !w.deload) notes.push(w.note);
+    if (form.injuries?.knee && lift === "squat") cap(85, "Knee flag — load capped at 85%, controlled tempo, pain-free depth only", "Knee flag — controlled tempo, pain-free depth only");
+    if (form.injuries?.shoulder && lift === "bench") cap(85, "Shoulder flag — load capped at 85%, slightly narrower grip, tuck the elbows", "Shoulder flag — slightly narrower grip, tuck the elbows");
+    // Technique issue on this lift: heavy weights only rehearse the broken pattern — hold the primary at ≤80%.
+    if (form.weak === lift && weakType === "technique") cap(80, "TECHNIQUE issue — primary held at 80% until the position holds under load. Film one set per session", "TECHNIQUE issue — perfect position every rep, film one set per session");
+    // Untested / estimated max: nothing above 87.5% in the plan — earn the heavy singles first.
+    if (maxes.estimated && !w.deload) cap(87.5, "Your max is an estimate — nothing above 87.5% until a clean heavy single confirms it");
+    if (capped) {
+      // A capped single/double at 80% is too easy to be useful — add reps until it is real work (RPE ≥ 6).
+      while (rpeFor(pct, reps) < 6 && reps < 5) reps++;
+      rpe = Math.min(rpe, rpeFor(pct, reps));
+    }
+    if (w.note && !w.deload && !noExtras) notes.push(w.note);
     if (w.taper) notes.push("Taper — nothing above 75%. Freshness is the goal.");
     else if (w.deload) notes.push("Deload — the weight will feel light. Keep it light.");
     const realism = pct ? rpeFor(pct, reps) : null;
-    if (realism && !w.deload && !w.extras && Math.abs(realism - rpe) >= 1.5) notes.push(`If this feels ≤ RPE ${realism}, the % is light for you today — add 2.5 kg. RPE is the final judge.`);
+    if (realism && !w.deload && !w.extras && !capped && Math.abs(realism - rpe) >= 1.5) notes.push(`If this feels ≤ RPE ${realism}, the % is light for you today — add 2.5 kg. RPE is the final judge.`);
     const out = mk(LIFT_NAMES[lift], sets, reps, pct, `RPE ${rpe}`, notes.join(" · ") || null);
-    if (w.extras && !w.deload) {
-      out.extras = w.extras.map((e) => ({ name: `${LIFT_NAMES[lift]} — single`, sets: 1, reps: e.reps, pct: e.pct, kg: max ? round25((e.pct / 100) * max) : null, rpe: "RPE 8", note: e.note, lift }));
+    if (w.extras && !w.deload && !noExtras) {
+      out.extras = w.extras.map((e) => ({ name: `${LIFT_NAMES[lift]} — single`, sets: 1, reps: e.reps, pct: e.pct, kg: max ? round25((e.pct / 100) * max) : null, rpe: `RPE ${rpeFor(e.pct, 1)}`, note: e.note, lift }));
     }
     return out;
   }
 
   if (role === "secondary") {
     const sets = Math.max(2, base.sets - 1);
-    const reps = Math.min(base.reps + 2, 10);
-    const pct = w.deload ? base.pct - 5 : base.pct - 10;
-    return mk(LIFT_NAMES[lift], sets, reps, pct, `RPE ${Math.max(6, w.rpe - 1)}`, "Secondary slot — volume work, don't grind reps");
+    const reps = Math.min(base.reps + 2, 8);
+    const pct = Math.max(67.5, w.deload ? base.pct - 5 : base.pct - 10);
+    return mk(LIFT_NAMES[lift], sets, reps, pct, `RPE ${Math.max(6, Math.min(w.rpe - 1, rpeFor(pct, reps)))}`, "Secondary slot — volume work, don't grind reps");
   }
 
-  // paused / variation slot
+  // paused / variation slot — dropped in deload and taper (nothing new, nothing extra)
+  if (w.deload || w.taper) return null;
   if (stick && form.weak === lift && weakType !== "fatigue") {
     const extraOff = weakType === "technique" ? -5 : 0;
     const pct = Math.max(40, (w.deload ? base.pct - 5 : base.pct) + stick.variation.off + extraOff);
@@ -642,17 +670,18 @@ export function buildLift(slot, wk, form, maxes, rec, scheme) {
 function weekPlan(form, meet) {
   // Returns the list of week schemes with phase labels. Length varies with the meet.
   const goal = SCHEMES[form.goal] ? form.goal : "str";
-  const meetWeek = { meetweek: true, deload: true, sets: 2, reps: 2, pct: 60, rpe: 5, acc: 0, label: "Meet Week" };
-  const taper = { ...SCHEMES.peak.weeks[3], label: "Taper" };
   const P = SCHEMES.peak.weeks;
+  const begWeeks = (n) => SCHEMES.hyp.weeks.slice(0, n).map((w) => ({ ...w, deload: false, acc: 2 }));
   switch (meet?.phase) {
-    case "meetweek": return { weeks: [meetWeek], blockLabel: "Meet Week" };
-    case "taper": return { weeks: [taper, meetWeek], blockLabel: "Taper → Meet" };
+    case "meetweek": return { weeks: [], final: true, blockLabel: "Meet Week" };
+    case "taper": return { weeks: [], final: true, blockLabel: "Taper → Meet" };
     case "peak": {
-      const n = Math.max(1, meet.weeksOut - 1); // peaking weeks before taper
+      const n = Math.min(3, Math.max(1, meet.fullWeeks)); // peaking weeks before the taper
       const peakWeeks = n === 1 ? [P[2]] : n === 2 ? [P[1], P[2]] : [P[0], P[1], P[2]];
-      return { weeks: [...peakWeeks, taper, meetWeek], blockLabel: SCHEMES.peak.label };
+      return { weeks: peakWeeks, final: true, blockLabel: SCHEMES.peak.label };
     }
+    case "beginner":
+      return meet.finalDays ? { weeks: begWeeks(Math.max(1, meet.fullWeeks)), final: true, blockLabel: "Beginner Linear → Meet", goal: "beg" } : { weeks: begWeeks(4), blockLabel: "Beginner Linear Block", goal: "beg" };
     case "strength": return { weeks: SCHEMES.str.weeks, blockLabel: SCHEMES.str.label, goal: "str" };
     case "base": return { weeks: SCHEMES.hyp.weeks, blockLabel: SCHEMES.hyp.label, goal: "hyp" };
     case "post": return { weeks: [{ ...SCHEMES.hyp.weeks[3], label: "Post-meet Deload" }, ...SCHEMES.hyp.weeks.slice(0, 3)], blockLabel: "Post-meet Recovery → Base" };
@@ -662,12 +691,40 @@ function weekPlan(form, meet) {
   }
 }
 
-const MEET_WEEK_DAYS = [
-  { ...T("Activation", [S("squat", "activation"), S("bench", "activation"), S("deadlift", "activation")], "none"), weekday: "Monday" },
-  { ...T("Opener Feel + Commands", [S("squat", "primer"), S("bench", "primer")], "none"), weekday: "Wednesday" },
-];
+/** The last days before a meet are laid out from the meet DATE, not from a template:
+ *  taper sessions on the lifter's normal training days while ≥ 6 days out, activation 5 days out,
+ *  one light single 3 days out, complete rest the last 2 days, then the meet. Beginners taper on their own template. */
+function finalStretch(startOffset, form, maxes, rec, tmpl, wdays) {
+  const D = form.meetDays;
+  const taperScheme = { ...SCHEMES.peak.weeks[3], label: "Taper" };
+  const meetScheme = { meetweek: true, deload: true, sets: 2, reps: 2, pct: 60, rpe: 5, acc: 0 };
+  const taperDays = [], meetDays = [];
+  for (let off = Math.max(0, startOffset); off <= D; off++) {
+    const date = new Date(Date.now() + off * 86400000);
+    const weekday = ALL_DAYS[(date.getDay() + 6) % 7];
+    const dateLabel = date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    const before = D - off;
+    const day = (title, main, extra = {}) => ({ weekday, date: dateLabel, title, optional: false, main, acc: [], ...extra });
+    if (before === 0) meetDays.push(day("MEET DAY", [], { meetDay: true, note: "Warm-up to opener: bar → 40% ×4 → 60% ×3 → 80% ×2 → 90% ×1 → 5–10 min → Attempt 1. Nothing new today." }));
+    else if (before === 5) meetDays.push(day("Activation", ["squat", "bench", "deadlift"].map((l) => buildLift(S(l, "activation"), 0, form, maxes, rec, meetScheme))));
+    else if (before === 3) meetDays.push(day("Light Singles + Commands", ["squat", "bench"].map((l) => buildLift(S(l, "primer"), 0, form, maxes, rec, meetScheme))));
+    else if (before >= 6) {
+      const di = wdays.indexOf(weekday);
+      const t = di >= 0 ? tmpl[di] : null;
+      if (!t || t.support) continue;
+      const main = t.slots.map((sl) => buildLift(sl, 0, form, maxes, rec, taperScheme)).filter(Boolean);
+      if (main.length) taperDays.push(day(t.title, main));
+    }
+  }
+  const restOf = (days) => ALL_DAYS.filter((d) => !days.some((x) => x.weekday === d));
+  const out = [];
+  if (taperDays.length) out.push({ label: "Taper", deload: false, taper: true, phase: "Taper", days: taperDays, restDays: restOf(taperDays), notes: ["Taper: same lifts, 70–75%, half the sets, no accessories. You should leave every session feeling you could have done much more — that is the point."] });
+  const meetWeekday = meetDays.at(-1)?.weekday;
+  out.push({ label: "Meet Week", deload: true, meetWeek: true, phase: "Meet Week", days: meetDays, restDays: restOf(meetDays), notes: [`Meet day: ${meetWeekday}. ` + MEET_WEEK_NOTES[0], ...MEET_WEEK_NOTES.slice(1)] });
+  return out;
+}
 const MEET_WEEK_NOTES = [
-  "Mon/Tue: light activation only. Wed/Thu: complete rest. Fri: opener warm-up practice (bar → 60%) if the meet is Saturday.",
+  "Activation 5 days out, one light single 3 days out, then COMPLETE REST the last 2 days. Rest is training now.",
   "Nothing new on meet day: same belt, same shoes, same setup, same warm-up you trained with.",
   "Attempts: 1st = the lift you make on any day (~90%). 2nd = your real lift (~95–100%). 3rd = small PR only if 1 and 2 were clean.",
   "Warm-up to opener: 4×1 @40% → 3×1 @60% → 2×1 @80% → 1×1 @90% → 5–10 min rest → Attempt 1.",
@@ -678,8 +735,20 @@ export function buildProgram(form, maxes) {
   const rec = recoveryProfile(form);
   const meet = meetPhase(form.meetDays ?? null, form.exp);
   const plan = weekPlan(form, meet);
-  const isBeg = form.exp === "beg" && meet.phase !== "taper" && meet.phase !== "meetweek";
-  const tmpl = isBeg ? dayTemplates(form.days, "beg", form.focus) : dayTemplates(form.days, form.exp === "beg" ? "int" : form.exp, form.focus);
+  const isBeg = form.exp === "beg";
+  let tmpl = isBeg ? dayTemplates(form.days, "beg", form.focus) : dayTemplates(form.days, form.exp, form.focus);
+  // Weak-point variation must actually appear: if the weak lift has no variation slot in this template,
+  // turn its technique slot into one, or add one to the last core day.
+  const stickEarly = stickingFor(form);
+  if (!isBeg && stickEarly && form.weak !== "none" && (form.weakType || "strength") !== "fatigue") {
+    tmpl = tmpl.map((d) => ({ ...d, slots: d.slots.map((s) => ({ ...s })) }));
+    const hasVar = tmpl.some((d) => d.slots.some((s) => s.lift === form.weak && s.role === "paused"));
+    if (!hasVar) {
+      const techDay = tmpl.find((d) => d.slots.some((s) => s.lift === form.weak && s.role === "tech"));
+      if (techDay) techDay.slots.find((s) => s.lift === form.weak && s.role === "tech").role = "paused";
+      else { const last = [...tmpl].reverse().find((d) => !d.support); if (last) last.slots.push(S(form.weak, "paused")); }
+    }
+  }
   const wdays = weekdaysFor(tmpl, form.days);
   const stick = stickingFor(form);
   const weakType = form.weakType || "strength";
@@ -693,19 +762,12 @@ export function buildProgram(form, maxes) {
 
   const weeks = plan.weeks.map((w, wi) => {
     const label = w.label || `Week ${wi + 1}`;
-    if (w.meetweek) {
-      return {
-        label, deload: true, meetWeek: true, phase: "Meet Week",
-        days: MEET_WEEK_DAYS.map((d) => ({ weekday: d.weekday, title: d.title, optional: false, main: d.slots.map((s) => buildLift(s, wi, form, maxes, rec, w)), acc: [] })),
-        notes: MEET_WEEK_NOTES,
-      };
-    }
     const deload = !!w.deload;
     const accCount = w.acc ?? 3;
     return {
       label, deload, taper: !!w.taper, phase: w.taper ? "Taper" : deload ? "Deload" : plan.blockLabel,
       days: tmpl.map((d, di) => {
-        const main = isBeg ? d.slots.map((s) => buildLift(s, wi, form, maxes, rec, w)) : d.slots.map((s) => buildLift(s, wi, form, maxes, rec, w));
+        const main = d.slots.map((s) => buildLift(s, wi, form, maxes, rec, w)).filter(Boolean);
         let acc = applyEquipment(applySwaps([...(ACC[d.acc] || [])], form.injuries), form.equipment);
         // accessories scale with the block: base 3–4, strength 2–3, peaking 0–2, taper 0
         const cap = isBeg ? acc.length : d.support ? acc.length : d.acc === "deadDay" ? Math.max(0, accCount - 1) : accCount;
@@ -716,14 +778,18 @@ export function buildProgram(form, maxes) {
             acc = [...acc, applyEquipment(applySwaps([extra], form.injuries), form.equipment)[0]];
           }
         }
-        if (deload) acc = acc.slice(0, 2).map((a) => ({ ...a, sr: a.sr.includes("×") ? a.sr.replace(/^\d+/, "2") : a.sr }));
+        if (deload || w.taper) acc = acc.slice(0, w.taper ? 0 : 2).map((a) => ({ ...a, sr: a.sr.includes("×") ? a.sr.replace(/^\d+/, "2") : a.sr, rpe: a.rpe === "—" ? a.rpe : "RPE 6" }));
         return { weekday: wdays[di] || "Extra", title: d.title, optional: d.optional, support: d.support, main, acc };
-      }).sort((a, b) => ALL_DAYS.indexOf(a.weekday) - ALL_DAYS.indexOf(b.weekday)),
+      }).filter((d) => d.main.length || d.acc.length).sort((a, b) => ALL_DAYS.indexOf(a.weekday) - ALL_DAYS.indexOf(b.weekday)),
     };
   });
   // Keep weekly hard sets inside the level's budget by dropping surplus accessories (never main lifts).
+  if (plan.final && form.meetDays !== null && form.meetDays !== undefined) weeks.push(...finalStretch(plan.weeks.length * 7, form, maxes, rec, tmpl, wdays));
+  // Trim ONCE on the heaviest-volume week and hold the same accessory menu all block — a coach never rotates accessories by accident.
   const trimmed = new Set();
-  for (const w of weeks) if (!w.meetWeek) trimToBudget(w, budget[1]).forEach((n) => trimmed.add(n));
+  const refWeek = weeks.find((w) => !w.deload && !w.taper && !w.meetWeek) || weeks.find((w) => !w.meetWeek);
+  if (refWeek) trimToBudget(refWeek, budget[1]).forEach((n) => trimmed.add(n));
+  if (trimmed.size) for (const w of weeks) if (w !== refWeek && !w.meetWeek) for (const d of w.days) d.acc = d.acc.filter((a) => !trimmed.has(a.name));
   if (trimmed.size) notes.push(`Volume kept inside ${budget[0]}–${budget[1]} hard sets/week per movement for your level — dropped: ${[...trimmed].join(", ")}. Add back only if you are recovering easily.`);
 
   const count = { squat: 0, bench: 0, deadlift: 0 };
@@ -731,13 +797,16 @@ export function buildProgram(form, maxes) {
   const freq = `SQ ${count.squat}× · BP ${count.bench}× · DL ${count.deadlift}× / week`;
   const volume = weeklyVolume(weeks.find((w) => !w.deload) || weeks[0]);
 
-  return { weeks, rec, freq, restDays: ALL_DAYS.filter((d) => !wdays.includes(d)), phase: meet.phase, blockLabel: plan.blockLabel, notes, volume, budget };
+  // A test day only makes sense when there is no meet: the meet IS the test.
+  const testDay = meet.phase === "none" && !isBeg;
+  return { weeks, rec, freq, restDays: ALL_DAYS.filter((d) => !wdays.includes(d)), phase: meet.phase, blockLabel: plan.blockLabel, notes, volume, budget, testDay, meetDays: form.meetDays ?? null };
 }
 
 /** Which volume bucket an accessory belongs to (Lower / Upper push / Upper pull). */
 export function accBucket(name) {
-  if (/mobility|plank|dead bug|core|cardio|walk|sled|jump rope|stretch/i.test(name)) return null;
-  if (/row|pull-?up|chin|lat |pulldown|face pull|rear delt|back ext|good morning|rdl|romanian|snatch|band pull/i.test(name)) return "pull";
+  if (/mobility|plank|dead bug|core|cardio|walk|sled|jump rope|stretch|leg raise|ab wheel|crunch|pallof|carry/i.test(name)) return null;
+  if (/back ext|good morning|rdl|romanian|hip thrust|glute bridge/i.test(name)) return "hinge"; // posterior chain: counts as lower AND pull
+  if (/row|pull-?up|chin|lat |pulldown|face pull|rear delt|snatch|band pull/i.test(name)) return "pull";
   if (/squat|leg|lunge|hip|glute|nordic|step|deadlift|block|deficit|belt|hack|pendulum|extension|bridge/i.test(name)) return "lower";
   if (/bench|press|dip|triceps|push|skull|fly|jm|overhead/i.test(name)) return "push";
   return null;
@@ -757,7 +826,8 @@ export function weeklyVolume(week) {
     for (const a of d.acc) {
       const sets = parseInt(String(a.sr), 10) || 0;
       const b = accBucket(a.name);
-      if (b) v[b] += sets;
+      if (b === "hinge") { v.lower += sets; v.pull += sets; }
+      else if (b) v[b] += sets;
     }
   }
   return v;
@@ -774,7 +844,7 @@ function trimToBudget(week, budgetMax) {
     // remove from the day that has the most accessories in that bucket, last one first
     let best = null;
     for (const d of week.days) {
-      const idx = [...d.acc.keys()].reverse().find((i) => accBucket(d.acc[i].name) === over && !d.acc[i].name.startsWith("Weak-point"));
+      const idx = [...d.acc.keys()].reverse().find((i) => { const b = accBucket(d.acc[i].name); return (b === over || (b === "hinge" && over !== "push")) && !d.acc[i].name.startsWith("Weak-point"); });
       if (idx !== undefined && (!best || d.acc.length > best.d.acc.length)) best = { d, idx };
     }
     if (!best) break;
@@ -813,7 +883,7 @@ export function profileToForm(profile, overrides = {}) {
     squat: Number(profile?.squat_1rm) || 0,
     bench: Number(profile?.bench_1rm) || 0,
     deadlift: Number(profile?.deadlift_1rm) || 0,
-    estimated: false,
+    estimated: a.maxes_estimated === true || a.maxes_estimated === "true",
   };
 
   const exp = EXP_MAP[profile?.experience_level] || "int";
@@ -846,6 +916,7 @@ export function profileToForm(profile, overrides = {}) {
     weak = flagged.sort((x, y) => lag(x) - lag(y))[0];
     sticking = WEAK_POINT_MAP[weak][a[`${weak}_weak_point`]];
     const st = STICKING[weak][sticking];
+    if (flagged.length > 1) decisions.push({ step: "Weak-Point Priority", decision: LIFT_NAMES[weak], reason: `${flagged.map((l) => LIFT_NAMES[l]).join(" and ")} both flagged — one weak point per block. ${LIFT_NAMES[weak]} lags most for your ratios; the other gets its turn next block.` });
     if (weakType === "fatigue") decisions.push({ step: "Weak-Point Diagnosis", decision: `${LIFT_NAMES[weak]} — ${st.l}`, reason: "But warm-ups feel heavy → treated as FATIGUE first: no new variation, volume down, RPE capped" });
     else if (weakType === "technique") decisions.push({ step: "Weak-Point Diagnosis", decision: `${LIFT_NAMES[weak]} — ${st.l}`, reason: `TECHNIQUE issue → ${st.variation.name} at a lighter load; no extra accessory volume` });
     else decisions.push({ step: "Weak-Point Diagnosis", decision: `${LIFT_NAMES[weak]} — ${st.l}`, reason: `${st.variation.name} + ${st.acc.name} for 4–6 weeks, then retest` });
@@ -855,7 +926,8 @@ export function profileToForm(profile, overrides = {}) {
 
   const injuries = injuriesFromText(a.current_injuries);
   const flaggedInj = Object.keys(injuries).filter((k) => injuries[k]);
-  if (flaggedInj.length) decisions.push({ step: "Injury Screen", decision: flaggedInj.join(", "), reason: "Spine/joint-safe swaps applied, RPE capped where needed. Pain = the set ends." });
+  if (flaggedInj.length) decisions.push({ step: "Injury Screen", decision: flaggedInj.join(", "), reason: "Load capped on the affected lift, heavy singles removed, joint-safe accessory swaps. Pain = the set ends." });
+  if (maxes.estimated) decisions.push({ step: "Max Check", decision: "Estimated maxes", reason: "Your numbers come from a rep set, not a tested single — the plan stays ≤ 87.5% until a clean heavy single confirms them." });
 
   const equipment = ["commercial", "basic", "minimal"].includes(a.equipment_level) ? a.equipment_level : "commercial";
   if (equipment !== "commercial") decisions.push({ step: "Equipment", decision: equipment === "basic" ? "Barbell + DB gym" : "Barbell only", reason: "Machine/cable accessories swapped for barbell, dumbbell or bodyweight versions" });
@@ -907,13 +979,16 @@ export function toSnapshot(program, form, maxes, decisions = []) {
     taper: !!w.taper,
     meetWeek: !!w.meetWeek,
     weekNotes: w.notes || null,
+    restDays: w.restDays || program.restDays,
     days: w.days.map((d, di) => ({
       day: di + 1,
       weekday: d.weekday,
+      date: d.date || null,
       focus: d.title,
       optional: !!d.optional,
       support: !!d.support,
-      notes: d.main.map((m) => m.note).filter(Boolean).join(" · ") || null,
+      meetDay: !!d.meetDay,
+      notes: [d.note, ...d.main.map((m) => m.note)].filter(Boolean).join(" · ") || null,
       exercises: [
         ...d.main.flatMap((m) => [
           { name: m.name, type: "Main", lift: m.lift, sets: m.sets, reps: m.reps, weight: m.kg ?? "", pct: m.pct, rpe: rpeNum(m.rpe), note: m.note },
@@ -932,6 +1007,7 @@ export function toSnapshot(program, form, maxes, decisions = []) {
       form, maxes, decisions,
       freq: program.freq, restDays: program.restDays, rec: program.rec,
       phase: program.phase, notes: program.notes, volume: program.volume, budget: program.budget,
+      testDay: !!program.testDay, meetDays: program.meetDays ?? null,
     },
   };
 }
@@ -946,10 +1022,8 @@ export function weekRows(w) {
   w.days.forEach((d) => (byDay[d.weekday] = d));
   ALL_DAYS.forEach((wd) => {
     const d = byDay[wd];
-    if (!d) {
-      rows.push([wd, "Rest", "—", "", "", "", "", "", "Recovery / mobility"]);
-      return;
-    }
+    if (!d) return; // rest day — not a row
+    if (d.note) rows.push([wd, d.title, "—", "", "", "", "", "", d.note]);
     flatMain(d).forEach((m) => {
       rows.push([wd, d.title, m.name, m.sets, m.reps, m.kg || "—", m.pct ? m.pct + "%" : "—", m.rpe, m.note || ""]);
     });
@@ -987,10 +1061,12 @@ export function downloadXLSX(program, form) {
     ["Rest", "Main lifts 3–5 min | Accessories 1.5–2 min"],
     ["Standard", "Every rep competition-legal: depth, pause, lockout. A rep you couldn't repeat on the platform doesn't count as volume."],
     ["", ""],
-    ["TEST DAY (Week 5, after the deload)", ""],
-    ["Protocol", "70% → 80% → 87.5% → 92.5% → 97–100% → PR attempt only if bar speed looks good. Max 3 heavy singles."],
-    ["Reality", "Beginners: a PR is almost certain. Intermediates: 2.5–5 kg is realistic. Big PRs come from block sequencing — Base → Strength → Peak."],
-    ["", ""],
+    ...(program.testDay ? [
+      ["TEST DAY (Week 5, after the deload)", ""],
+      ["Protocol", "70% → 80% → 87.5% → 92.5% → 97–100% → PR attempt only if bar speed looks good. Max 3 heavy singles."],
+      ["Reality", "Beginners: a PR is almost certain. Intermediates: 2.5–5 kg is realistic. Big PRs come from block sequencing — Base → Strength → Peak."],
+      ["", ""],
+    ] : []),
     ["TECHNIQUE STANDARDS", ""],
     ["Bench", "Every rep = competition rep. Touch → settle → press. No sinking, no bouncing."],
     ["Squat", "Every rep to depth. Brace first, then descend. Same walkout every set."],
@@ -1000,7 +1076,7 @@ export function downloadXLSX(program, form) {
   ];
   const wsR = XLSX.utils.aoa_to_sheet(rules);
   wsR["!cols"] = [{ wch: 34 }, { wch: 90 }];
-  XLSX.utils.book_append_sheet(wb, wsR, "Rules + Test Day");
+  XLSX.utils.book_append_sheet(wb, wsR, program.testDay ? "Rules + Test Day" : "Rules");
   const name = (form.name || "athlete").trim().toLowerCase().replace(/\s+/g, "-");
   XLSX.writeFile(wb, `${name}-iron-engine-block.xlsx`);
 }
@@ -1013,7 +1089,8 @@ export function programToText(program, form) {
   program.weeks.forEach((w) => {
     t += `======== ${w.label}${w.deload && !w.meetWeek ? " (DELOAD)" : ""}${w.taper ? " (TAPER)" : ""} ========\n`;
     w.days.forEach((d) => {
-      t += `\n${d.weekday} — ${d.title}\n`;
+      t += `\n${d.weekday}${d.date ? " " + d.date : ""} — ${d.title}\n`;
+      if (d.note) t += `    → ${d.note}\n`;
       flatMain(d).forEach((m) => {
         t += `  ${m.name}: ${m.sets} x ${m.reps}${m.pct ? ` @ ${m.pct}%` : ""}${m.kg ? ` (${m.kg} kg)` : ""} ${m.rpe}\n`;
         if (m.note) t += `    → ${m.note}\n`;
@@ -1021,9 +1098,9 @@ export function programToText(program, form) {
       d.acc.forEach((a) => (t += `  ${a.name}: ${a.sr} ${a.rpe !== "—" ? a.rpe : ""}\n`));
     });
     (w.notes || []).forEach((n) => (t += `  * ${n}\n`));
-    t += `\nRest days: ${program.restDays.join(", ")}\n\n`;
+    t += `\nRest days: ${(w.restDays || program.restDays).join(", ")}\n\n`;
   });
-  t += `TEST DAY (Week 5): 70% → 80% → 87.5% → 92.5% → 97–100% → PR attempt only if bar speed looks good.\n`;
+  if (program.testDay) t += `TEST DAY (Week 5): 70% → 80% → 87.5% → 92.5% → 97–100% → PR attempt only if bar speed looks good.\n`;
   return t;
 }
 

@@ -10,8 +10,8 @@ const EXECUTION_RULES = [
   ["RPE", "RPE 7 = 3 reps in the tank. RPE 8 = 2. RPE 9 = 1. On a bad day, drop the % and follow RPE — RPE is the final judge."],
   ["Auto-regulation", "If RPE runs higher than prescribed → reduce the weight by 5%."],
   ["Rest", "Main lifts: 3–5 min. Accessories: 1.5–2 min."],
-  ["Test Day (Week 5)", "After the deload: 70% → 80% → 87.5% → 92.5% → 97–100% → PR attempt only if bar speed looks good. Max 3 heavy singles."],
 ];
+const TEST_DAY_RULE = ["Test Day (Week 5)", "After the deload: 70% → 80% → 87.5% → 92.5% → 97–100% → PR attempt only if bar speed looks good. Max 3 heavy singles."];
 
 export default function Programs() {
   const { user } = useAuth();
@@ -138,7 +138,7 @@ export default function Programs() {
           <div className="flex space-x-2 mb-8 overflow-x-auto pb-2 no-print">
             {currentWeekData.days.map((d) => (
               <button key={d.day} onClick={() => setActiveDay(d.day)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeDay === d.day ? 'bg-gray-100 text-gray-900 ring-1 ring-gray-200' : 'text-gray-500 hover:bg-gray-50'}`}>
-                {d.weekday ? d.weekday.slice(0, 3) : `Day ${d.day}`} <span className="text-gray-400 ml-1 text-xs">{d.focus}</span>
+                {d.weekday ? d.weekday.slice(0, 3) : `Day ${d.day}`}{d.date ? <span className="text-gray-400 ml-1 text-xs">{d.date}</span> : null} <span className="text-gray-400 ml-1 text-xs">{d.focus}</span>
               </button>
             ))}
           </div>
@@ -154,7 +154,7 @@ export default function Programs() {
             </div>
           ) : currentWeekData.deload ? (
             <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 text-sm text-gray-700 no-print">
-              <b className="text-gray-900">Deload week.</b> The weight will feel light — that's the point. Test Day comes the week after.
+              <b className="text-gray-900">Deload week.</b> The weight will feel light — that's the point.{meta?.testDay ? ' Test Day comes the week after.' : ' Next block starts after this.'}
             </div>
           ) : null}
 
@@ -163,10 +163,17 @@ export default function Programs() {
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">{currentDayData.focus}{currentDayData.optional ? <span className="ml-2 text-xs font-medium text-gray-400">optional · low stress</span> : null}</h2>
-                  {currentDayData.weekday && <p className="text-xs text-gray-500 uppercase tracking-wider">{currentDayData.weekday} · {currentWeekData.label || `Week ${activeWeek}`}{currentWeekData.phase ? ` · ${currentWeekData.phase}` : ''}</p>}
+                  {currentDayData.weekday && <p className="text-xs text-gray-500 uppercase tracking-wider">{currentDayData.weekday}{currentDayData.date ? ` ${currentDayData.date}` : ''} · {currentWeekData.label || `Week ${activeWeek}`}{currentWeekData.phase ? ` · ${currentWeekData.phase}` : ''}</p>}
                 </div>
-                <Link to={`/dashboard/workout?week=${activeWeek}&day=${activeDay}`} className="no-print bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold py-2.5 px-5 rounded-lg transition-colors">Start Workout →</Link>
+                {!currentDayData.meetDay && <Link to={`/dashboard/workout?week=${activeWeek}&day=${activeDay}`} className="no-print bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold py-2.5 px-5 rounded-lg transition-colors">Start Workout →</Link>}
               </div>
+              {currentDayData.meetDay && (
+                <div className="bg-gray-900 text-white rounded-xl p-6">
+                  <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Meet day</p>
+                  <p className="text-sm">{currentDayData.notes}</p>
+                  <p className="text-sm text-gray-300 mt-3">Opener = a weight you make on any day (~90%). Second = your real lift. Third = a small PR only if the first two were clean.</p>
+                </div>
+              )}
 
               {mains.map((ex, idx) => (
                 <div key={`m${idx}`} className="bg-white rounded-xl border border-gray-300 shadow-md p-5 md:p-6">
@@ -178,7 +185,7 @@ export default function Programs() {
                     </div>
                     <div className="flex items-center gap-6 md:gap-8">
                       <Stat label="Sets × Reps" value={`${ex.sets} × ${ex.reps}`} />
-                      <Stat label="Load" value={ex.weight ? `${ex.weight} kg` : '—'} sub={ex.pct ? `${ex.pct}%` : null} />
+                      <Stat label="Load" value={ex.weight ? `${ex.weight} kg` : '—'} sub={ex.pct && meta?.form?.exp !== 'beg' ? `${ex.pct}%` : null} />
                       <Stat label="RPE" value={ex.rpe || '—'} />
                     </div>
                   </div>
@@ -202,7 +209,7 @@ export default function Programs() {
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mt-6">
                 <h3 className="text-sm font-semibold text-gray-700 mb-3">Execution Rules</h3>
                 <div className="text-sm text-gray-600 space-y-1.5">
-                  {EXECUTION_RULES.map(([h, b]) => (
+                  {[...EXECUTION_RULES, ...(meta?.testDay ? [TEST_DAY_RULE] : [])].map(([h, b]) => (
                     <p key={h}><b className="text-gray-800">{h}:</b> {b}</p>
                   ))}
                 </div>
