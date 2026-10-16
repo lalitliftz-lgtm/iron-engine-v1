@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { buildProgram, downloadXLSX, LIFT_NAMES } from '../../lib/engine';
 import { applyAdjustments, attemptPlan } from '../../lib/autoreg';
+import StalePlanBanner from '../../components/dashboard/StalePlanBanner';
 
 const EXECUTION_RULES = [
   ["Warm-up", "Bar × 8 → 40% × 5 → 55% × 3 → 70% × 2 → 80% × 1 → work sets."],
@@ -26,7 +27,7 @@ export default function Programs() {
     const fetchProgram = async () => {
       const { data } = await supabase
         .from('generated_programs')
-        .select(`id, created_at, is_active, program_snapshot, engine_versions ( version_string ), athlete_profiles ( primary_goal )`)
+        .select(`id, created_at, is_active, program_snapshot, engine_versions ( version_string ), athlete_profiles ( primary_goal, competition_date, training_days_per_week, assessment_data, updated_at )`)
         .eq('user_id', user.id)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
@@ -106,6 +107,8 @@ export default function Programs() {
             <Link to="/dashboard/generate" className="px-3 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">New block</Link>
           </div>
         </div>
+
+        <StalePlanBanner profile={program.athlete_profiles} program={program} className="mb-5" />
 
         {(meta?.notes?.length > 0 || meta?.decisions?.length > 0) && (
           <details className="bg-white border border-gray-200 rounded-xl mb-6 no-print group">

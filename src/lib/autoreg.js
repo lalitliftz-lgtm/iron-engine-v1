@@ -174,7 +174,8 @@ export function e1rmFromLogs(logs) {
 export function evaluateBlock(snapshot, logs, checkins = {}) {
   const trainable = new Set(snapshot.weeks.flatMap((w) => w.days.filter((d) => !d.meetDay && !d.rest).map((d) => `${w.week}-${d.day}`)));
   const planned = trainable.size;
-  const done = new Set(logs.map((l) => `${l.week_number}-${l.day_number}`).filter((k) => trainable.has(k))).size;
+  const ticked = (l) => (l.logged_exercises || []).some((ex) => (ex.loggedSets || []).some((s) => s.completed));
+  const done = new Set(logs.filter(ticked).map((l) => `${l.week_number}-${l.day_number}`).filter((k) => trainable.has(k))).size;
   const completion = planned ? Math.min(100, Math.round((done / planned) * 100)) : 0;
   let inRange = 0, total = 0, grinds = 0, painSets = 0;
   for (const log of logs) for (const ex of log.logged_exercises || []) {

@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { Link } from 'react-router-dom';
 import { applyAdjustments, attemptPlan } from '../../lib/autoreg';
 import { LIFT_NAMES } from '../../lib/engine';
+import StalePlanBanner from '../../components/dashboard/StalePlanBanner';
 
 export default function Overview() {
   const { user } = useAuth();
@@ -21,7 +22,7 @@ export default function Overview() {
       if (!user) return;
 
       const [profileRes, subRes, programRes] = await Promise.all([
-        supabase.from('athlete_profiles').select('full_name, competition_date, experience_level, assessment_data').eq('user_id', user.id).maybeSingle(),
+        supabase.from('athlete_profiles').select('full_name, competition_date, experience_level, training_days_per_week, assessment_data, updated_at').eq('user_id', user.id).maybeSingle(),
         supabase.from('subscriptions').select('status, end_date').eq('user_id', user.id).eq('status', 'active').gte('end_date', new Date().toISOString()).order('end_date', { ascending: false }).limit(1).maybeSingle(),
         supabase.from('generated_programs').select('id, created_at, program_snapshot').eq('user_id', user.id).eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle(),
       ]);
@@ -103,6 +104,8 @@ export default function Overview() {
         </div>
         {!isPro && <Link to="/dashboard/subscription" className="text-xs font-semibold text-blue-600">Free plan · Go Pro</Link>}
       </header>
+
+      <StalePlanBanner profile={profile} program={program} />
 
       {/* 1 — the one thing to do now */}
       <section className="bg-white border border-gray-200 rounded-2xl p-5 md:p-6">

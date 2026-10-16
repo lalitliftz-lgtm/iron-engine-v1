@@ -108,6 +108,8 @@ export default function WorkoutSession() {
   };
 
   const handleFinishWorkout = async () => {
+    const anyTicked = exercises.some((ex) => ex.loggedSets.some((s) => s.completed));
+    if (!anyTicked && !window.confirm('No sets ticked yet. Tap ✓ on each set you did so it counts.\n\nSave this session as empty anyway?')) return;
     setIsSaving(true);
     setSaveError('');
     const s = buildSummary();
