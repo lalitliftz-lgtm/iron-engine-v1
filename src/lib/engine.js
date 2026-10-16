@@ -755,10 +755,12 @@ function finalStretch(startOffset, form, maxes, rec, tmpl, wdays) {
     const dateLabel = date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
     const before = D - off;
     const day = (title, main, extra = {}) => ({ weekday, date: dateLabel, title, optional: false, main, acc: [], ...extra });
+    const count = taperDays.length + meetDays.length;
+    const plan = () => {
     if (before === 0) {
       meetDays.push(day(`MEET DAY — ${platform}`, [], { meetDay: true, note: `On the platform: ${platform}. Warm-up to opener: bar → 40% ×4 → 60% ×3 → 80% ×2 → 90% ×1 → 5–10 min → Attempt 1. Nothing new today.` }));
     } else if (before === 1) {
-      continue; // day before: off
+      return; // day before: off
     } else if (before === 2) {
       const primer = ["squat", "bench"].filter(on);
       const list = primer.length ? primer : comp; // deadlift-only lifter: one light pull is the primer
@@ -775,7 +777,7 @@ function finalStretch(startOffset, form, maxes, rec, tmpl, wdays) {
       // Taper sessions (opener practice is the last session of the taper — nothing heavy after it): all three lifts, 1–3 reps at 77.5–85%, volume 50–70% down, accessories half.
       const di = wdays.indexOf(weekday);
       const t = tmpl[di];
-      if (!t || t.support) continue;
+      if (!t || t.support) return;
       const variant = taperIdx++ % 2; // alternate doubles @ 80 and triples @ 77.5 so no two sessions are identical
       const reps = variant === 0 ? 2 : 3, pct = (variant === 0 ? 80 : 77.5) - (beg ? 5 : 0);
       const main = [];
@@ -783,15 +785,27 @@ function finalStretch(startOffset, form, maxes, rec, tmpl, wdays) {
         if (on(l)) main.push({ ...single(l, l === "deadlift" ? 2 : 3, pct, "RPE 6–7"), reps });
         else if (before >= 8) main.push({ ...single(l, 2, 75, "RPE ≤ 6", "Not competed — light maintenance only, then it disappears until after the meet."), name: `${LIFT_NAMES[l]} (maintenance)`, reps: 3 });
       }
-      if (!main.length) continue;
+      if (!main.length) return;
       main[0].note = main[0].note || "Taper: intensity stays, volume halves. Low reps keep the RPE low — this should feel crisp, never hard.";
       // Bench-only lifters don't need leg/hinge accessories in the taper.
       const accPool = applyEquipment(applySwaps([...(ACC[t.acc] || [])], form.injuries), form.equipment).filter((a) => on("squat") || on("deadlift") || !["lower", "hinge"].includes(accBucket(a.name)));
       const acc = accPool.slice(0, 2).map((a) => ({ ...a, sr: a.sr.includes("×") ? a.sr.replace(/^\d+/, "2") : a.sr, rpe: a.rpe === "—" ? a.rpe : "RPE 7" }));
       taperDays.push(day(`Taper — ${comp.length === 3 ? "all three lifts" : platform} (${variant === 0 ? "doubles" : "triples"})`, main, { acc }));
     }
+      };
+    plan();
+    if (taperDays.length + meetDays.length === count) {
+      // No session today — say exactly what the day is for, so no day on the calendar is a blank.
+      const group = before <= 5 || !taperDays.length && before <= 6 ? meetDays : taperDays;
+      const trainsUsually = wdays.includes(weekday);
+      let title = "Rest day", note;
+      if (before === 1) { title = "OFF — day before the meet"; note = "No training at all. Eat normally (don't try new food), hydrate, pack your bag (belt, shoes, sleeves, singlet, ID, chalk, snacks), check weigh-in time, sleep early."; }
+      else if (trainsUsually) { title = "Optional recovery (no lifting)"; note = "You'd normally train today — in a taper the missing session IS the plan: less work is what lets you peak. If you want to move: 20–30 min walk, 10 min mobility, bar-only technique. No loading."; }
+      else note = before <= 5 ? "Rest. Walk 20–30 min, light mobility, sleep 8+ h, keep food and water normal. Visualise your openers." : "Rest. Walk, mobility, sleep 8 h. Recovery is training in the taper.";
+      group.push(day(title, [], { rest: true, note }));
+    }
   }
-  const restOf = (days) => ALL_DAYS.filter((d) => !days.some((x) => x.weekday === d));
+  const restOf = (days) => ALL_DAYS.filter((d) => !days.some((x) => x.weekday === d && !x.rest));
   const out = [];
   if (taperDays.length) out.push({ label: "Taper", deload: false, taper: true, phase: "Taper", days: taperDays, restDays: restOf(taperDays), notes: [`Taper: main-lift volume down 50–70%, loads stay at 77.5–85% (never more than ~10% below the block), ${comp.length === 3 ? "all three lifts together" : `${platform} ${comp.length === 1 ? "gets" : "get"} the work; the other lifts fade out`}, accessories at half the sets. Ends with opener practice ~7 days out.`] });
   const meetWeekday = meetDays.at(-1)?.weekday;
@@ -891,13 +905,23 @@ export function buildProgram(form, maxes) {
     };
   });
   // Keep weekly hard sets inside the level's budget by dropping surplus accessories (never main lifts).
+  // Every day of every week is on the calendar — non-training days say what they are for.
+  for (const w of weeks) {
+    for (const wd of ALL_DAYS) if (!w.days.some((d) => d.weekday === wd)) w.days.push({ weekday: wd, title: "Rest day", optional: false, rest: true, main: [], acc: [], note: w.deload ? "Rest. Deload week — let the fatigue go: walk, mobility, sleep 8 h." : "Rest. 20–30 min walk or light cardio, 10 min mobility, sleep 7–9 h, hit your protein. Rest days are when you actually get stronger." });
+    w.days.sort((a, b) => ALL_DAYS.indexOf(a.weekday) - ALL_DAYS.indexOf(b.weekday));
+  }
   // Put a real date on every training day: week 1 starts on the next Monday (or today if it is Monday).
   const lead = plan.final && plan.weeks.length ? (meet.lead ?? leadDays()) : leadDays();
   const fmt = (off) => new Date(Date.now() + off * 86400000).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
   weeks.forEach((w, wi) => w.days.forEach((d) => { const i = ALL_DAYS.indexOf(d.weekday); if (i >= 0) d.date = fmt(lead + wi * 7 + i); }));
   if (weeks.length) weeks[0].startsOn = fmt(lead);
   if (lead > 0 && weeks.length) notes.push(`Week 1 starts Monday ${fmt(lead)}. Until then: rest, or one light technique session (singles @ 70–75%) — no hard training.`);
-  if (plan.final && form.meetDays !== null && form.meetDays !== undefined) weeks.push(...finalStretch(plan.weeks.length ? lead + plan.weeks.length * 7 : 0, form, maxes, rec, tmpl, wdays));
+  if (plan.final && form.meetDays !== null && form.meetDays !== undefined) {
+    const fs = finalStretch(plan.weeks.length ? lead + plan.weeks.length * 7 : 0, form, maxes, rec, tmpl, wdays);
+    weeks.push(...fs);
+    const perWeek = Math.max(...fs.map((w) => w.days.filter((d) => !d.rest && !d.meetDay).length));
+    if (form.days > perWeek) notes.push(`You train ${form.days} days a week. ${fs.length > 1 ? "Taper and meet week use" : "The final stretch uses"} only ${perWeek} sessions a week — on purpose: cutting volume while keeping the weight heavy is what makes you peak. Every other day is on the calendar as rest or optional recovery (walk, mobility, bar-only technique — no loading).`);
+  }
   // Trim ONCE on the heaviest-volume week and hold the same accessory menu all block — a coach never rotates accessories by accident.
   const trimmed = new Set();
   const refWeek = weeks.find((w) => !w.deload && !w.taper && !w.meetWeek) || weeks.find((w) => !w.meetWeek);
@@ -1127,6 +1151,7 @@ export function toSnapshot(program, form, maxes, decisions = []) {
       optional: !!d.optional,
       support: !!d.support,
       meetDay: !!d.meetDay,
+      rest: !!d.rest,
       notes: [d.note, ...d.main.map((m) => m.note)].filter(Boolean).join(" · ") || null,
       exercises: [
         ...d.main.flatMap((m) => [
@@ -1161,7 +1186,8 @@ export function weekRows(w) {
   w.days.forEach((d) => (byDay[d.weekday] = d));
   ALL_DAYS.forEach((wd) => {
     const d = byDay[wd];
-    if (!d) return; // rest day — not a row
+    if (!d) return;
+    if (d.rest) { rows.push([wd, d.title, "—", "", "", "", "", "", d.note || ""]); rows.push([]); return; }
     if (d.note) rows.push([wd, d.title, "—", "", "", "", "", "", d.note]);
     flatMain(d).forEach((m) => {
       rows.push([wd, d.title, m.name, m.sets, m.reps, m.kg || "—", m.pct ? m.pct + "%" : "—", m.rpe, m.note || ""]);

@@ -60,7 +60,7 @@ export default function Overview() {
   let next = null;
   for (const w of snap?.weeks || []) {
     for (const d of w.days || []) {
-      if (d.meetDay) continue;
+      if (d.meetDay || d.rest) continue;
       if (!done.has(`${w.week}-${d.day}`)) { next = { week: w, day: d }; break; }
     }
     if (next) break;
@@ -70,14 +70,15 @@ export default function Overview() {
   let checkinWeek = null;
   for (const w of snap?.weeks || []) {
     if (w.meetWeek || w.taper) continue;
-    const allLogged = (w.days || []).length && w.days.every((d) => done.has(`${w.week}-${d.day}`));
+    const trainDays = (w.days || []).filter((d) => !d.rest && !d.meetDay);
+    const allLogged = trainDays.length && trainDays.every((d) => done.has(`${w.week}-${d.day}`));
     if (allLogged && !checkins[String(w.week)]) checkinWeek = w.week;
   }
   const attempts = snap && daysToMeet !== null && daysToMeet <= 14 && daysToMeet >= 0 ? attemptPlan(snap.meta?.maxes || {}, logs, snap.meta?.form?.exp, snap.meta?.form?.compLifts) : null;
   const currentWeek = next ? next.week.week : totalWeeks;
   const nextMains = next ? next.day.exercises.filter((e) => e.type === 'Main').slice(0, 3) : [];
   const sessionsDone = logs.length;
-  const sessionsTotal = (snap?.weeks || []).reduce((n, w) => n + (w.days || []).filter((d) => !d.meetDay).length, 0);
+  const sessionsTotal = (snap?.weeks || []).reduce((n, w) => n + (w.days || []).filter((d) => !d.meetDay && !d.rest).length, 0);
   // Last logged main-lift top sets (what a coach glances at)
   const lastLog = logs[0];
   const lastTop = (lastLog?.logged_exercises || []).filter((e) => e.type === 'Main' && !e.skipped).map((e) => {

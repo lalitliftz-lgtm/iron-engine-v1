@@ -150,7 +150,7 @@ export default function Programs() {
           <div className="flex space-x-2 mb-8 overflow-x-auto pb-2 no-print">
             {currentWeekData.days.map((d) => (
               <button key={d.day} onClick={() => setActiveDay(d.day)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeDay === d.day ? 'bg-gray-100 text-gray-900 ring-1 ring-gray-200' : 'text-gray-500 hover:bg-gray-50'}`}>
-                {logged.has(`${activeWeek}-${d.day}`) && <span className="text-green-600 mr-1">✓</span>}{d.weekday ? d.weekday.slice(0, 3) : `Day ${d.day}`}{d.date ? <span className="text-gray-400 ml-1 text-xs">{d.date}</span> : null} <span className="text-gray-400 ml-1 text-xs">{d.focus}</span>
+                {d.rest && <span className="text-gray-300 mr-1">○</span>}{logged.has(`${activeWeek}-${d.day}`) && <span className="text-green-600 mr-1">✓</span>}{d.weekday ? d.weekday.slice(0, 3) : `Day ${d.day}`}{d.date ? <span className="text-gray-400 ml-1 text-xs">{d.date}</span> : null} <span className="text-gray-400 ml-1 text-xs">{d.focus}</span>
               </button>
             ))}
           </div>
@@ -161,7 +161,7 @@ export default function Programs() {
               {currentWeekData.adjustNotes?.map((n, i) => <p key={i}>{n}</p>)}
             </div>
           )}
-          {!currentWeekData.meetWeek && !currentWeekData.taper && currentWeekData.days.every((d) => logged.has(`${activeWeek}-${d.day}`)) && !checkins[String(activeWeek)] && (
+          {!currentWeekData.meetWeek && !currentWeekData.taper && currentWeekData.days.filter((d) => !d.rest && !d.meetDay).every((d) => logged.has(`${activeWeek}-${d.day}`)) && !checkins[String(activeWeek)] && (
             <div className="bg-gray-900 text-white rounded-xl p-4 mb-6 flex items-center justify-between gap-4 flex-wrap no-print">
               <p className="text-sm">Every session this week is logged. Do the 60-second check-in and the engine sets next week's kg.</p>
               <Link to={`/dashboard/checkin?week=${activeWeek}`} className="bg-white text-gray-900 text-sm font-semibold px-4 py-2 rounded-lg whitespace-nowrap">Weekly check-in →</Link>
@@ -198,8 +198,14 @@ export default function Programs() {
                   <h2 className="text-xl font-bold text-gray-900">{currentDayData.focus}{currentDayData.optional ? <span className="ml-2 text-xs font-medium text-gray-400">optional · low stress</span> : null}</h2>
                   {currentDayData.weekday && <p className="text-xs text-gray-500 uppercase tracking-wider">{currentDayData.weekday}{currentDayData.date ? ` ${currentDayData.date}` : ''} · {currentWeekData.label || `Week ${activeWeek}`}{currentWeekData.phase ? ` · ${currentWeekData.phase}` : ''}</p>}
                 </div>
-                {!currentDayData.meetDay && <Link to={`/dashboard/workout?week=${activeWeek}&day=${activeDay}`} className="no-print bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold py-2.5 px-5 rounded-lg transition-colors">Start Workout →</Link>}
+                {!currentDayData.meetDay && !currentDayData.rest && <Link to={`/dashboard/workout?week=${activeWeek}&day=${activeDay}`} className="no-print bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold py-2.5 px-5 rounded-lg transition-colors">Start Workout →</Link>}
               </div>
+              {currentDayData.rest && (
+                <div className="bg-white border border-dashed border-gray-300 rounded-xl p-6">
+                  <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">{currentDayData.focus}</p>
+                  <p className="text-sm text-gray-700">{currentDayData.notes}</p>
+                </div>
+              )}
               {currentDayData.meetDay && (
                 <div className="bg-gray-900 text-white rounded-xl p-6">
                   <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Meet day</p>

@@ -114,7 +114,7 @@ function buildSlides(profile, settings) {
     const m = all.sort((a, b) => (b.kg || 0) - (a.kg || 0))[0];
     return m ? `${LIFT_NAMES[l]} ${m.sets}×${m.reps}${m.kg ? ` @ ${m.kg} kg` : ''}` : null;
   }).filter(Boolean);
-  const sessions = program.weeks.reduce((n, w) => n + w.days.filter((d) => !d.meetDay).length, 0);
+  const sessions = program.weeks.reduce((n, w) => n + w.days.filter((d) => !d.meetDay && !d.rest).length, 0);
   slides.push({ kicker: 'Step 7 · Your block', title: `${program.weeks.length} weeks · ${sessions} sessions`, lines: [`Week 1 heavy work: ${tops.join(' · ') || 'see program'}`, 'Every load rounded to real plates. Every day dated on your calendar.'] });
   return slides;
 }
@@ -294,8 +294,8 @@ export default function GenerateProgram() {
                 </>
               )}
 
-              <Field label="Days Per Week" hint="Be realistic — pick what you can actually sustain">
-                <Seg options={DAYS} value={settings.days} onChange={(v) => set('days', v)} />
+              <Field label="Days Per Week" hint={['taper', 'meetweek'].includes(meet.phase) ? 'Locked — in the last 2 weeks the meet date decides the sessions (fewer sessions, same heavy weights). Other days show as rest / optional recovery.' : meet.phase === 'peak' ? 'Used for the peaking weeks. The taper and meet week will have fewer sessions on purpose.' : 'Be realistic — pick what you can actually sustain'}>
+                <Seg options={DAYS} value={settings.days} onChange={(v) => set('days', v)} locked={['taper', 'meetweek'].includes(meet.phase)} />
               </Field>
 
               <Field label="Weakest Lift" hint="Gets +1 set and a targeted variation" pro={!isPro} locked={!isPro} onLockedClick={lockedClick}>

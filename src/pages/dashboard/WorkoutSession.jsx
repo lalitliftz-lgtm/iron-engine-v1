@@ -132,10 +132,12 @@ export default function WorkoutSession() {
   const nextSession = useMemo(() => {
     const weeks = program?.program_snapshot?.weeks || [];
     const w = weeks.find((x) => x.week === week);
-    const nextDay = w?.days.find((d) => d.day === day + 1);
-    if (nextDay) return { week, day: day + 1, label: `${nextDay.weekday || `Day ${day + 1}`} · ${nextDay.focus}` };
+    const train = (d) => !d.rest && !d.meetDay;
+    const nextDay = w?.days.find((d) => d.day > day && train(d));
+    if (nextDay) return { week, day: nextDay.day, label: `${nextDay.weekday || `Day ${nextDay.day}`} · ${nextDay.focus}` };
     const nw = weeks.find((x) => x.week === week + 1);
-    if (nw?.days?.[0]) return { week: week + 1, day: nw.days[0].day, label: `${nw.label || `Week ${week + 1}`} · ${nw.days[0].focus}` };
+    const first = nw?.days?.find(train);
+    if (first) return { week: week + 1, day: first.day, label: `${nw.label || `Week ${week + 1}`} · ${first.focus}` };
     return null;
   }, [program, week, day]);
 
