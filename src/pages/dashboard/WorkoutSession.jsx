@@ -167,7 +167,7 @@ export default function WorkoutSession() {
               startNotes.push('This session is already in your History. Logging it again adds a second entry — remove one in History if that was a mistake.');
             }
             const lastTrained = (recent || []).find(trained);
-            const gap = lastTrained ? Math.floor((startOfDay(appNow()) - startOfDay(lastTrained.date_completed)) / 864e5) : null;
+            const gap = lastTrained ? Math.round((startOfDay(appNow()) - startOfDay(lastTrained.date_completed)) / 864e5) : null;
             const back = reentry(gap);
             if (back) {
               fresh = fresh.map((ex) => (ex.type !== 'Main' ? ex : { ...ex, loggedSets: ex.loggedSets.map((x) => (x.weight ? { ...x, weight: String(round25(Number(x.weight) * back.factor)) } : x)) }));

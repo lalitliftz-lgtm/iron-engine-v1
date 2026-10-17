@@ -1,7 +1,9 @@
-import { meetPhase } from './engine';
-import { labelToDate, startOfDay } from './schedule';
+import { meetPhase } from './engine.js';
+import { labelToDate, startOfDay, parseYmd } from './schedule.js';
 
 const DAY = 864e5;
+// Calendar arithmetic (not +24 h): across a daylight-saving change a day is 23 or 25 hours long.
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const NAME = { base: 'Base', strength: 'Strength', peak: 'Peak → Taper', taper: 'Taper', meetweek: 'Meet week', beginner: 'Beginner Linear', post: 'Post-meet recovery' };
 const FOCUS = {
   base: 'Muscle + work capacity · 6–8 reps',
@@ -17,30 +19,32 @@ const FOCUS = {
  * Future blocks use the SAME phase rules the engine uses when it builds them (meetPhase), so the roadmap is
  * what will actually happen — but each one is still built from real results when its turn comes.
  */
-export function seasonRoadmap(snap, createdAt, meetDate, exp = 'int') {
+export function seasonRoadmap(snap, createdAt, meetDate, exp = 'int', approx = false) {
   if (!snap?.weeks?.length) return null;
   const dates = snap.weeks.flatMap((w) => w.days.map((d) => labelToDate(d.date, createdAt))).filter(Boolean).sort((a, b) => a - b);
   const start = dates[0] || startOfDay(createdAt || Date.now());
-  const end = dates[dates.length - 1] || new Date(start.getTime() + snap.weeks.length * 7 * DAY - DAY);
+  const end = dates[dates.length - 1] || addDays(start, snap.weeks.length * 7 - 1);
   const blocks = [{ name: snap.blockType || 'Current block', weeks: snap.weeks.length, start, end, current: true }];
 
-  const meet = meetDate ? startOfDay(meetDate) : null;
+  const meet = meetDate ? parseYmd(meetDate) || startOfDay(meetDate) : null;
   if (!meet || meet <= end) return { blocks, meet: meet && meet >= start ? meet : null };
 
   // Next blocks start on the Monday after this one ends.
-  let cursor = new Date(end.getTime() + DAY);
-  while (cursor.getDay() !== 1) cursor = new Date(cursor.getTime() + DAY);
+  let cursor = addDays(end, 1);
+  while (cursor.getDay() !== 1) cursor = addDays(cursor, 1);
   for (let i = 0; i < 12; i++) {
     const days = Math.round((meet - cursor) / DAY);
     if (days <= 0) break;
     const m = meetPhase(days, exp, 0);
     const lenWeeks = m.blockWeeks || (m.phase === 'beginner' && !m.finalDays ? 4 : null);
     if (lenWeeks && m.phase !== 'peak') {
-      const bEnd = new Date(cursor.getTime() + lenWeeks * 7 * DAY - DAY);
+      const bEnd = addDays(cursor, lenWeeks * 7 - 1);
       blocks.push({ name: m.phase === 'beginner' ? 'Beginner Linear' : NAME[m.phase], weeks: lenWeeks, start: cursor, end: bEnd, focus: FOCUS[m.phase] });
-      cursor = new Date(bEnd.getTime() + DAY);
+      cursor = addDays(bEnd, 1);
     } else {
-      blocks.push({ name: NAME[m.phase] || 'Peak → Taper', weeks: Math.ceil(days / 7), start: cursor, end: new Date(meet.getTime() - DAY), focus: FOCUS[m.phase] || FOCUS.peak, final: true });
+      // Unconfirmed date: the engine peaks toward it and then holds "ready" (Peak & Hold) instead of dating a taper.
+      const hold = approx && ['peak', 'taper', 'meetweek'].includes(m.phase);
+      blocks.push({ name: hold ? 'Peak & Hold' : NAME[m.phase] || 'Peak → Taper', weeks: Math.ceil(days / 7), start: cursor, end: addDays(meet, -1), focus: hold ? 'Peak, then stay ready until the date is confirmed' : FOCUS[m.phase] || FOCUS.peak, final: true });
       break;
     }
   }

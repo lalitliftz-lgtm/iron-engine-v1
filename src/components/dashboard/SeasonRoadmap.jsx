@@ -9,7 +9,7 @@ export default function SeasonRoadmap({ program }) {
   const snap = program?.program_snapshot;
   const profile = program?.athlete_profiles || {};
   const approx = profile.assessment_data?.meet_date_status === 'approx';
-  const road = seasonRoadmap(snap, program?.created_at, profile.competition_date, snap?.meta?.form?.exp);
+  const road = seasonRoadmap(snap, program?.created_at, profile.competition_date, snap?.meta?.form?.exp, approx);
   if (!road) return null;
   const { blocks, meet } = road;
   const weeksToMeet = meet ? Math.max(0, Math.ceil((meet - appNow()) / (7 * 864e5))) : null;

@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { Input, TextArea, Choice, Hint } from '../../components/ui/FormControls';
 import { useNavigate, Link } from 'react-router-dom';
+import { parseYmd } from '../../lib/schedule';
 
 const LIFTS = [['squat', 'Squat'], ['bench', 'Bench Press'], ['deadlift', 'Deadlift']];
 const NUMERIC = ['age', 'height_cm', 'bodyweight_kg', 'squat_1rm', 'bench_1rm', 'deadlift_1rm', 'training_days_per_week'];
@@ -310,7 +311,7 @@ export default function AssessmentWizard() {
                   </ReviewSection>
                   <ReviewSection title="Goal" onEdit={() => setCurrentStep(2)}>
                     <ReviewItem label="Primary goal" value={formData.primary_goal} />
-                    <ReviewItem label="Meet" value={hasMeet ? (formData.competition_date ? `${new Date(formData.competition_date).toLocaleDateString()}${formData.meet_date_status === 'approx' ? ' (approx.)' : ''}` : 'Date missing') : 'None'} />
+                    <ReviewItem label="Meet" value={hasMeet ? (formData.competition_date ? `${parseYmd(formData.competition_date).toLocaleDateString()}${formData.meet_date_status === 'approx' ? ' (approx.)' : ''}` : 'Date missing') : 'None'} />
                     {hasMeet && <ReviewItem label="Events" value={{ full: 'Full power', bench: 'Bench only', deadlift: 'Deadlift only', pushpull: 'Push-pull' }[formData.meet_events || 'full']} />}
                     <ReviewItem label="Cutting" value={{ no: 'No', mild: 'Mild', weightclass: 'Weight-class cut' }[formData.cutting || 'no']} />
                   </ReviewSection>

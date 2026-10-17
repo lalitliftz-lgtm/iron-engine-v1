@@ -30,6 +30,12 @@ export function appNow() {
 }
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+/** "2026-12-21" → that calendar day at local midnight. (new Date("2026-12-21") is UTC midnight —
+ *  the previous evening anywhere west of London.) */
+export function parseYmd(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ''));
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+}
 
 /** "16 Oct" (no year) → Date, using the block's creation date to pick the year. */
 export function labelToDate(label, createdAt) {
@@ -78,7 +84,7 @@ export function planSchedule(snap, logs = [], createdAt, now = appNow()) {
 
   const trainedLogs = logs.filter(trained);
   const last = trainedLogs.reduce((a, l) => (!a || new Date(l.date_completed) > new Date(a.date_completed) ? l : a), null);
-  const gapDays = last ? Math.floor((today - startOfDay(last.date_completed)) / DAY) : null;
+  const gapDays = last ? Math.round((today - startOfDay(last.date_completed)) / DAY) : null; // round: DST days are 23/25 h
   // Lifts already trained hard today (main sets ticked) — the 48 h note is only about these.
   const todayLifts = new Set(trainedLogs.filter((l) => startOfDay(l.date_completed).getTime() === today.getTime())
     .flatMap((l) => (l.logged_exercises || []).filter((ex) => ex.type === 'Main' && ex.lift && (ex.loggedSets || []).some((s) => s.completed)).map((ex) => ex.lift)));
@@ -109,6 +115,8 @@ export function planSchedule(snap, logs = [], createdAt, now = appNow()) {
     sessionsTotal: sessions.filter((x) => !x.day.optional).length,
     blockOver,
     blockEnd: lastAt,
+    // Nothing left to train in this block (the rest were missed or done) but its last days haven't passed yet.
+    nothingLeft: !next && !required.some((s) => !s.at || s.at >= today),
     // Only a block that ends AT the meet can run out of sessions "before the meet".
     noneLeftBeforeMeet: hasMeetDay && meetLocked && !next && required.length > 0 && !blockOver,
   };

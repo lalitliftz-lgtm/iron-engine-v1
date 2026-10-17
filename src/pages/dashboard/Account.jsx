@@ -5,6 +5,7 @@ import { useSubscription } from '../../context/SubscriptionContext';
 import { supabase } from '../../lib/supabase';
 import InstallApp from '../../components/dashboard/InstallApp';
 import { TestDateCard } from '../../components/dashboard/TestDate';
+import { parseYmd } from '../../lib/schedule';
 
 const EXP = { Beginner: 'Novice', Intermediate: 'Intermediate', Advanced: 'Advanced' };
 
@@ -44,7 +45,7 @@ export default function Account() {
 
   const pro = status === 'pro_active';
   const a = profile?.assessment_data || {};
-  const meet = profile?.competition_date ? `${new Date(profile.competition_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}${a.meet_date_status === 'approx' ? ' (not confirmed)' : ''}` : 'None booked';
+  const meet = profile?.competition_date ? `${parseYmd(profile.competition_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}${a.meet_date_status === 'approx' ? ' (not confirmed)' : ''}` : 'None booked';
 
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-8 py-8 md:py-12 space-y-6">
