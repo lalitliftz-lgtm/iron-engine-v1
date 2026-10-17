@@ -961,6 +961,28 @@ export function buildProgram(form, maxes) {
   if (plan.final && form.meetDays !== null && form.meetDays !== undefined) {
     const fs = finalStretch(plan.weeks.length ? lead + plan.weeks.length * 7 : 0, form, maxes, rec, tmpl, wdays);
     weeks.push(...fs);
+    // The final stretch is laid out by the calendar, so a meet week can hold opener practice, two singles days
+    // and the primer — more sessions than the athlete has days. Keep each Mon–Sun week within their days:
+    // drop the lightest work first (80% singles, then the earliest taper session); primer and opener stay.
+    const msOf = {};
+    for (let off = 0; off <= (form.meetDays || 0) + 7; off++) msOf[fmt(off)] = T + off * DAY_MS;
+    const byWeek = {};
+    for (const w of weeks) for (const d of w.days) {
+      if (d.rest || d.meetDay || d.optional || msOf[d.date] === undefined) continue;
+      const ms = msOf[d.date];
+      const mon = ms - ((new Date(ms).getUTCDay() + 6) % 7) * DAY_MS;
+      (byWeek[mon] = byWeek[mon] || []).push(d);
+    }
+    const dropRank = (d) => (/^Singles @ 80/.test(d.title) ? 0 : /^Taper/.test(d.title) ? 1 : 9);
+    for (const list of Object.values(byWeek)) {
+      let extra = list.length - form.days;
+      const order = list.map((d, i) => ({ d, i })).sort((a, b) => dropRank(a.d) - dropRank(b.d) || a.i - b.i);
+      for (const { d } of order) {
+        if (extra <= 0 || dropRank(d) === 9) break;
+        Object.assign(d, { title: "Rest day", rest: true, optional: false, main: [], acc: [], note: `Rest — keeps this week to your ${form.days} training days. Walk, mobility, sleep.` });
+        extra--;
+      }
+    }
     const perWeek = Math.max(...fs.map((w) => w.days.filter((d) => !d.rest && !d.meetDay).length));
     if (form.days > perWeek) notes.push(`You train ${form.days} days a week. ${fs.length > 1 ? "Taper and meet week use" : "The final stretch uses"} only ${perWeek} sessions a week — on purpose: cutting volume while keeping the weight heavy is what makes you peak. Every other day is on the calendar as rest or optional recovery (walk, mobility, bar-only technique — no loading).`);
   }

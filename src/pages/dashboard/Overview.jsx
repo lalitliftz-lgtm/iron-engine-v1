@@ -6,7 +6,7 @@ import { applyAdjustments, attemptPlan } from '../../lib/autoreg';
 import { LIFT_NAMES } from '../../lib/engine';
 import StalePlanBanner from '../../components/dashboard/StalePlanBanner';
 import { readDraft, draftSetsDone } from '../../lib/workoutDraft';
-import { planSchedule, reentry, appNow } from '../../lib/schedule';
+import { planSchedule, reentry, appNow, parseYmd, startOfDay } from '../../lib/schedule';
 import SessionActions from '../../components/dashboard/SessionActions';
 import { seasonRoadmap } from '../../lib/roadmap';
 
@@ -55,7 +55,7 @@ export default function Overview() {
   const isPro = subscription && new Date(subscription.end_date) > new Date();
   const firstName = profile?.full_name?.split(' ')[0] || 'Athlete';
   const hasMeet = profile?.competition_date;
-  const daysToMeet = hasMeet ? Math.ceil((new Date(hasMeet) - appNow()) / (1000 * 60 * 60 * 24)) : null;
+  const daysToMeet = hasMeet ? Math.round((parseYmd(hasMeet) - startOfDay(appNow())) / 864e5) : null;
 
   const snap = program ? applyAdjustments(program.program_snapshot, program.program_snapshot.adjustments) : null;
   const checkins = program?.program_snapshot?.adjustments?.checkins || {};
@@ -72,7 +72,7 @@ export default function Overview() {
   const blockDone = !!snap && !next;
   const back = sched ? reentry(sched.gapDays) : null;
   // What the season roadmap says comes next (named on the "block finished" card).
-  const nextBlockName = snap ? seasonRoadmap(snap, program.created_at, profile?.competition_date, snap.meta?.form?.exp)?.blocks?.[1]?.name || null : null;
+  const nextBlockName = snap ? seasonRoadmap(snap, program.created_at, profile?.competition_date, snap.meta?.form?.exp, profile?.assessment_data?.meet_date_status === 'approx')?.blocks?.[1]?.name || null : null;
   // Only the last week's misses are worth a mention; older ones simply count as missed in the block review.
   const weekAgo = new Date(new Date(appNow()).setHours(0, 0, 0, 0) - 7 * 864e5);
   const recentMissed = sched && sched.when !== 'overdue' ? sched.missed.filter((m) => m.at && m.at >= weekAgo).slice(-3) : [];
@@ -198,7 +198,7 @@ export default function Overview() {
         ) : blockDone ? (
           <>
             <p className="text-xs font-semibold uppercase tracking-wider text-green-700">Block complete</p>
-            <h2 className="text-xl font-bold text-gray-900 mt-1">Every session is logged.</h2>
+            <h2 className="text-xl font-bold text-gray-900 mt-1">{sessionsDone >= sessionsTotal ? 'Every session is logged.' : `No sessions left in this block — ${sessionsDone} of ${sessionsTotal} logged.`}</h2>
             <p className="text-sm text-gray-500 mt-1">The engine reviews this block (RPE, misses, check-ins) and builds the next one from it.</p>
             <Link to="/dashboard/generate" className="mt-5 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Build next block</Link>
           </>
