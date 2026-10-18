@@ -170,7 +170,7 @@ export default function WorkoutSession() {
             let fresh = dData.exercises.map((ex) => ({ ...ex, loggedSets: newSets(ex), skipped: false }));
             const { data: recent } = await supabase.from('workout_logs').select('program_id, week_number, day_number, date_completed, logged_exercises').eq('user_id', user.id).order('date_completed', { ascending: false }).limit(20);
             const startNotes = [];
-            if ((recent || []).some((l) => l.program_id === data.id && l.week_number === week && l.day_number === day)) {
+            if ((recent || []).some((l) => l.program_id === data.id && l.week_number === week && l.day_number === day && trained(l))) {
               startNotes.push('This session is already in your History. Logging it again adds a second entry — remove one in History if that was a mistake.');
             }
             const lastTrained = (recent || []).find(trained);

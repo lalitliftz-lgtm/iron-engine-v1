@@ -67,8 +67,10 @@ const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + 
 
 export function planSchedule(snap, logs = [], createdAt, now = appNow()) {
   const today = startOfDay(now);
-  const done = new Set(logs.map((l) => `${l.week_number}-${l.day_number}`));
   const meetLocked = snap?.meta?.meetDays !== null && snap?.meta?.meetDays !== undefined;
+  // "Can't train" (a skip with no sets) closes a session only when a meet pins the calendar.
+  // Without a meet it is still owed: Helms — pick up where you left off.
+  const done = new Set(logs.filter((l) => meetLocked || trained(l)).map((l) => `${l.week_number}-${l.day_number}`));
   const sessions = (snap?.weeks || []).flatMap((w) => (w.days || [])
     .filter((d) => !d.rest && !d.meetDay)
     .map((d) => ({ week: w, day: d, key: `${w.week}-${d.day}`, at: labelToDate(d.date, createdAt) })));
@@ -80,7 +82,10 @@ export function planSchedule(snap, logs = [], createdAt, now = appNow()) {
   const sameDay = (a) => sameDayAs(a, today);
   const todaySession = sessions.find((s) => sameDay(s.at)) || null;
   const todayDone = !!todaySession && done.has(todaySession.key);
-  const todayPending = todaySession && !todayDone ? todaySession : null;           // today's session, optional or not
+  // Anything logged today (a session, or "can't train") ends today: never two sessions in one day.
+  const loggedToday = logs.some((l) => l.date_completed && startOfDay(l.date_completed).getTime() === today.getTime());
+  const skippedToday = loggedToday && !logs.some((l) => l.date_completed && startOfDay(l.date_completed).getTime() === today.getTime() && trained(l));
+  const todayPending = todaySession && !todayDone && !loggedToday ? todaySession : null; // today's session, optional or not
   const upcoming = todayPending || required.find((s) => !s.at || s.at > today) || null;
   const next = upcoming || (meetLocked ? null : required[0] || null);
   // An optional day between today and the next required session: offered, not pushed.
@@ -109,12 +114,13 @@ export function planSchedule(snap, logs = [], createdAt, now = appNow()) {
   // What can be STARTED (Program page + logger). Everything else is viewable but locked until its date;
   // done sessions are locked too (no duplicate logs).
   // Simple rule: only the session dated TODAY can be started. No session today = nothing to start.
-  const loggedToday = logs.some((l) => l.date_completed && startOfDay(l.date_completed).getTime() === today.getTime());
   const weekStart = addDays(today, -((today.getDay() + 6) % 7));
   const weekEnd = addDays(weekStart, 7);
 
   // ---- No meet + behind: pick up where you left off (Helms). The plan slides, nothing is lost. ----
-  const behind = !meetLocked && (!firstAt || today >= firstAt) ? overdue.length : 0;
+  // Skipped today (no meet) also counts: that session is owed from the next training day on.
+  const owed = required.filter((x) => x.at && (x.at < today || (skippedToday && sameDay(x.at))));
+  const behind = !meetLocked && (!firstAt || today >= firstAt) ? owed.length : 0;
   if (behind > 0) {
     const trainDows = new Set(required.filter((x) => x.at).map((x) => x.at.getDay()));
     if (!trainDows.size) for (let i = 0; i < 7; i++) trainDows.add(i);
@@ -137,7 +143,8 @@ export function planSchedule(snap, logs = [], createdAt, now = appNow()) {
       allowed: new Set([primary, catchUp, easier].filter(Boolean).map((x) => x.key)),
       doneKeys: done,
       when: primary ? 'today' : 'upcoming',
-      todayDone: loggedToday,
+      todayDone: loggedToday && !skippedToday,
+      skippedToday,
       optionalBefore: null,
       startsOn: null,
       todayRest: !primary,
@@ -185,6 +192,7 @@ export function planSchedule(snap, logs = [], createdAt, now = appNow()) {
     doneKeys: done,
     when,               // 'today' | 'upcoming' (rest day / today done / ahead) | 'overdue' (all dates passed) | 'next'
     todayDone,
+    skippedToday,
     optionalBefore,
     startsOn,
     todayRest,

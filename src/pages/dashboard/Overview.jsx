@@ -160,7 +160,7 @@ export default function Overview() {
                 Rough day? <Link to={`/dashboard/workout?week=${sched.easier.week.week}&day=${sched.easier.day.day}`} className="font-semibold text-gray-900 underline">Do the easier {sched.easier.day.focus} today instead</Link> — this one moves to your next training day.
               </p>
             )}
-            <SessionActions programId={program.id} week={next.week} day={next.day} onDone={() => setReloadKey((k) => k + 1)} />
+            <SessionActions programId={program.id} week={next.week} day={next.day} meetLocked={sched.meetLocked} onDone={() => setReloadKey((k) => k + 1)} />
           </>
         ) : program && sched?.blockOver ? (
           <>
@@ -178,10 +178,10 @@ export default function Overview() {
             {/* No workout today: nothing to start. Just what today is and what comes next. */}
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Today</p>
             <h2 className="text-xl md:text-2xl font-bold text-gray-900 mt-1">
-              {sched.todayDone ? "Today's session is done ✓" : sched.startsOn ? `Your block starts ${sched.startsOn.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}` : 'Rest day'}
+              {sched.skippedToday ? (sched.meetLocked ? 'Skipped today' : 'Skipped today — it moves to your next training day') : sched.todayDone ? "Today's session is done ✓" : sched.startsOn ? `Your block starts ${sched.startsOn.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}` : 'Rest day'}
             </h2>
             <p className="text-sm text-gray-500 mt-1">
-              {sched.todayDone ? 'Recover: eat, sleep, walk.' : restToday?.notes || 'No workout today. Rest is when you actually get stronger.'}
+              {sched.skippedToday ? 'Rest up. Nothing is lost — pick up where you left off next time.' : sched.todayDone ? 'Recover: eat, sleep, walk.' : restToday?.notes || 'No workout today. Rest is when you actually get stronger.'}
             </p>
             {!sched.todayDone && sched.catchUp && (
               <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-800">

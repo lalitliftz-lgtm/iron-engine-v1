@@ -19,7 +19,7 @@ async function post(body) {
  * the app ("Mark done"), or they can't train ("Skip"). Both keep the plan moving
  * and keep History honest. Neither guilt-trips — one missed day changes nothing.
  */
-export default function SessionActions({ programId, week, day, onDone }) {
+export default function SessionActions({ programId, week, day, onDone, meetLocked = false }) {
   const [open, setOpen] = useState(null); // 'skip' | 'done'
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -51,7 +51,9 @@ export default function SessionActions({ programId, week, day, onDone }) {
       )}
       {open === 'skip' && (
         <div className="mt-3 bg-gray-50 border border-gray-200 rounded-xl p-4">
-          <p className="text-sm text-gray-700 mb-3">No problem — one missed session changes nothing. Don't double up tomorrow; just do the next one. Why are you skipping?</p>
+          <p className="text-sm text-gray-700 mb-3">{meetLocked
+            ? "No problem. Your meet date can't move, so the plan continues with the next session (a missed hard session can be made up on a free day this week). Why can't you train?"
+            : 'No problem — nothing is lost. This session moves to your next training day and the plan slides along. Never two sessions in one day. Why can\'t you train?'}</p>
           <div className="grid grid-cols-2 gap-2">
             {REASONS.map(([v, l]) => (
               <button key={v} type="button" disabled={busy} onClick={() => run({ loggedExercises: skipped(), skipReason: v })} className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-100 text-left disabled:opacity-50">{l}</button>
