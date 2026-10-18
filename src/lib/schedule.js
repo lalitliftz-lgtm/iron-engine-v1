@@ -84,6 +84,7 @@ export function planSchedule(snap, logs = [], createdAt, now = appNow()) {
   const todayDone = !!todaySession && done.has(todaySession.key);
   // Anything logged today (a session, or "can't train") ends today: never two sessions in one day.
   const loggedToday = logs.some((l) => l.date_completed && startOfDay(l.date_completed).getTime() === today.getTime());
+  const trainedKeys = new Set(logs.filter(trained).map((l) => `${l.week_number}-${l.day_number}`));
   const skippedToday = loggedToday && !logs.some((l) => l.date_completed && startOfDay(l.date_completed).getTime() === today.getTime() && trained(l));
   const todayPending = todaySession && !todayDone && !loggedToday ? todaySession : null; // today's session, optional or not
   const upcoming = todayPending || required.find((s) => !s.at || s.at > today) || null;
@@ -119,7 +120,8 @@ export function planSchedule(snap, logs = [], createdAt, now = appNow()) {
 
   // ---- No meet + behind: pick up where you left off (Helms). The plan slides, nothing is lost. ----
   // Skipped today (no meet) also counts: that session is owed from the next training day on.
-  const owed = required.filter((x) => x.at && (x.at < today || (skippedToday && sameDay(x.at))));
+  // Same if today went to another session (catch-up / easier swap): today's own session is owed too.
+  const owed = required.filter((x) => x.at && (x.at < today || (loggedToday && sameDay(x.at))));
   const behind = !meetLocked && (!firstAt || today >= firstAt) ? owed.length : 0;
   if (behind > 0) {
     const trainDows = new Set(required.filter((x) => x.at).map((x) => x.at.getDay()));
@@ -172,7 +174,9 @@ export function planSchedule(snap, logs = [], createdAt, now = appNow()) {
   // ---- Meet block: a missed HARD session can be made up on a free day of the same week, 5% lighter. ----
   const isMeetDayOn = (day) => allDays.some((x) => x.meetDay && sameDayAs(labelToDate(x.date, createdAt), day));
   const makeUp = meetLocked && !loggedToday && !todayPending && !isMeetDayOn(today) && !isMeetDayOn(addDays(today, 1))
-    ? overdue.find((x) => x.at >= weekStart && !isLowStress(x)) || null
+    ? required.concat(sessions.filter((x) => done.has(x.key) && !x.day.optional && !trainedKeys.has(x.key))) // skipped ("can't train") counts as missed here
+      .filter((x) => !trainedKeys.has(x.key) && x.at && x.at < today && x.at >= weekStart && !isLowStress(x))
+      .sort((a, b) => a.at - b.at)[0] || null
     : null;
   // Rough day: this week's easiest remaining session may go first (not in the taper / meet week).
   const base = todayPending && !todayPending.day.optional && !loggedToday && !todayPending.week.taper && !todayPending.week.meetWeek ? todayPending : null;
@@ -191,7 +195,7 @@ export function planSchedule(snap, logs = [], createdAt, now = appNow()) {
     allowed,
     doneKeys: done,
     when,               // 'today' | 'upcoming' (rest day / today done / ahead) | 'overdue' (all dates passed) | 'next'
-    todayDone,
+    todayDone: todayDone || (loggedToday && !skippedToday), // trained today, whichever session it was
     skippedToday,
     optionalBefore,
     startsOn,

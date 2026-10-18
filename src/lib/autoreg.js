@@ -11,7 +11,8 @@
 import { round25, epley, rpeFor, LIFT_NAMES } from "./engine.js";
 
 const LIFTS = ["squat", "bench", "deadlift"];
-const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+// Blank ('' / null) means "not logged" — never 0 (an untapped RPE read as 0 looked like a very easy set).
+const num = (v) => { if (v === '' || v === null || v === undefined) return null; const n = Number(v); return Number.isFinite(n) ? n : null; };
 const rpeOf = (rpeStr) => { const m = String(rpeStr ?? "").match(/\d+(\.\d+)?/g); return m ? Number(m[m.length - 1]) : null; }; // "RPE 5–6" → 6
 /** Competition-lift work the matrix steers (not technique/speed, activation, singles or variations). */
 const NOT_STEERED = /Technique|Activation|single|commands|Paused|Variation|Box|Pin|Deficit|Tempo|Spoto|Close|Larsen|Block|Front|Belt|Slingshot|Floor|Feet/i;
@@ -56,7 +57,7 @@ export function weekLiftSummary(weekPlan, logs) {
       if (s.targetRpe === null || target > s.targetRpe) s.targetRpe = target; // the heaviest slot defines the lift's week
       const targetReps = parseInt(String(ex.reps), 10) || null;
       for (const set of ex.loggedSets || []) {
-        if (!set.completed) continue;
+        if (!set.completed || set.planned) continue; // "marked done as planned" has no real numbers to steer by
         s.planned++;
         const r = num(set.rpe);
         if (r !== null) {

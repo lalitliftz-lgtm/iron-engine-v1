@@ -108,6 +108,13 @@ a.bg-gray-900:hover { background-color: var(--ll-red-dim) !important; }
 .border-red-100, .border-red-200, .border-red-300 { border-color: rgba(255,107,129,.4) !important; }
 .text-blue-600, .text-blue-700, .text-blue-800 { color: var(--ll-brass) !important; }
 .hover\:text-blue-800:hover { color: #e3c06f !important; }
+.bg-blue-50, .bg-blue-100 { background-color: rgba(201,162,75,.10) !important; }
+.border-blue-100, .border-blue-200 { border-color: rgba(201,162,75,.4) !important; }
+.text-blue-900 { color: var(--ll-chalk) !important; }
+/* Near-black accents disappear on the dark theme: spinners, selected options, sliders. */
+.border-gray-900 { border-color: var(--ll-chalk) !important; }
+.border-t-transparent { border-top-color: transparent !important; }
+.accent-gray-900 { accent-color: #C8102E !important; }
 .text-red-500 { color: #ef3b55 !important; }
 
 /* --- tap-card choices (assessment) --- */

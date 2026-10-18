@@ -36,6 +36,8 @@ export default function Landing() {
         .ll-card { transition: transform .18s ease, border-color .18s ease; }
         .ll-card:hover { transform: translateY(-3px); border-color: ${C.red} !important; }
         @media (prefers-reduced-motion: reduce) { .ll-card { transition: none !important; } }
+        /* Phones: the sticky bar keeps only Log in / Get Started (the page sections are a scroll away). */
+        @media (max-width: 520px) { .ll-nav-scroll { display: none !important; } }
       `}</style>
 
       {/* ---------- NAV ---------- */}
@@ -77,6 +79,7 @@ export default function Landing() {
             ].map(([l, id]) => (
               <button
                 key={id}
+                className="ll-nav-scroll"
                 onClick={() => scrollTo(id)}
                 style={{
                   padding: "8px 12px",

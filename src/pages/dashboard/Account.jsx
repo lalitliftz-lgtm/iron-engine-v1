@@ -39,7 +39,7 @@ export default function Account() {
   }, [user]);
 
   const reset = async () => {
-    const { error } = await supabase.auth.resetPasswordForEmail(user.email, { redirectTo: `${window.location.origin}/forgot-password` });
+    const { error } = await supabase.auth.resetPasswordForEmail(user.email, { redirectTo: `${window.location.origin}/reset-password` });
     setResetMsg(error ? error.message : 'Reset link sent to your email.');
   };
   const out = async () => { await signOut(); navigate('/'); };

@@ -28,7 +28,7 @@ export default function SessionActions({ programId, week, day, onDone, meetLocke
 
   // The id stops double-taps saving twice — it includes the day, because a session that was skipped
   // can be skipped (or marked done) again on a later day while you're catching up.
-  const base = { programId, weekNumber: week.week, dayNumber: day.day, durationSeconds: 0, clientId: `${programId}-${week.week}-${day.day}-${open}-${localYmd(appNow())}` };
+  const base = { programId, weekNumber: week.week, dayNumber: day.day, durationSeconds: 0, clientId: `${programId}-${week.week}-${day.day}-${open}-${localYmd(appNow())}`, completedAt: appNow().toISOString() };
   const asPlanned = () => day.exercises.map((ex) => ({
     ...ex,
     skipped: false,

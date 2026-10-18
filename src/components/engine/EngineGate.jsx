@@ -61,7 +61,7 @@ export default function EngineGate() {
                 maxWidth: 480,
               }}
             >
-              Full 4-week blocks · sticking-point analysis · injury-aware swaps
+              Full 4-week blocks · sticking-point analysis · unlimited blocks
               · block focus · unlimited programs · Excel + PDF export · saved to
               your account
             </div>

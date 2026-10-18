@@ -67,7 +67,7 @@ export default function PaymentProcessing() {
               <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
             </div>
             <h1 className="text-xl font-bold text-gray-900 mb-2">Payment Successful!</h1>
-            <p className="text-gray-500 text-sm mb-8">Your Iron Engine Pro access is now active. Redirecting to your dashboard...</p>
+            <p className="text-gray-500 text-sm mb-8">Payment confirmed — your purchase is unlocked. Opening your receipt…</p>
           </>
         )}
         {status === 'timeout' && (

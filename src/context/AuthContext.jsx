@@ -39,8 +39,9 @@ export const AuthProvider = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email, password) => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+  // emailRedirectTo: where the "verify your email" link lands (keeps ?next= / ?product=).
+  const signUp = async (email, password, emailRedirectTo) => {
+    const { data, error } = await supabase.auth.signUp({ email, password, options: emailRedirectTo ? { emailRedirectTo } : undefined });
     return { data, error };
   };
 

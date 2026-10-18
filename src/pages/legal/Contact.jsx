@@ -1,11 +1,17 @@
 import LegalLayout from '../../components/LegalLayout';
+import { CONFIG } from '../../config/siteConfig';
 
 export default function Contact() {
   return (
-    <LegalLayout title="Contact Us" lastUpdated="October 26, 2023">
+    <LegalLayout title="Contact Us" lastUpdated="2026-10-19">
       <p>We are here to help. If you have any questions regarding your subscription, the Iron Engine, or need technical support, please reach out to us.</p>
       <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 mt-6 space-y-4 not-prose">
         <div>
+          <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-1">WhatsApp</h3>
+          <a href={`https://wa.me/${CONFIG.whatsapp}`} target="_blank" rel="noreferrer" className="text-gray-600 underline">+{CONFIG.whatsapp.replace(/^91/, '91 ')}</a>
+          <p className="text-xs text-gray-400 mt-1">Fastest for payment or access questions.</p>
+        </div>
+        <div className="pt-4 border-t border-gray-200">
           <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-1">Email Support</h3>
           <p className="text-gray-600">support@lalitlifts.com</p>
           <p className="text-xs text-gray-400 mt-1">We respond within 24-48 hours.</p>

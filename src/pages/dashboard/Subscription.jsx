@@ -56,6 +56,8 @@ export default function Subscription() {
       try { localStorage.removeItem(INVITE_KEY); } catch { /* ignore */ }
       setInviteMsg({ ok: true, text: `Done — Pro is free until ${new Date(body.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}. Reloading…` });
       setTimeout(() => window.location.reload(), 1500); // refresh the Pro status everywhere
+    } catch {
+      setInviteMsg({ ok: false, text: 'No connection — check your internet and try again.' });
     } finally {
       setInviteBusy(false);
     }
@@ -143,7 +145,7 @@ export default function Subscription() {
   if (loading) return <div className="animate-pulse text-knurl">Loading subscription…</div>;
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto px-4 md:px-8 py-6 md:py-10">
       <h2 className="text-3xl text-chalk mb-8" style={{ fontFamily: "'Archivo Black', sans-serif" }}>My Subscription</h2>
 
       {/* A PDF guide coming from the storefront gets its own buy card; Pro is bought from the plan picker below. */}
