@@ -335,12 +335,14 @@ export default function Landing() {
                       {p.cta} →
                     </button>
                   ) : p.id === "coaching" ? (
-                    <button
-                      onClick={() => scrollTo("coaching")}
-                      style={btnBrassOutline}
+                    <a
+                      href={CONFIG.coachingFormUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ ...btnBrassOutline, textDecoration: "none" }}
                     >
                       {p.cta} →
-                    </button>
+                    </a>
                   ) : (
                     <button onClick={() => buyProduct(p)} style={btnRed}>
                       {p.cta} →

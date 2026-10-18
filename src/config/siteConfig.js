@@ -11,7 +11,21 @@ export const CONFIG = {
   tagline: "Science-Based Powerlifting. No Bro-Science.",
   credentials:
     "State & District Gold Medalist · All India Inter-University Powerlifter",
-  coachingFormUrl: "#", // 👈 your Google Form link for 1:1 coaching applications
+  // 1:1 coaching applications open WhatsApp with this draft already typed — the lifter fills the blanks and sends.
+  whatsapp: "918279951257", // 👈 country code + number, no + or spaces
+  coachingMessage: [
+    "Hi Lalit! I want to apply for 1:1 Online Coaching.",
+    "",
+    "Name:",
+    "Age / Bodyweight:",
+    "Training experience (years):",
+    "Best lifts — Squat / Bench / Deadlift:",
+    "Training days per week:",
+    "Goal (meet / strength / muscle):",
+    "Any injuries or pain:",
+    "",
+    "(Sent from the LalitLifts website)",
+  ].join("\n"),
 
   // Iron Engine Pro plans. `productName` must match products.name in Supabase; the database price is what PayU
   // charges and products.duration_days is how long access lasts — keep these display prices in sync with it.
@@ -82,3 +96,6 @@ export const CONFIG = {
     },
   ],
 };
+
+// WhatsApp link for coaching applications (draft message pre-filled).
+CONFIG.coachingFormUrl = `https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(CONFIG.coachingMessage)}`;
