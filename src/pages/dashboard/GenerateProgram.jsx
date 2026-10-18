@@ -303,27 +303,31 @@ export default function GenerateProgram() {
                 <Seg options={[{ v: 'focused', l: 'Focused', s: 'essentials only' }, { v: 'balanced', l: 'Balanced', s: '3–4 a day' }, { v: 'full', l: 'Full', s: 'more pump work' }]} value={settings.style || 'balanced'} onChange={(v) => set('style', v)} />
               </Field>
 
-              <Field label="Weakest Lift" hint="Gets +1 set and a targeted variation" pro={!isPro} locked={!isPro} onLockedClick={lockedClick}>
-                <Seg options={WEAK} value={settings.weak} onChange={setWeak} locked={!isPro} />
-              </Field>
-              {isPro && settings.weak !== 'none' && (
+              {!isBeg && (
                 <>
-                  <Field label={`${LIFT_NAMES[settings.weak]} — where does it fail?`} hint="Symptom → test → hypothesis → intervention → reassess in 4–6 weeks">
-                    <Seg options={Object.entries(STICKING[settings.weak]).map(([k, v]) => ({ v: k, l: v.l }))} value={settings.sticking} onChange={setSticking} />
-                  </Field>
-                  <Field label="Is it strength, technique or fatigue?" hint="Technique → lighter variation, no extra accessories. Fatigue → less volume, nothing new.">
-                    <Seg options={WEAK_TYPE} value={settings.weakType || 'strength'} onChange={(v) => set('weakType', v)} />
-                  </Field>
-                  {st && settings.weakType !== 'fatigue' && (
-                    <Field label="Variation (secondary lift)" hint="Default is first; pick what fits you and your gym">
-                      <Seg options={st.variations.map((v, i) => ({ v: i, l: v.name }))} value={settings.variationIdx || 0} onChange={(v) => set('variationIdx', v)} />
+                <Field label="Weakest Lift" hint="Gets +1 set and a targeted variation" pro={!isPro} locked={!isPro} onLockedClick={lockedClick}>
+                  <Seg options={WEAK} value={settings.weak} onChange={setWeak} locked={!isPro} />
+                </Field>
+                {isPro && settings.weak !== 'none' && (
+                  <>
+                    <Field label={`${LIFT_NAMES[settings.weak]} — where does it fail?`} hint="Symptom → test → hypothesis → intervention → reassess in 4–6 weeks">
+                      <Seg options={Object.entries(STICKING[settings.weak]).map(([k, v]) => ({ v: k, l: v.l }))} value={settings.sticking} onChange={setSticking} />
                     </Field>
-                  )}
-                  {st && settings.weakType === 'strength' && (
-                    <Field label="Weak-point accessory" hint={st.note}>
-                      <Seg options={st.accessories.map((a, i) => ({ v: i, l: a.name, s: a.sr }))} value={settings.accIdx || 0} onChange={(v) => set('accIdx', v)} />
+                    <Field label="Is it strength, technique or fatigue?" hint="Technique → lighter variation, no extra accessories. Fatigue → less volume, nothing new.">
+                      <Seg options={WEAK_TYPE} value={settings.weakType || 'strength'} onChange={(v) => set('weakType', v)} />
                     </Field>
-                  )}
+                    {st && settings.weakType !== 'fatigue' && (
+                      <Field label="Variation (secondary lift)" hint="Default is first; pick what fits you and your gym">
+                        <Seg options={st.variations.map((v, i) => ({ v: i, l: v.name }))} value={settings.variationIdx || 0} onChange={(v) => set('variationIdx', v)} />
+                      </Field>
+                    )}
+                    {st && settings.weakType === 'strength' && (
+                      <Field label="Weak-point accessory" hint={st.note}>
+                        <Seg options={st.accessories.map((a, i) => ({ v: i, l: a.name, s: a.sr }))} value={settings.accIdx || 0} onChange={(v) => set('accIdx', v)} />
+                      </Field>
+                    )}
+                  </>
+                )}
                 </>
               )}
 

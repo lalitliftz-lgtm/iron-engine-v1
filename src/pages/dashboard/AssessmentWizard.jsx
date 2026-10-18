@@ -153,6 +153,8 @@ export default function AssessmentWizard() {
   const progress = ((currentStep + 1) / steps.length) * 100;
   const formData = watch();
   const isBeginner = watch('experience_level') === 'Beginner';
+  // The engine treats "lifts go up almost every session" as a beginner too.
+  const noviceLike = isBeginner || watch('progress_rate') === 'session';
   const hasMeet = watch('competition_status') === 'true';
 
   return (
@@ -263,16 +265,27 @@ export default function AssessmentWizard() {
             )}
             {currentStep === 4 && (
               <div>
-                <Heading title="Where do you break down?" sub="Weak points pick your variations and accessories. Not sure? Leave “No specific weakness” — that's a fine answer." />
-                <Choice label="Squat" {...register('squat_weak_point')}
-                  options={[['None', 'No specific weakness'], ['Hole', 'Fails in the hole', 'Bottom of the squat'], ['Mid-range', 'Stalls mid-range', 'Just above parallel'], ['Lockout', "Can't finish the lockout"], ['Core/Collapse', 'Chest drops / hips shoot up']]} />
-                <Choice label="Bench" {...register('bench_weak_point')}
-                  options={[['None', 'No specific weakness'], ['Chest/Off-chest', 'Off the chest', 'Bottom of the bench'], ['Mid-range', 'Stalls mid-range'], ['Lockout', 'Fails at lockout'], ['Unstable', 'Bar path changes every rep', 'Touch point moves around']]} />
-                <Choice label="Deadlift" {...register('deadlift_weak_point')}
-                  options={[['None', 'No specific weakness'], ['Off-floor', "Can't break the floor"], ['Mid-range', 'Stalls around the knee'], ['Lockout', "Can't finish the lockout"]]} />
-                <Choice label="What kind of problem is it?" {...register('weak_type')}
-                  hint="Technique issue → lighter variations, not more accessories. Fatigue → less volume, not a new exercise."
-                  options={[['strength', 'Strength', 'Form is fine, the bar just slows down when heavy'], ['technique', 'Technique', 'Form breaks even with light weight'], ['fatigue', 'Fatigue', 'Even warm-ups feel heavy lately']]} />
+                {noviceLike ? (
+                  <>
+                    <Heading title="Your lifts, your style." sub="A few quick questions about how you squat and pull." />
+                    <div className="mb-5 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <b className="text-gray-900">No weak point needed yet.</b> As a beginner every lift is still learning its movement — where it fails is usually technique, not a weak muscle. All three lifts get even work, and each lift shows form cues in the workout. Weak-point work starts once your progress slows.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Heading title="Where do you break down?" sub="Weak points pick your variations and accessories. Not sure? Leave “No specific weakness” — that's a fine answer." />
+                    <Choice label="Squat" {...register('squat_weak_point')}
+                      options={[['None', 'No specific weakness'], ['Hole', 'Fails in the hole', 'Bottom of the squat'], ['Mid-range', 'Stalls mid-range', 'Just above parallel'], ['Lockout', "Can't finish the lockout"], ['Core/Collapse', 'Chest drops / hips shoot up']]} />
+                    <Choice label="Bench" {...register('bench_weak_point')}
+                      options={[['None', 'No specific weakness'], ['Chest/Off-chest', 'Off the chest', 'Bottom of the bench'], ['Mid-range', 'Stalls mid-range'], ['Lockout', 'Fails at lockout'], ['Unstable', 'Bar path changes every rep', 'Touch point moves around']]} />
+                    <Choice label="Deadlift" {...register('deadlift_weak_point')}
+                      options={[['None', 'No specific weakness'], ['Off-floor', "Can't break the floor"], ['Mid-range', 'Stalls around the knee'], ['Lockout', "Can't finish the lockout"]]} />
+                    <Choice label="What kind of problem is it?" {...register('weak_type')}
+                      hint="Technique issue → lighter variations, not more accessories. Fatigue → less volume, not a new exercise."
+                      options={[['strength', 'Strength', 'Form is fine, the bar just slows down when heavy'], ['technique', 'Technique', 'Form breaks even with light weight'], ['fatigue', 'Fatigue', 'Even warm-ups feel heavy lately']]} />
+                  </>
+                )}
                 <div className="grid grid-cols-2 gap-x-3">
                   <Choice label="Squat style" {...register('squat_bar')}
                     options={[['high', 'High-bar'], ['low', 'Low-bar'], ['', 'Not sure']]} />

@@ -268,7 +268,7 @@ export function dayTemplates(days, exp, focus) {
     const out = [...base];
     // 4+ days: the 4th day carries the accessories so the main-lift days stay short (Helms 4-day novice option).
     if (days >= 4) out.push(T("Accessory Day — Back, Shoulders, Single-Leg", [], "begAcc"));
-    for (let i = 4; i < days; i++) out.push({ ...T("Technique + GPP (Optional)", [], "gpp"), optional: true, support: true });
+    for (let i = 4; i < days; i++) out.push({ ...T("Optional — Light Technique + Fitness (GPP)", [], "gpp"), optional: true, support: true });
     return out;
   }
   const t = TEMPLATES[focus] || TEMPLATES.bal;
@@ -335,26 +335,35 @@ export const ACC = {
     { name: "Core: Dead Bug / Plank", sr: "3 × 30–45 sec", rpe: "—" },
     { name: "Mobility circuit (hips, ankles, T-spine)", sr: "10–15 min", rpe: "easy" },
   ],
+  // Novice days: one pull, one leg/hip and one core movement next to the two main lifts (+ arms/delts by style).
+  // The 4th day is a real accessory session: legs, hinge, press, two pulls, core.
   begAcc: [
     { name: "Bulgarian Split Squat or Step-up", sr: "3 × 8/leg", rpe: "RPE 8" },
-    { name: "Chest-Supported Row", sr: "4 × 10", rpe: "RPE 8" },
-    { name: "Overhead Press (DB or Barbell)", sr: "4 × 10", rpe: "RPE 8" },
-    { name: "Lat Pulldown or Pull-ups", sr: "4 × 10", rpe: "RPE 8" },
+    { name: "Romanian Deadlift (light)", sr: "3 × 10", rpe: "RPE 7" },
+    { name: "Overhead Press (DB or Barbell)", sr: "3 × 10", rpe: "RPE 8" },
+    { name: "Lat Pulldown or Pull-ups", sr: "3 × 10", rpe: "RPE 8" },
+    { name: "Chest-Supported Row", sr: "3 × 10", rpe: "RPE 8" },
+    { name: "Side Plank", sr: "3 × 20–30 sec/side", rpe: "—" },
   ],
   pullA: [
-    { name: "Barbell Row", sr: "3 × 8–10", rpe: "RPE 8" },
+    { name: "Chest-Supported Row", sr: "3 × 10", rpe: "RPE 8" },
+    { name: "Leg Curl", sr: "3 × 10–12", rpe: "RPE 8" },
     { name: "Plank", sr: "3 × 30–45 sec", rpe: "—" },
   ],
   pullB: [
     { name: "Lat Pulldown or Pull-ups", sr: "3 × 8–12", rpe: "RPE 8" },
-    { name: "Biceps Curl", sr: "2 × 10–12", rpe: "RPE 8" },
+    { name: "Leg Press or Goblet Squat", sr: "3 × 10", rpe: "RPE 8" },
+    { name: "Push-ups", sr: "2 × 10–15", rpe: "RPE 8" },
+    { name: "Dead Bug", sr: "3 × 8/side", rpe: "—" },
   ],
   pullC: [
-    { name: "Chin-ups or Lat Pulldown", sr: "3 × 8–12", rpe: "RPE 8" },
-    { name: "Triceps Pushdown", sr: "2 × 10–12", rpe: "RPE 8" },
+    { name: "Back Extension", sr: "3 × 12", rpe: "RPE 7–8" },
+    { name: "Face Pull + Band Pull-Apart", sr: "3 × 15", rpe: "RPE 8" },
+    { name: "Hanging Knee Raise", sr: "3 × 10", rpe: "—" },
   ],
   gpp: [
-    { name: "Light technique: SBD practice up to 50%", sr: "3 × 5", rpe: "RPE 5–6" },
+    // GPP = general physical preparedness: plain fitness (heart, lungs, core, mobility) that helps you recover.
+    { name: "Light technique: pick 1–2 lifts that felt worst this week — empty bar up to 50%", sr: "3 × 5", rpe: "RPE 5–6" },
     { name: "Sled push / incline walk / cardio", sr: "15–20 min", rpe: "easy" },
     { name: "Core + mobility circuit", sr: "10–15 min", rpe: "—" },
   ],
@@ -371,12 +380,12 @@ export const EXTRAS = {
   volumeDay: [{ name: "Lateral Raise", sr: "3 × 12–15", rpe: "RPE 8–9" }, { name: "Overhead Triceps Extension", sr: "3 × 10–12", rpe: "RPE 8" }],
   squatVol: [{ name: "Standing Calf Raise", sr: "3 × 12–15", rpe: "RPE 8" }, { name: "Hanging Knee Raise", sr: "3 × 10–15", rpe: "RPE 8" }],
   upperDay: [{ name: "Lateral Raise", sr: "3 × 12–15", rpe: "RPE 8–9" }, { name: "Hammer Curl", sr: "3 × 10–12", rpe: "RPE 8" }],
-  begAcc: [{ name: "Lateral Raise", sr: "2 × 12–15", rpe: "RPE 8" }, { name: "Biceps Curl", sr: "2 × 10–12", rpe: "RPE 8" }],
-  pullA: [{ name: "Lateral Raise", sr: "2 × 12–15", rpe: "RPE 8" }],
-  pullB: [{ name: "Triceps Pushdown", sr: "2 × 10–12", rpe: "RPE 8" }],
-  pullC: [{ name: "Hammer Curl", sr: "2 × 10–12", rpe: "RPE 8" }],
+  begAcc: [{ name: "Lateral Raise", sr: "3 × 12–15", rpe: "RPE 8" }, { name: "Biceps Curl", sr: "3 × 10–12", rpe: "RPE 8" }],
+  pullA: [{ name: "Lateral Raise", sr: "3 × 12–15", rpe: "RPE 8" }, { name: "Biceps Curl", sr: "2 × 10–12", rpe: "RPE 8" }],
+  pullB: [{ name: "Triceps Pushdown", sr: "3 × 10–12", rpe: "RPE 8" }, { name: "Hammer Curl", sr: "2 × 10–12", rpe: "RPE 8" }],
+  pullC: [{ name: "Biceps Curl", sr: "3 × 10–12", rpe: "RPE 8" }, { name: "Triceps Pushdown", sr: "2 × 10–12", rpe: "RPE 8" }],
 };
-/** Extras per training day by style: focused 0 · balanced 1 · full 2 (beginners one less). */
+/** Extras per training day by style: focused 0 · balanced 1 · full 2. */
 const EXTRAS_PER_DAY = { focused: 0, balanced: 1, full: 2 };
 
 /* ---------------- Injury swaps ---------------- */
@@ -388,10 +397,13 @@ export const SWAPS = {
     "Hanging Leg Raise / Ab Wheel": "Dead Bug / Plank (spine-safe)",
     "Walking Lunge": "Leg Press (light, spine-safe)",
     "Good Morning": "Leg Curl (spine-safe swap)",
+    "Romanian Deadlift (light)": "Leg Curl (spine-safe swap)",
     "Snatch-Grip Deadlift (light, upper back)": "Chest-Supported Row (spine-safe)",
   },
   knee: {
     "Leg Press or Bulgarian Split Squat": "Hip Thrust (knee-friendly)",
+    "Bulgarian Split Squat or Step-up": "Hip Thrust (knee-friendly)",
+    "Leg Press or Goblet Squat": "Leg Press (pain-free ROM only)",
     "Walking Lunge": "Leg Curl (knee-friendly swap)",
     "Leg Press (deep ROM)": "Leg Press (pain-free ROM only)",
     "Leg Press (quad focus)": "Leg Press (pain-free ROM only)",
@@ -424,6 +436,8 @@ const EQUIP_SUBS = {
   basic: [
     ["Cable Crunch / Weighted Plank", "Weighted Plank / DB Crunch"],
     ["Leg Press or Bulgarian Split Squat", "Bulgarian Split Squat (DB)"],
+    ["Leg Press or Goblet Squat", "Goblet Squat (DB)"],
+    ["Leg Press (pain-free ROM only)", "Glute Bridge / Hip Thrust (knee-friendly)"],
     ["Leg Press (deep ROM)", "Goblet Squat (deep, pause)"],
     ["Leg Press (quad focus)", "Front Squat (light) or Goblet Squat"],
     ["Leg Press (leg drive focus)", "Front Squat (light)"],
@@ -463,6 +477,8 @@ const EQUIP_SUBS = {
     ["Overhead Triceps Extension", "Skull Crushers (bar)"],
     ["Cable Crunch / Weighted Plank", "Weighted Plank (plate)"],
     ["Leg Press or Bulgarian Split Squat", "Bulgarian Split Squat (bodyweight / plate)"],
+    ["Leg Press or Goblet Squat", "Goblet Squat (plate) or Front Squat (light)"],
+    ["Leg Press (pain-free ROM only)", "Glute Bridge / Hip Thrust (knee-friendly)"],
     ["Leg Press (deep ROM)", "Paused Goblet Squat with a plate"],
     ["Leg Press (quad focus)", "Front Squat (light)"],
     ["Leg Press (leg drive focus)", "Front Squat (light)"],
@@ -855,7 +871,7 @@ function finalStretch(startOffset, form, maxes, rec, tmpl, wdays) {
       if (!main.length) return;
       main[0].note = main[0].note || "Taper: intensity stays, volume halves. Low reps keep the RPE low — this should feel crisp, never hard.";
       // Bench-only lifters don't need leg/hinge accessories in the taper.
-      const accPool = applyEquipment(applySwaps([...(ACC[t.acc] || [])], form.injuries), form.equipment).filter((a) => on("squat") || on("deadlift") || !["lower", "hinge"].includes(accBucket(a.name)));
+      const accPool = applyEquipment(applySwaps([...(ACC[t.acc] || [])], form.injuries), form.equipment).filter((a) => on("squat") || on("deadlift") || !["quads", "posterior"].includes(accBucket(a.name)));
       const acc = accPool.slice(0, 2).map((a) => ({ ...a, sr: a.sr.includes("×") ? a.sr.replace(/^\d+/, "2") : a.sr, rpe: a.rpe === "—" ? a.rpe : "RPE 7" }));
       taperDays.push(day(`Taper — ${comp.length === 3 ? "all three lifts" : platform} (${variant === 0 ? "doubles" : "triples"})`, main, { acc }));
     }
@@ -888,6 +904,9 @@ const MEET_WEEK_NOTES = [
 ];
 
 export function buildProgram(form, maxes) {
+  // Novices don't specialise: every lift is still learning its pattern, so a "weak point" is really technique.
+  // Even volume on all three lifts + cues; weak-point work starts once progress slows (intermediate).
+  if (form.exp === "beg" && ((form.weak && form.weak !== "none") || (form.weakType && form.weakType !== "strength"))) form = { ...form, weak: "none", sticking: null, weakType: "strength" };
   const rec = recoveryProfile(form);
   const T = calToday(form.today);
   const meet = meetPhase(form.meetDays ?? null, form.exp, leadDays(T));
@@ -965,7 +984,7 @@ export function buildProgram(form, maxes) {
         acc = acc.slice(0, cap);
         // Extras (isolation) on loading weeks only — never in deload, peaking or taper weeks.
         // Strength blocks (fewer, heavier accessories): "full" gets one extra less than in a base block.
-        const nExtra = Math.max(0, (EXTRAS_PER_DAY[style] ?? 1) - (isBeg ? 1 : 0) - (!isBeg && accCount <= 3 && style === "full" ? 1 : 0));
+        const nExtra = Math.max(0, (EXTRAS_PER_DAY[style] ?? 1) - (!isBeg && accCount <= 3 && style === "full" ? 1 : 0));
         if (nExtra && !d.support && !d.optional && !deload && !w.taper && !w.peak && accCount > 0) {
           const have = new Set(acc.map((a) => a.name));
           const extra = (EXTRAS[d.acc] || []).filter((e) => !have.has(e.name)).slice(0, nExtra);
@@ -977,12 +996,15 @@ export function buildProgram(form, maxes) {
             acc = [...acc, applyEquipment(applySwaps([extra], form.injuries), form.equipment)[0]];
           }
         }
+        // Equipment swaps can turn two exercises into the same one (minimal gym: both rows → Barbell Row).
+        acc = acc.filter((x, i) => acc.findIndex((y) => y.name === x.name) === i);
         if (deload || w.taper) acc = acc.slice(0, w.taper ? 0 : 2).map((a) => ({ ...a, sr: a.sr.includes("×") ? a.sr.replace(/^\d+/, "2") : a.sr, rpe: a.rpe === "—" ? a.rpe : "RPE 6" }));
         if (acc.length > sessionAccCap) {
           const wp = acc.filter((a) => a.name.startsWith("Weak-point"));
           acc = [...acc.filter((a) => !a.name.startsWith("Weak-point")).slice(0, Math.max(0, sessionAccCap - wp.length)), ...wp].slice(0, Math.max(sessionAccCap, wp.length));
         }
-        return { weekday: wdays[di] || "Extra", title: d.title, optional: d.optional, support: d.support, main, acc };
+        const gppNote = d.acc === "gpp" ? "Optional day. GPP = general fitness — heart, lungs, core, mobility. It helps you recover and train harder on the main days. Not all three lifts: just the 1–2 that felt worst, very light. Skip it if you are tired." : undefined;
+        return { weekday: wdays[di] || "Extra", title: d.title, optional: d.optional, support: d.support, main, acc, ...(gppNote ? { note: gppNote } : {}) };
       }).filter((d) => d.main.length || d.acc.length).sort((a, b) => ALL_DAYS.indexOf(a.weekday) - ALL_DAYS.indexOf(b.weekday)),
     };
   });
@@ -1026,12 +1048,20 @@ export function buildProgram(form, maxes) {
     const perWeek = Math.max(...fs.map((w) => w.days.filter((d) => !d.rest && !d.meetDay).length));
     if (form.days > perWeek) notes.push(`You train ${form.days} days a week. ${fs.length > 1 ? "Taper and meet week use" : "The final stretch uses"} only ${perWeek} sessions a week — on purpose: cutting volume while keeping the weight heavy is what makes you peak. Every other day is on the calendar as rest or optional recovery (walk, mobility, bar-only technique — no loading).`);
   }
+  // "Exercises you can't or won't do" → swap those accessories everywhere in the block.
+  const restricted = restrictedFromText(form.restrictedText);
+  const swappedOut = new Set();
+  if (restricted.length) for (const w of weeks) for (const d of w.days) {
+    const r = applyRestrictions(d.acc, restricted, form.equipment, form.injuries);
+    d.acc = r.acc; r.changed.forEach((c) => swappedOut.add(c));
+  }
+  if (swappedOut.size) notes.push(`Exercises you said you can't or won't do were swapped: ${[...swappedOut].join(", ")}.`);
   // Trim ONCE on the heaviest-volume week and hold the same accessory menu all block — a coach never rotates accessories by accident.
   const trimmed = new Set();
   const refWeek = weeks.find((w) => !w.deload && !w.taper && !w.meetWeek) || weeks.find((w) => !w.meetWeek);
   if (refWeek) trimToBudget(refWeek, budgetMax).forEach((n) => trimmed.add(n));
   if (trimmed.size) for (const w of weeks) if (w !== refWeek && !w.meetWeek) for (const d of w.days) d.acc = d.acc.filter((a) => !trimmed.has(a.name));
-  if (trimmed.size) notes.push(`Volume kept at ≤${budgetMax} hard sets/week per movement pattern (${style} style, your level ${budget[0]}–${budget[1]}) — dropped: ${[...trimmed].join(", ")}. Arm, shoulder, calf and core work doesn't count toward this; it scales with your style and session length.`);
+  if (trimmed.size) notes.push(`Volume kept at ≤${budgetMax} hard sets/week per muscle group (${style} style, your level ${budget[0]}–${budget[1]}) — dropped: ${[...trimmed].join(", ")}. Arm, shoulder, calf and core work doesn't count toward this; it scales with your style and session length.`);
 
   const count = { squat: 0, bench: 0, deadlift: 0 };
   tmpl.forEach((d) => d.slots.forEach((s) => count[s.lift]++));
@@ -1043,35 +1073,35 @@ export function buildProgram(form, maxes) {
   return { weeks, rec, freq, restDays: ALL_DAYS.filter((d) => !wdays.includes(d)), phase: meet.phase, blockLabel: plan.blockLabel, notes, volume, budget, testDay, meetDays: form.meetDays ?? null, compLifts: form.compLifts || ["squat", "bench", "deadlift"] };
 }
 
-/** Which volume bucket an accessory belongs to (Lower / Upper push / Upper pull). */
+/** Which muscle group an accessory counts toward: quads, posterior chain (hamstrings, glutes, lower back),
+ *  upper push or upper pull. Helms counts hard sets per muscle group — lumping all leg work into one
+ *  "lower" bucket made leg curls compete with squats and starved the accessory list. */
 export function accBucket(name) {
-  if (/mobility|plank|dead bug|core|cardio|walk|sled|jump rope|stretch|leg raise|knee raise|ab wheel|crunch|pallof|carry/i.test(name)) return null;
-  if (/leg curl|nordic/i.test(name)) return "lower";
+  if (/mobility|plank|dead bug|core|cardio|walk|sled|jump rope|stretch|leg raise|knee raise|ab wheel|crunch|pallof|carry|bird dog/i.test(name)) return null;
   // Small-muscle isolation (arms, delts, calves, upper-back pump work): low systemic fatigue, own bucket.
-  if (/curl|biceps|triceps|pushdown|skull|lateral raise|rear delt|face pull|band pull|calf|shrug|overhead triceps/i.test(name)) return "iso";
-  if (/back ext|good morning|rdl|romanian|hip thrust|glute bridge/i.test(name)) return "hinge"; // posterior chain: counts as lower AND pull
-  if (/row|pull-?up|chin|lat |pulldown|face pull|rear delt|snatch|band pull/i.test(name)) return "pull";
-  if (/squat|leg|lunge|hip|glute|nordic|step|deadlift|block|deficit|belt|hack|pendulum|extension|bridge/i.test(name)) return "lower";
-  if (/bench|press|dip|triceps|push|skull|fly|jm|overhead/i.test(name)) return "push";
+  if (/biceps|triceps|pushdown|skull|lateral raise|rear delt|face pull|band pull|calf|shrug|overhead triceps|hammer curl|barbell curl|db curl/i.test(name)) return "iso";
+  if (/leg curl|nordic|back ext|good morning|rdl|romanian|hip thrust|glute|reverse hyper|deadlift|block pull|deficit|rack pull|pull-through/i.test(name)) return "posterior";
+  if (/row|pull-?up|chin|lat |pulldown/i.test(name)) return "pull";
+  if (/squat|leg press|lunge|step|hack|pendulum|belt|leg ext|split/i.test(name)) return "quads";
+  if (/bench|press|dip|push|fly|jm|overhead/i.test(name)) return "push";
   return null;
 }
 const isHardSet = (m) => !/Technique|Activation|Opener/.test(m.name);
 
-/** Count hard sets per bucket for one week. Deadlift counts in both lower and pull; light technique work is not counted. */
+/** Count hard sets per muscle group for one week. Squat → quads, deadlift → posterior chain, bench → push;
+ *  light technique work is not counted. */
 export function weeklyVolume(week) {
-  const v = { lower: 0, push: 0, pull: 0 };
+  const v = { quads: 0, posterior: 0, push: 0, pull: 0 };
   for (const d of week.days || []) {
     for (const m of d.main) {
       if (!isHardSet(m)) continue;
-      if (m.lift === "deadlift") { v.lower += m.sets; v.pull += m.sets; }
-      else if (m.lift === "squat") v.lower += m.sets;
+      if (m.lift === "deadlift") v.posterior += m.sets;
+      else if (m.lift === "squat") v.quads += m.sets;
       else v.push += m.sets;
     }
     for (const a of d.acc) {
-      const sets = parseInt(String(a.sr), 10) || 0;
       const b = accBucket(a.name);
-      if (b === "hinge") { v.lower += sets; v.pull += sets; }
-      else if (b) v[b] += sets;
+      if (b && b in v) v[b] += parseInt(String(a.sr), 10) || 0;
     }
   }
   return v;
@@ -1088,7 +1118,7 @@ function trimToBudget(week, budgetMax) {
     // remove from the day that has the most accessories in that bucket, last one first
     let best = null;
     for (const d of week.days) {
-      const idx = [...d.acc.keys()].reverse().find((i) => { const b = accBucket(d.acc[i].name); return (b === over || (b === "hinge" && over !== "push")) && !d.acc[i].name.startsWith("Weak-point"); });
+      const idx = [...d.acc.keys()].reverse().find((i) => { const b = accBucket(d.acc[i].name); return b === over && !d.acc[i].name.startsWith("Weak-point"); });
       if (idx !== undefined && (!best || d.acc.length > best.d.acc.length)) best = { d, idx };
     }
     if (!best) break;
@@ -1114,6 +1144,77 @@ export function injuriesFromText(text) {
     knee: /knee|patell|menisc/.test(t),
     shoulder: /shoulder|rotator|impinge|ac joint|labrum/.test(t),
   };
+}
+
+/* ---------------- "Exercises you can't or won't do" ----------------
+   Plain-text answer → exercise families. Accessories in a restricted family are swapped for another exercise
+   that trains the same muscle group (or dropped if every option is restricted). Main lifts never change here —
+   pain on a main lift goes in the injury box, which caps its load. */
+const RESTRICT_TERMS = [
+  [/\bdips?\b/, /\bdips?\b/i],
+  [/pull[- ]?ups?|chin[- ]?ups?/, /pull-?ups?|chin-?ups?/i],
+  [/leg press/, /leg press/i],
+  [/lunges?/, /lunge/i],
+  [/split squat|bulgarian/, /split squat|bulgarian/i],
+  [/step[- ]?ups?/, /step-?ups?/i],
+  [/overhead|\bohp\b|military|shoulder press/, /overhead press|landmine|neutral-grip db press/i],
+  [/\brows?\b|rowing/, /\brow\b/i],
+  [/pull ?downs?|lat pull/, /pulldown/i],
+  [/\brdl\b|romanian|stiff[- ]?leg/, /romanian|\brdl\b/i],
+  [/good ?mornings?/, /good morning/i],
+  [/back ext|hyper/, /back extension|reverse hyper/i],
+  [/hip thrust|glute bridge/, /hip thrust|glute bridge/i],
+  [/leg curl|hamstring curl/, /leg curl/i],
+  [/leg ext/, /leg extension/i],
+  [/push[- ]?ups?/, /push-?ups?/i],
+  [/incline/, /incline/i],
+  [/front squat/, /front squat/i],
+  [/goblet/, /goblet/i],
+  [/hack squat|pendulum/, /hack squat|pendulum/i],
+  [/nordic/, /nordic/i],
+  [/hanging|leg raise|knee raise/, /hanging|leg raise|knee raise/i],
+  [/ab ?wheel|rollout/, /ab wheel/i],
+  [/skull/, /skull/i],
+  [/lateral raise|side raise/, /lateral raise/i],
+  [/face ?pull/, /face pull/i],
+  [/calf/, /calf/i],
+];
+export function restrictedFromText(text) {
+  const t = String(text || "").toLowerCase();
+  return t.trim() ? RESTRICT_TERMS.filter(([inText]) => inText.test(t)).map(([, inName]) => inName) : [];
+}
+const RESTRICT_ALT = {
+  quads: ["Leg Press or Goblet Squat", "Leg Extension", "Step-ups (DB)", "Bulgarian Split Squat (DB)"],
+  posterior: ["Leg Curl", "Back Extension", "Glute Bridge", "Romanian Deadlift (light)"],
+  push: ["Incline DB Press", "Push-ups", "Landmine Press (bar in corner)", "DB Bench Press"],
+  pull: ["Chest-Supported Row", "Lat Pulldown", "Single-Arm DB Row", "Seated Cable Row"],
+  core: ["Dead Bug", "Plank", "Side Plank"],
+};
+function applyRestrictions(acc, restricted, equipment, injuries) {
+  if (!restricted?.length) return { acc, changed: [] };
+  const hit = (name) => restricted.some((re) => re.test(name));
+  const changed = [];
+  const out = [];
+  for (const a of acc) {
+    if (!hit(a.name)) { out.push(a); continue; }
+    // "Lat Pulldown or Pull-ups" with pull-ups restricted → just "Lat Pulldown".
+    const [, pre, group, list] = a.name.match(/^((?:Weak-point: )?)(?:([^:]+): )?(.+)$/);
+    const options = list.split(/ or /);
+    const ok = options.length > 1 ? options.find((o) => !hit(o)) : null;
+    if (ok) {
+      const label = pre + (group ? group + " " : "") + ok;
+      out.push({ ...a, name: label });
+      changed.push(`${a.name.replace(/^Weak-point: /, "")} → ${label.replace(/^Weak-point: /, "")}`);
+      continue;
+    }
+    const bucket = accBucket(a.name) || (/plank|bug|raise|wheel|core|crunch/i.test(a.name) ? "core" : null);
+    const pool = (RESTRICT_ALT[bucket] || []).map((n) => applyEquipment(applySwaps([{ ...a, name: n }], injuries), equipment)[0]);
+    const alt = pool.find((x) => !hit(x.name) && !acc.some((y) => y.name === x.name) && !out.some((y) => y.name === x.name));
+    const prefix = a.name.startsWith("Weak-point: ") ? "Weak-point: " : "";
+    if (alt) out.push({ ...alt, name: prefix + alt.name });
+    changed.push(`${a.name.replace(/^Weak-point: /, "")} → ${alt ? alt.name : "removed"}`);
+  }
+  return { acc: out, changed };
 }
 
 /**
@@ -1166,7 +1267,9 @@ export function profileToForm(profile, overrides = {}) {
     return label && label !== "None" && WEAK_POINT_MAP[l][label];
   });
   let weak = "none", sticking = null;
-  if (flagged.length && maxes.squat) {
+  if (exp === "beg") {
+    decisions.push({ step: "Weak-Point Diagnosis", decision: "Not yet — beginner", reason: "As a beginner every lift is still learning its pattern, so the 'weak point' is technique, not a muscle. All three lifts get even work and the form cues fix most problems. Weak-point work starts when your progress slows." });
+  } else if (flagged.length && maxes.squat) {
     const lag = (l) => (maxes[l] / maxes.squat) / TYPICAL_RATIO[l];
     weak = flagged.sort((x, y) => lag(x) - lag(y))[0];
     sticking = WEAK_POINT_MAP[weak][a[`${weak}_weak_point`]];
@@ -1197,6 +1300,7 @@ export function profileToForm(profile, overrides = {}) {
     calc: { squat: { w: "", r: "" }, bench: { w: "", r: "" }, deadlift: { w: "", r: "" } },
     weak, sticking, weakType, variationIdx: 0, accIdx: 0,
     injuries, equipment,
+    restrictedText: String(a.restricted_exercises || "").slice(0, 500),
     sleep: ["high", "mid", "low"].includes(a.sleep_level) ? a.sleep_level : "high",
     stress: ["low", "mid", "high"].includes(a.stress_level) ? a.stress_level : "low",
     meetDays,
@@ -1214,6 +1318,8 @@ export function profileToForm(profile, overrides = {}) {
   if (meet.phase !== "none" && meet.phase !== "post" && events === "deadlift") form.focus = "dead";
   if (events !== "full" && meet.phase !== "none" && meet.phase !== "post") decisions.push({ step: "Meet Events", decision: EVENTS[events].map((l) => LIFT_NAMES[l]).join(" + "), reason: "Only the lifts on the platform are peaked and tapered; the rest stay at a maintenance dose and fade out in the last 1–2 weeks." });
   if (form.meetApprox && meetDays !== null && meetDays > 0) decisions.push({ step: "Meet Date", decision: "Not confirmed yet", reason: "Planned toward the EARLIEST likely date — being ready early is safe, being late is not. No taper is dated until you confirm; then the taper (10–14 days) is built from the real date." });
+  const restrictedHits = restrictedFromText(a.restricted_exercises);
+  if (String(a.restricted_exercises || "").trim()) decisions.push({ step: "Exercises You Avoid", decision: restrictedHits.length ? `${restrictedHits.length} exercise type${restrictedHits.length === 1 ? "" : "s"} avoided` : "Read — no match in our exercise list", reason: restrictedHits.length ? "Any of these in your accessories is replaced with another exercise for the same muscle (listed in the plan notes). Main lifts stay — if one of them hurts, write it in the pain box and its load is capped." : "We couldn't match what you wrote to an accessory. Main lifts stay — if one of them hurts, write it in the pain box and its load is capped." });
   if (a.other_sport) decisions.push({ step: "Other Training", decision: String(a.other_sport).slice(0, 40), reason: "Lift first. Hard cardio/sport after lifting (6+ h apart is better) or on non-lifting days; avoid it the day before heavy squats/deadlifts." });
   if (form.cutting === "weightclass") decisions.push({ step: "Weight Cut", decision: "Volume one level lower", reason: "A real deficit lowers recovery — less volume, deload every block, autoregulate harder." });
   if (form.squatBar === "low") decisions.push({ step: "Squat Style", decision: "Low-bar", reason: "Competition and technique squats stay low-bar. Any volume squat is done high-bar/upright, and the quad accessory (leg press / split squat) stays in — low-bar alone under-trains the quads." });

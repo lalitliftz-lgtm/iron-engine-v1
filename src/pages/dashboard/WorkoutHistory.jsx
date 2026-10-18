@@ -197,6 +197,7 @@ function Session({ log, snap, onRemove }) {
             </div>
           </div>
         ))}
+        {meta.session_notes && <p className="text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2 whitespace-pre-line">📝 {meta.session_notes}</p>}
         <div className="pt-2 text-right">
           <button type="button" onClick={() => onRemove(log)} className="text-xs text-gray-400 hover:text-red-600">Remove this session</button>
         </div>
