@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { appNow } from '../../lib/schedule';
+import { localYmd } from '../../lib/engine';
 
 const REASONS = [['sick', 'Sick / not well'], ['busy', 'No time'], ['gym_closed', 'Gym closed / holiday'], ['travel', 'Travelling'], ['injury', 'Injury / pain'], ['other', 'Other']];
 
@@ -24,7 +26,9 @@ export default function SessionActions({ programId, week, day, onDone, meetLocke
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
-  const base = { programId, weekNumber: week.week, dayNumber: day.day, durationSeconds: 0, clientId: `${programId}-${week.week}-${day.day}-${open}` };
+  // The id stops double-taps saving twice — it includes the day, because a session that was skipped
+  // can be skipped (or marked done) again on a later day while you're catching up.
+  const base = { programId, weekNumber: week.week, dayNumber: day.day, durationSeconds: 0, clientId: `${programId}-${week.week}-${day.day}-${open}-${localYmd(appNow())}` };
   const asPlanned = () => day.exercises.map((ex) => ({
     ...ex,
     skipped: false,
