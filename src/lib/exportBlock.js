@@ -93,6 +93,7 @@ export function blockPrintHTML(snap, athlete) {
   .cover { background: #111318; color: #edeae2; padding: 18mm 14mm; display: flex; flex-direction: column; justify-content: space-between; }
   .brand { font-size: 22pt; } .brand span { color: #c8102e; }
   .cover h1 { font-size: 34pt; line-height: 1.05; margin-top: 30mm; }
+  @media screen and (max-width: 600px) { .cover h1 { font-size: 24pt; overflow-wrap: anywhere; } }
   .cover .who { font-size: 14pt; color: #9ba1ac; margin-top: 4mm; }
   .facts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4mm 10mm; margin-top: 14mm; }
   .facts div { border-top: 1px solid #313742; padding-top: 2.5mm; }
@@ -148,21 +149,58 @@ export function blockPrintHTML(snap, athlete) {
 }
 
 /** Opens the print view in a new tab; the athlete taps Print → Save as PDF. Must run inside a click handler. */
+/** Opens the block as an in-app preview (full-screen layer with Back + Save as PDF). No new tab or window:
+ *  inside the installed app a new window has no back button and traps the user. The phone's back
+ *  gesture closes the preview too. */
 export function printBlock(snap, athlete) {
   const html = blockPrintHTML(snap, athlete);
-  const win = window.open('', '_blank');
-  if (!win) {
-    // Popup blocked: download the HTML instead (opens in any browser, prints the same).
-    const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
-    const a = Object.assign(document.createElement('a'), { href: url, download: 'iron-engine-block.html' });
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    return;
-  }
-  win.document.open(); win.document.write(html); win.document.close();
-  // Let the web fonts load before the print dialog takes its snapshot.
-  const go = () => { try { win.focus(); win.print(); } catch { /* user can still use the browser's print */ } };
-  if (win.document.fonts?.ready) win.document.fonts.ready.then(() => setTimeout(go, 150)); else setTimeout(go, 600);
+  document.getElementById('ll-print-preview')?.remove();
+
+  const wrap = document.createElement('div');
+  wrap.id = 'll-print-preview';
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;background:#111318;';
+  const bar = document.createElement('div');
+  bar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;padding-top:max(10px,env(safe-area-inset-top));background:#111318;color:#fff;font:600 14px system-ui,sans-serif;';
+  const btn = (label, primary) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = label;
+    b.style.cssText = `border:0;border-radius:10px;padding:10px 14px;font:600 14px system-ui,sans-serif;cursor:pointer;${primary ? 'background:#C8102E;color:#fff;' : 'background:#2a2d35;color:#fff;'}`;
+    return b;
+  };
+  const back = btn('← Back', false);
+  const save = btn('Save as PDF / Print', true);
+  bar.append(back, save);
+  const hint = document.createElement('p');
+  hint.textContent = 'Tip: in the print screen choose "Save as PDF" as the printer.';
+  hint.style.cssText = 'margin:0;padding:0 12px 8px;background:#111318;color:#9aa0aa;font:12px system-ui,sans-serif;';
+  const frame = document.createElement('iframe');
+  frame.title = 'Block preview';
+  frame.style.cssText = 'flex:1;width:100%;border:0;background:#fff;';
+  frame.srcdoc = html;
+  wrap.append(bar, hint, frame);
+  document.body.appendChild(wrap);
+  const prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+
+  // Back gesture / Android back button closes the preview instead of leaving the app page.
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    window.removeEventListener('popstate', onPop);
+    document.body.style.overflow = prevOverflow;
+    wrap.remove();
+  };
+  const onPop = () => close();
+  history.pushState({ llPrintPreview: true }, '');
+  window.addEventListener('popstate', onPop);
+  back.onclick = () => { if (history.state?.llPrintPreview) history.back(); else close(); };
+
+  save.onclick = () => {
+    const w = frame.contentWindow;
+    const go = () => { try { w.focus(); w.print(); } catch { /* browser menu → Print still works */ } };
+    if (w?.document?.fonts?.ready) w.document.fonts.ready.then(go); else go();
+  };
 }
 
 /* ---------------- Excel (styled, one sheet per week + overview) ---------------- */
