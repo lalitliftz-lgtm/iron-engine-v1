@@ -132,7 +132,7 @@ async function userDetail(email) {
     all(() => supabaseAdmin.from('generated_programs').select('id, created_at, is_active, program_snapshot').eq('user_id', user.id).order('created_at', { ascending: false })),
     all(() => supabaseAdmin.from('workout_logs').select('id, program_id, week_number, day_number, date_completed, duration_seconds, logged_exercises, recovery_checklist').eq('user_id', user.id).eq('is_deleted', false).order('date_completed', { ascending: false })),
     all(() => supabaseAdmin.from('subscriptions').select('status, start_date, end_date, razorpay_payment_id, products(name)').eq('user_id', user.id)),
-    all(() => supabaseAdmin.from('purchases').select('created_at, products(name)').eq('user_id', user.id)),
+    all(() => supabaseAdmin.from('purchases').select('purchased_at, products(name)').eq('user_id', user.id)),
   ]);
   return {
     email: user.email, joined: user.created_at, lastLogin: user.last_sign_in_at,
@@ -145,7 +145,7 @@ async function userDetail(email) {
         id: p.id, created: p.created_at, active: p.is_active, block: snap.blockType, weeks: snap.weeks?.length || 0,
         maxes: snap.meta?.maxes || null, exp: snap.meta?.form?.exp || null, notes: snap.meta?.notes || [],
         checkins: snap.adjustments?.checkins || {},
-        review: snap.weeks && own.length ? evaluateBlock(snap, own, snap.adjustments?.checkins || {}) : null,
+        review: (() => { try { return snap.weeks && own.length ? evaluateBlock(snap, own, snap.adjustments?.checkins || {}) : null; } catch { return null; } })(), // one odd old block must not hide the athlete
         plan: (snap.weeks || []).map((w) => ({ week: w.week, label: w.label, days: (w.days || []).filter((d) => !d.rest).map((d) => ({ day: d.day, date: d.date, focus: d.focus, exercises: (d.exercises || []).map((e) => `${e.name} ${e.sets}×${e.reps}${e.weight ? ` @ ${e.weight} kg` : ''}${e.rpe ? ` RPE ${e.rpe}` : ''}`) })) })),
       };
     }),
@@ -223,6 +223,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Unknown action' });
   } catch (err) {
     console.error('Admin API error:', err);
-    return res.status(500).json({ error: 'Something went wrong loading the data.' });
+    // Only the owner ever reaches this point, so the real reason is shown to help fix it.
+    return res.status(500).json({ error: `Something went wrong loading the data: ${err?.message || 'unknown error'}` });
   }
 }
