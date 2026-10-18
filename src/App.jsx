@@ -9,6 +9,7 @@ import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
 import PaymentProcessing from './pages/PaymentProcessing';
 import PurchaseSuccess from './pages/PurchaseSuccess';
+import Invite from './pages/Invite';
 
 import DashboardLayout from './components/dashboard/DashboardLayout';
 import Overview from './pages/dashboard/Overview';
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/payment/processing" element={<PaymentProcessing />} />
             <Route path="/purchase-success" element={<PurchaseSuccess />} />
+            <Route path="/invite/:code" element={<Invite />} />
             
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<Terms />} />

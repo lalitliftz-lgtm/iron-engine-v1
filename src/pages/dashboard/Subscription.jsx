@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { CONFIG } from '../../config/siteConfig';
+import { INVITE_KEY } from '../Invite';
 
 // Old storefront links may still carry a product's previous name.
 const RENAMED = { 'All About Powerlifting System': 'All About Powerlifting System 1.0' };
@@ -35,6 +36,29 @@ export default function Subscription() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [invite, setInvite] = useState(() => { try { return params.get('invite') || localStorage.getItem(INVITE_KEY) || ''; } catch { return params.get('invite') || ''; } });
+  const [inviteMsg, setInviteMsg] = useState(null); // { ok, text }
+  const [inviteBusy, setInviteBusy] = useState(false);
+
+  // Invite-only free month for testers: the server checks the code and grants 30 days of Pro.
+  const redeemInvite = async () => {
+    setInviteBusy(true); setInviteMsg(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/redeem-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ code: invite }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) { setInviteMsg({ ok: false, text: body.error || 'Could not redeem the code.' }); return; }
+      try { localStorage.removeItem(INVITE_KEY); } catch { /* ignore */ }
+      setInviteMsg({ ok: true, text: `Done — Pro is free until ${new Date(body.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}. Reloading…` });
+      setTimeout(() => window.location.reload(), 1500); // refresh the Pro status everywhere
+    } finally {
+      setInviteBusy(false);
+    }
+  };
 
   // Show a friendly message if PayU redirected back after a failed/cancelled payment.
   useEffect(() => {
@@ -56,9 +80,16 @@ export default function Subscription() {
         .eq('user_id', user.id)
         .order('start_date', { ascending: false });
       if (data) {
-        const active = data.find((s) => s.status === 'active' && new Date(s.end_date) > new Date());
-        setActiveSub(active);
-        setHistory(data);
+        // Early renewals stack: the plan runs from the period covering today to the latest end date.
+        const now = new Date();
+        const live = data.filter((s) => s.status === 'active' && new Date(s.end_date) > now);
+        const current = live.find((s) => new Date(s.start_date) <= now) || live[live.length - 1];
+        setActiveSub(current ? { ...current, end_date: live.reduce((m, s) => (s.end_date > m ? s.end_date : m), current.end_date) } : null);
+        // Amount actually paid for each period (prices change; the plan's current price is not what they paid).
+        const ids = data.map((s) => s.razorpay_payment_id).filter(Boolean);
+        const { data: txns } = ids.length ? await supabase.from('payment_transactions').select('provider_payment_id, amount_paid').in('provider_payment_id', ids) : { data: [] };
+        const paid = Object.fromEntries((txns || []).map((t) => [t.provider_payment_id, t.amount_paid]));
+        setHistory(data.map((s) => ({ ...s, amountPaid: paid[s.razorpay_payment_id] ?? null })));
       }
       setLoading(false);
     };
@@ -111,8 +142,8 @@ export default function Subscription() {
     <div className="max-w-4xl mx-auto">
       <h2 className="text-3xl text-chalk mb-8" style={{ fontFamily: "'Archivo Black', sans-serif" }}>My Subscription</h2>
 
-      {/* A PDF guide can be bought with or without Pro; only the subscription itself is hidden when Pro is active. */}
-      {intendedProduct && (intendedIsGuide || !activeSub) && (
+      {/* A PDF guide coming from the storefront gets its own buy card; Pro is bought from the plan picker below. */}
+      {intendedProduct && intendedIsGuide && (
         <div className="mb-6 rounded-xl border border-red-600 bg-steel p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <p className="text-chalk font-semibold">Finish unlocking {intendedProduct}</p>
@@ -141,19 +172,46 @@ export default function Subscription() {
           </div>
           {activeSub ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div><p className="text-knurl text-xs mb-1">Purchase Date</p><p className="font-medium text-chalk">{new Date(activeSub.start_date).toLocaleDateString()}</p></div>
-              <div><p className="text-knurl text-xs mb-1">Expiry Date</p><p className="font-medium text-chalk">{new Date(activeSub.end_date).toLocaleDateString()}</p></div>
+              <div><p className="text-knurl text-xs mb-1">Current period started</p><p className="font-medium text-chalk">{new Date(activeSub.start_date).toLocaleDateString()}</p></div>
+              <div><p className="text-knurl text-xs mb-1">Pro until</p><p className="font-medium text-chalk">{new Date(activeSub.end_date).toLocaleDateString()}</p></div>
               <div><p className="text-knurl text-xs mb-1">Days Remaining</p><p className="font-medium text-2xl" style={{ color: '#C9A24B' }}>{daysRemaining(activeSub.end_date)}</p></div>
             </div>
           ) : (
             <p className="text-knurl mb-8">You don't have an active subscription. Upgrade to unlock the full Iron Engine.</p>
           )}
-          <button onClick={() => startCheckout('Iron Engine Pro')} disabled={busy}
-            className="font-bold py-2.5 px-6 rounded-lg transition duration-200 disabled:opacity-50"
-            style={{ background: '#C9A24B', color: '#14161B' }}>
-            {busy ? 'Opening…' : activeSub ? 'Renew Subscription' : 'Upgrade to Pro'}
+          <p className="text-chalk font-semibold mb-1">{activeSub ? 'Extend your Pro' : 'Choose your plan'}</p>
+          <p className="text-knurl text-sm mb-4">One-time payment · no auto-debit{activeSub ? ' · the new plan starts when your current Pro ends, so no days are lost' : ''}</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {CONFIG.proPlans.map((p) => {
+              const perMonth = Math.round(p.price / p.months);
+              const save = Math.round((1 - p.price / (CONFIG.proPlans[0].price * p.months)) * 100);
+              return (
+                <button key={p.productName} type="button" onClick={() => startCheckout(p.productName)} disabled={busy}
+                  className={`relative text-left rounded-xl border p-4 transition disabled:opacity-50 ${p.best ? 'border-[#C9A24B] bg-steel2' : 'border-line hover:border-knurl'}`}>
+                  {p.best && <span className="absolute -top-2.5 left-3 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: '#C9A24B', color: '#14161B' }}>Best value</span>}
+                  <span className="block text-knurl text-xs uppercase tracking-wider">{p.label}</span>
+                  <span className="block text-2xl font-bold text-chalk mt-1">₹{p.price.toLocaleString('en-IN')}</span>
+                  <span className="block text-xs text-knurl mt-0.5">₹{perMonth.toLocaleString('en-IN')} / month{save > 0 ? ` · save ${save}%` : ''}</span>
+                </button>
+              );
+            })}
+          </div>
+          {busy && <p className="text-knurl text-sm mt-3">Opening secure payment…</p>}
+        </div>
+      </div>
+
+      <div className={`rounded-xl border p-5 mb-10 ${invite ? 'border-[#C9A24B] bg-steel2' : 'border-line bg-steel'}`}>
+        <h3 className="text-chalk font-semibold">Have an invite code?</h3>
+        <p className="text-knurl text-sm mt-0.5">Invite only — one free month of Iron Engine Pro.</p>
+        <div className="flex gap-2 mt-3">
+          <input value={invite} onChange={(e) => setInvite(e.target.value.toUpperCase())} placeholder="INVITE CODE" aria-label="Invite code"
+            className="flex-1 min-w-0 h-11 px-3 rounded-lg bg-iron border border-line text-chalk font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-[#C9A24B]" />
+          <button type="button" onClick={redeemInvite} disabled={!invite.trim() || inviteBusy}
+            className="h-11 px-4 rounded-lg font-semibold disabled:opacity-50" style={{ background: '#C9A24B', color: '#14161B' }}>
+            {inviteBusy ? 'Checking…' : 'Claim free month'}
           </button>
         </div>
+        {inviteMsg && <p className={`text-sm mt-2 ${inviteMsg.ok ? 'text-green-500' : 'text-red-500'}`}>{inviteMsg.text}</p>}
       </div>
 
       <div className="bg-steel rounded-xl border border-line overflow-hidden">
@@ -174,7 +232,7 @@ export default function Subscription() {
                 <tr key={sub.id} className="border-b border-line last:border-0 hover:bg-steel2">
                   <td className="p-4 text-knurl text-sm">{new Date(sub.start_date).toLocaleDateString()}</td>
                   <td className="p-4 text-knurl text-sm">{sub.products?.name || 'Subscription'}</td>
-                  <td className="p-4 text-knurl text-sm">₹1,999</td>
+                  <td className="p-4 text-knurl text-sm">{String(sub.razorpay_payment_id || '').startsWith('invite:') ? 'Free (invite)' : sub.amountPaid != null ? `₹${Number(sub.amountPaid).toLocaleString('en-IN')}` : '—'}</td>
                   <td className="p-4"><span className={`px-2 py-1 text-xs rounded-full ${sub.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-steel2 text-knurl'}`}>{sub.status}</span></td>
                 </tr>
               ))}

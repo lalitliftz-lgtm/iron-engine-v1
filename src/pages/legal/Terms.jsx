@@ -7,7 +7,7 @@ export default function Terms() {
     <LegalLayout title="Terms & Conditions" lastUpdated={legalDates.terms}>
       <p>By accessing or using LalitLifts, you agree to be bound by these Terms & Conditions. If you do not agree, please do not use our Service.</p>
       <h2 className="text-xl font-bold text-gray-900 mt-8 mb-3">1. Subscription & Access</h2>
-      <p>LalitLifts offers an annual digital subscription ("Iron Engine Pro") valid for 365 days from the date of successful payment verification. Access is granted automatically only after the payment gateway confirms the transaction. The subscription does not auto-renew.</p>
+      <p>LalitLifts offers a digital pass ("Iron Engine Pro") for 1, 3, 6 or 12 months, valid from the date of successful payment verification (or, when bought while a pass is active, from the end of the current period). Access is granted automatically only after the payment gateway confirms the transaction. The subscription does not auto-renew.</p>
       <h2 className="text-xl font-bold text-gray-900 mt-8 mb-3">2. Account Usage</h2>
       <p>One subscription is valid for one athlete profile. Account sharing, allowing multiple users to access a single account, or attempting to bypass payment gates is strictly prohibited and will result in account termination without refund.</p>
       <h2 className="text-xl font-bold text-gray-900 mt-8 mb-3">3. Digital Products</h2>
