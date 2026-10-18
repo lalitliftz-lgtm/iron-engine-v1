@@ -13,18 +13,18 @@ export default async function handler(req, res) {
     const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
     if (error || !user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { productId } = req.body;
+    const { productId, extend } = req.body;
     if (!productId) return res.status(400).json({ error: 'Product ID is required' });
 
     const { data: product, error: prodError } = await supabaseAdmin.from('products').select('id, name, price_cents, type').eq('id', productId).eq('is_active', true).eq('is_deleted', false).single();
     if (prodError || !product) return res.status(404).json({ error: 'Product not found' });
 
     if (product.type === 'subscription') {
-      // While Pro is active no new plan can be bought — renewal opens in the last 7 days, and the new plan
-      // then starts when the current one ends (see grantAccess), so no days are lost.
+      // While Pro is active a plan is only sold through "Extend Pro" (extend: true) or in the last 7 days —
+      // no accidental second payment. The new plan starts when the current one ends (see grantAccess).
       const { data: activeSub } = await supabaseAdmin.from('subscriptions').select('end_date').eq('user_id', user.id).eq('status', 'active').gte('end_date', new Date().toISOString()).order('end_date', { ascending: false }).limit(1).maybeSingle();
-      if (activeSub && new Date(activeSub.end_date) - Date.now() > RENEW_WINDOW_DAYS * 24 * 3600 * 1000) {
-        return res.status(400).json({ error: `Your Pro is active until ${new Date(activeSub.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}. Renewal opens ${RENEW_WINDOW_DAYS} days before that.` });
+      if (activeSub && extend !== true && new Date(activeSub.end_date) - Date.now() > RENEW_WINDOW_DAYS * 24 * 3600 * 1000) {
+        return res.status(400).json({ error: `Your Pro is active until ${new Date(activeSub.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}. Use Extend Pro to add more time.` });
       }
     } else if (product.type === 'pdf_guide') {
       const { data: existingPurchase } = await supabaseAdmin.from('purchases').select('id').eq('user_id', user.id).eq('product_id', productId).limit(1).maybeSingle();
