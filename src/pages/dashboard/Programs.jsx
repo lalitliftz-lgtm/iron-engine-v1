@@ -161,7 +161,15 @@ export default function Programs() {
           <div className="flex space-x-2 mb-8 overflow-x-auto pb-2 no-print">
             {currentWeekData.days.map((d) => (
               <button key={d.day} onClick={() => setActiveDay(d.day)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeDay === d.day ? 'bg-gray-100 text-gray-900 ring-1 ring-gray-200' : 'text-gray-500 hover:bg-gray-50'}`}>
-                {d.rest && <span className="text-gray-300 mr-1">○</span>}{logged.has(`${activeWeek}-${d.day}`) && <span className="text-green-600 mr-1">✓</span>}{d.weekday ? d.weekday.slice(0, 3) : `Day ${d.day}`}{d.date ? <span className="text-gray-400 ml-1 text-xs">{d.date}</span> : null}{d.date === appNow().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) && <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wider text-red-500">Today</span>} <span className="text-gray-400 ml-1 text-xs">{d.focus}</span>
+                {d.rest && <span className="text-gray-300 mr-1">○</span>}{logged.has(`${activeWeek}-${d.day}`) && <span className="text-green-600 mr-1">✓</span>}{d.weekday ? d.weekday.slice(0, 3) : `Day ${d.day}`}{d.date ? <span className="text-gray-400 ml-1 text-xs">{d.date}</span> : null}{(() => {
+                  // Catching up (no meet): sessions slide to later training days — show where this one went.
+                  const moved = sched?.projected?.get(`${activeWeek}-${d.day}`);
+                  const lbl = moved ? moved.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : d.date;
+                  return <>
+                    {moved && lbl !== d.date && <span className="ml-1 text-[11px] font-semibold text-amber-600">→ {lbl}</span>}
+                    {lbl === appNow().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) && <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wider text-red-500">Today</span>}
+                  </>;
+                })()} <span className="text-gray-400 ml-1 text-xs">{d.focus}</span>
               </button>
             ))}
           </div>

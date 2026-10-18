@@ -118,23 +118,44 @@ function walk(profile, scen, ctx) {
     const cal = calendar(block);
     const todays = cal.filter((c) => c.ymd === today && !c.d.rest && !c.d.meetDay);
     const pendingToday = todays.filter((c) => !block.logs.some((l) => l.week_number === c.w.week && l.day_number === c.d.day));
-    ok(sched.allowed.size <= 1, dctx, `${sched.allowed.size} sessions startable on one day`);
-    if (pendingToday.length) ok(sched.allowed.has(`${pendingToday[0].w.week}-${pendingToday[0].d.day}`), dctx, `today's session ${pendingToday[0].d.focus} is not startable`);
-    if (pendingToday.length) ok(sched.when === 'today', dctx, `Today card is "${sched.when}" while a session is dated today`);
+    const loggedToday = block.logs.some((l) => String(l.date_completed).slice(0, 10) === today);
+    const primary = sched.when === 'today' ? sched.next : null;
+    const extras = [sched.easier, sched.catchUp, sched.makeUp].filter(Boolean);
+    const okKeys = new Set([primary, ...extras].filter(Boolean).map((x) => x.key));
+    for (const k of sched.allowed) ok(okKeys.has(k), dctx, `session ${k} startable without a reason`);
+    if (loggedToday) ok(sched.allowed.size === 0, dctx, 'a second session is startable on a day already trained');
+    if (!sched.rolling) {
+      // On schedule: the session dated today is the one to do.
+      if (pendingToday.length && !loggedToday) ok(sched.allowed.has(`${pendingToday[0].w.week}-${pendingToday[0].d.day}`), dctx, `today's session ${pendingToday[0].d.focus} is not startable`);
+      if (pendingToday.length && !loggedToday) ok(sched.when === 'today', dctx, `Today card is "${sched.when}" while a session is dated today`);
+      if (!pendingToday.length && !sched.blockOver && sched.next) ok(sched.when !== 'today', dctx, 'Today card offers a session on a day without one');
+    } else {
+      // Behind, no meet (Helms): the earliest missed session comes next, later ones slide to later training days.
+      ok(!sched.meetLocked, dctx, 'catching up in a meet block');
+      const firstPending = cal.find((c) => !c.d.rest && !c.d.meetDay && !c.d.optional && !block.logs.some((l) => l.week_number === c.w.week && l.day_number === c.d.day));
+      ok(firstPending && sched.next?.key === `${firstPending.w.week}-${firstPending.d.day}`, dctx, 'catching up but the next session is not the earliest one missed');
+      let prev = null;
+      for (const [, at] of sched.projected) { ok(!prev || at > prev, dctx, 'catch-up dates not in order'); ok(at >= new Date(now.getFullYear(), now.getMonth(), now.getDate()), dctx, 'catch-up date in the past'); prev = at; }
+      ok(!sched.blockOver, dctx, 'block marked over while sessions are still waiting');
+    }
+    if (sched.makeUp) {
+      ok(sched.meetLocked, dctx, 'make-up offered outside a meet block');
+      ok(!/Technique|Singles @ 80|Primer/i.test(sched.makeUp.day.focus || ''), dctx, `make-up offered for a low-stress session (${sched.makeUp.day.focus})`);
+      ok(!cal.some((c) => c.d.meetDay && (c.ymd === today || c.ymd === ymdUTC(t + DAY))), dctx, 'make-up offered on or the day before the meet');
+    }
     for (const c of cal) {
       if (c.d.rest || c.d.meetDay) continue;
       const key = `${c.w.week}-${c.d.day}`;
-      if (c.ymd !== today) ok(!sched.allowed.has(key) && lockReason(sched, c.w, c.d, block.createdAt), dctx, `${c.d.date} ${c.d.focus} startable on ${today}`);
+      if (!sched.allowed.has(key)) ok(lockReason(sched, c.w, c.d, block.createdAt), dctx, `${c.d.date} ${c.d.focus} neither startable nor locked`);
     }
-    if (!pendingToday.length && !sched.blockOver && sched.next) ok(sched.when !== 'today', dctx, 'Today card offers a session on a day without one');
     // Today is never blank without a reason: a next session, block over, everything logged, or "none left before the meet".
     const allLogged = cal.filter((c) => !c.d.rest && !c.d.meetDay && !c.d.optional).every((c) => block.logs.some((l) => l.week_number === c.w.week && l.day_number === c.d.day));
     ok(sched.next || sched.blockOver || allLogged || sched.noneLeftBeforeMeet || sched.nothingLeft || cal.some((c) => c.d.meetDay && utc(c.ymd) >= t), dctx, 'Today has nothing to show and no reason');
     if (sched.noneLeftBeforeMeet) ok(cal.some((c) => c.d.meetDay) && !sched.blockOver, dctx, '"no sessions left before the meet" on a block without the meet');
 
-    // The athlete trains (or misses) today's session.
-    if (pendingToday.length) {
-      const c = pendingToday[0];
+    // The athlete trains (or misses) what Today offers — at most one session a day.
+    if (primary && !loggedToday) {
+      const c = cal.find((x) => `${x.w.week}-${x.d.day}` === primary.key);
       if (rand() >= missRate) block.logs.push({ week_number: c.w.week, day_number: c.d.day, date_completed: new Date(now).toISOString(), logged_exercises: (c.d.exercises || []).map((ex) => ({ ...ex, loggedSets: [{ weight: ex.weight, reps: ex.reps, rpe: '', completed: true }] })) });
     }
 
