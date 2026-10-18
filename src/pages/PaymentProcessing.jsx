@@ -43,7 +43,7 @@ export default function PaymentProcessing() {
       if (data.status === 'success') {
         clearInterval(intervalRef.current);
         setStatus('success');
-        setTimeout(() => navigate('/purchase-success'), 2000);
+        setTimeout(() => window.location.assign('/purchase-success'), 2000); // full load: Pro status refreshes everywhere
       }
     } catch (err) { console.error('Polling error:', err); }
   };

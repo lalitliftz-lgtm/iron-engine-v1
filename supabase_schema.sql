@@ -274,6 +274,8 @@ INSERT INTO public.exercises (name, category, movement_pattern) VALUES
 ('RDL', 'Accessory', 'Hinge')
 ON CONFLICT (name) DO NOTHING;
 
+-- Checkout finds products by name: names are unique (and the seed's ON CONFLICT needs it).
+CREATE UNIQUE INDEX IF NOT EXISTS products_name_uniq ON public.products (name);
 INSERT INTO public.products (name, type, price_cents, short_description, version, storage_path) VALUES
 ('Iron Engine Pro', 'subscription', 149900, 'Unlimited program generation and advanced features. 1 month.', '1.0', NULL),
 ('Powerlifting System 2.0', 'pdf_guide', 149900, 'The evolved Powerlifting System: programming, progression, periodization, fatigue, weak points, technique, building your own program and meet prep.', '1.0', 'powerlifting-system-2.pdf'),

@@ -5,7 +5,6 @@
 // fine-tunes execution, fatigue is a signal, deload is training.
 // Pure functions + data tables + XLSX/text export.
 // ============================================================
-import * as XLSX from "xlsx";
 import { CONFIG } from "../config/siteConfig.js";
 
 export const C = {
@@ -1489,7 +1488,9 @@ export function weekRows(w) {
   return rows;
 }
 
-export function downloadXLSX(program, form) {
+// Loaded only when someone taps Excel export (keeps the spreadsheet library out of the main bundle and the API).
+export async function downloadXLSX(program, form) {
+  const XLSX = await import("xlsx");
   const wb = XLSX.utils.book_new();
   const cols = [{ wch: 11 }, { wch: 18 }, { wch: 38 }, { wch: 6 }, { wch: 9 }, { wch: 10 }, { wch: 7 }, { wch: 9 }, { wch: 50 }];
   program.weeks.forEach((w) => {

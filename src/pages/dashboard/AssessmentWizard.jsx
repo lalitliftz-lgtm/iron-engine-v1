@@ -110,11 +110,14 @@ export default function AssessmentWizard() {
 
   // Debounced autosave: one save 1.5 s after the last keystroke, not one per keystroke.
   useEffect(() => {
+    let pending = null;
     const subscription = watch((value) => {
+      pending = value;
       clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => saveData(value), 1500);
+      saveTimer.current = setTimeout(() => { pending = null; saveData(value); }, 1500);
     });
-    return () => { subscription.unsubscribe(); clearTimeout(saveTimer.current); };
+    // Leaving the page within 1.5 s of an edit (tap a menu link) saves it now instead of dropping it.
+    return () => { subscription.unsubscribe(); clearTimeout(saveTimer.current); if (pending) saveData(pending); };
   }, [watch, saveData]);
 
   useEffect(() => {
