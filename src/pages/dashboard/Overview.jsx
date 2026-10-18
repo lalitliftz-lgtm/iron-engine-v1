@@ -227,7 +227,7 @@ export default function Overview() {
         ) : (
           <>
             <h2 className="text-xl font-bold text-gray-900">No block yet</h2>
-            <p className="text-sm text-gray-500 mt-1">Answer the assessment (2–3 min) and the engine builds your first block around your numbers, weak points and meet date.</p>
+            <p className="text-sm text-gray-500 mt-1">Answer the assessment (about 5 min) and the engine builds your first block around your numbers, weak points and meet date.</p>
             <Link to="/dashboard/generate" className="mt-5 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Build my block</Link>
           </>
         )}

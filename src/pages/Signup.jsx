@@ -25,7 +25,7 @@ export default function Signup() {
     setLoading(true); setError(null); setMessage(null);
     const { error } = await signUp(email, password, window.location.origin + withParams('/login', { next, product }));
     if (error) setError(error.message);
-    else setMessage('Check your email for the verification link, then log in to continue.');
+    else setMessage(`Verification link sent to ${email}. Not in your inbox? Check Spam / Promotions (Inbox mein nahi? Spam check karo). Tap the link, then log in.`);
     setLoading(false);
   };
 

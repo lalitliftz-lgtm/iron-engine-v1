@@ -173,7 +173,7 @@ export default function Subscription() {
               <h3 className="text-2xl font-bold text-chalk">{activeSub ? activeSub.products?.name || 'Iron Engine Pro' : 'Free Tier'}</h3>
             </div>
             <span className={`px-3 py-1 text-xs font-semibold rounded-full ${activeSub ? 'bg-green-500 text-white' : 'bg-steel2 text-knurl'}`}>
-              {activeSub ? 'Active' : 'Inactive'}
+              {activeSub ? 'Active' : 'Free plan'}
             </span>
           </div>
           {activeSub ? (
@@ -183,7 +183,7 @@ export default function Subscription() {
               <div><p className="text-knurl text-xs mb-1">Days Remaining</p><p className="font-medium text-2xl" style={{ color: '#C9A24B' }}>{daysRemaining(activeSub.end_date)}</p></div>
             </div>
           ) : (
-            <p className="text-knurl mb-8">You don't have an active subscription. Upgrade to unlock the full Iron Engine.</p>
+            <p className="text-knurl mb-8">You're on the free plan — your first block is yours to keep. Pro builds every next block from your logs.</p>
           )}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
             <p className="text-chalk font-semibold">{renewLocked ? 'Your Pro is active' : extendOpen ? 'Extend your Pro' : activeSub ? 'Renew your Pro' : 'Choose your plan'}</p>

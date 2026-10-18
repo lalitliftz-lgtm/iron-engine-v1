@@ -67,7 +67,7 @@ export default function Account() {
             <Row label="Next meet" value={meet} />
           </div>
         ) : (
-          <div className="text-sm text-gray-500">No assessment yet. <Link to="/dashboard/assessment" className="text-blue-600 font-semibold">Start it (2–3 min)</Link></div>
+          <div className="text-sm text-gray-500">No assessment yet. <Link to="/dashboard/assessment" className="text-blue-600 font-semibold">Start it (about 5 min)</Link></div>
         )}
       </section>
 

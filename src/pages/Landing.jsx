@@ -200,7 +200,7 @@ export default function Landing() {
           </p>
           <div style={{ display: "flex", gap: 10, marginTop: 28, flexWrap: "wrap" }}>
             <button
-              onClick={() => scrollTo("products")}
+              onClick={() => scrollTo("engine")}
               style={{
                 padding: "15px 30px",
                 borderRadius: 10,
@@ -213,10 +213,10 @@ export default function Landing() {
                 letterSpacing: 1,
               }}
             >
-              VIEW PRODUCTS →
+              BUILD MY FREE PROGRAM →
             </button>
             <button
-              onClick={() => scrollTo("engine")}
+              onClick={() => scrollTo("products")}
               style={{
                 padding: "15px 30px",
                 borderRadius: 10,
@@ -229,7 +229,7 @@ export default function Landing() {
                 fontFamily: "'Barlow', sans-serif",
               }}
             >
-              Try Iron Engine Free
+              Guides & coaching
             </button>
           </div>
         </div>
@@ -405,7 +405,7 @@ export default function Landing() {
               marginBottom: 8,
             }}
           >
-            03 / PREMIUM · LIMITED SPOTS
+            03 / PREMIUM · 1:1 COACHING
           </div>
           <div
             style={{
@@ -434,7 +434,7 @@ export default function Landing() {
             >
               Personal programming, weekly video technique review, competition
               prep, and direct access. The guides and tools build your
-              foundation — coaching delivers the results. Serious lifters only.
+              foundation — coaching delivers the results. Beginners welcome; Lalit replies personally on WhatsApp.
             </p>
             <div style={{ display: "flex", gap: 10, marginTop: 22, flexWrap: "wrap" }}>
               <a

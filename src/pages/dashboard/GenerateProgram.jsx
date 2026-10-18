@@ -235,7 +235,7 @@ export default function GenerateProgram() {
       <div className="max-w-2xl mx-auto px-4 py-20 text-center">
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-12">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Assessment first</h1>
-          <p className="text-gray-500 mb-8">The engine needs your experience, training days, your three lifts (a 1RM or a recent heavy set) and weak points before it can build a block. 2–3 minutes.</p>
+          <p className="text-gray-500 mb-8">The engine needs your experience, training days, your three lifts (a 1RM or a recent heavy set) and weak points before it can build a block. About 5 minutes.</p>
           <Link to="/dashboard/assessment" className="inline-flex items-center justify-center bg-gray-900 hover:bg-gray-800 text-white px-8 py-3.5 rounded-lg text-sm font-medium transition-colors">
             {profile ? 'Complete Assessment' : 'Start Assessment'}
           </Link>

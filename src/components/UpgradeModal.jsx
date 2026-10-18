@@ -15,8 +15,8 @@ export default function UpgradeModal({ isOpen, onClose }) {
   useEffect(() => { if (isOpen) setIsVideoPlaying(false); }, [isOpen]);
   const goToCheckout = () => { onClose?.(); navigate('/dashboard/subscription'); };
 
-  const headerTitle = isExpired ? 'Renew Your Pro Access' : isFreeLimitReached ? 'Your Free Trial is Complete' : 'Upgrade to Iron Engine Pro';
-  const headerSubtitle = isExpired ? 'Renew your subscription to continue generating programs and logging your workouts.' : isFreeLimitReached ? 'You’ve experienced the power of the Iron Engine. Unlock unlimited generation and advanced features to keep progressing.' : 'You\'ve seen the basics. Unlock the full power of automated, science-based programming.';
+  const headerTitle = isExpired ? 'Renew Your Pro Access' : isFreeLimitReached ? 'Block 1 done — ready for Block 2?' : 'Upgrade to Iron Engine Pro';
+  const headerSubtitle = isExpired ? 'Renew your subscription to continue generating programs and logging your workouts.' : isFreeLimitReached ? 'Pro builds your next block from your logs: updated maxes, weak-point work and weekly check-ins that set next week\'s kg.' : 'You\'ve seen the basics. Unlock the full power of automated, science-based programming.';
   const hasVideo = marketingAssets.demoVideoUrl && marketingAssets.demoVideoThumbnail;
 
   return (
@@ -63,18 +63,19 @@ export default function UpgradeModal({ isOpen, onClose }) {
                 </div>
                 
                 <div className="space-y-3">
-                  <ComparisonRow feature="Program Generation" free="1 Sample" pro="Unlimited" />
+                  <ComparisonRow feature="Program Generation" free="1 full block" pro="Unlimited" />
                   <ComparisonRow feature="Weak-point variations + accessories" free={<CrossIcon />} pro={<CheckIcon />} />
                   <ComparisonRow feature="Block focus (squat / bench / deadlift)" free={<CrossIcon />} pro={<CheckIcon />} />
                   <ComparisonRow feature="Meet-aware peaking + taper" free="1 block" pro="Every block" />
                   <ComparisonRow feature="Injury-safe load caps + swaps" free={<CheckIcon />} pro={<CheckIcon />} />
                   <ComparisonRow feature="Workout logger + history" free={<CheckIcon />} pro={<CheckIcon />} />
+                  <ComparisonRow feature="Weekly check-in sets next week's kg" free={<CrossIcon />} pro={<CheckIcon />} />
                 </div>
               </div>
 
               <div className="px-6 md:px-10 py-10 text-center">
                 <div className="inline-flex items-center gap-2 mb-4">
-                  <span className="px-2.5 py-1 text-[10px] font-bold bg-amber-100 text-amber-800 rounded-full uppercase tracking-wider">Founding Price</span>
+                  <span className="px-2.5 py-1 text-[10px] font-bold bg-amber-100 text-amber-800 rounded-full uppercase tracking-wider">One-time payment · no auto-debit</span>
                 </div>
                 
                 <div className="flex items-baseline justify-center gap-2 mb-1">
