@@ -12,7 +12,7 @@ const PRO_ONLY = { focus: 'bal', weak: 'none', sticking: null, variationIdx: 0, 
 const ENUMS = {
   goal: ['hyp', 'str', 'peak'], focus: ['bal', 'squat', 'bench', 'dead'], weak: ['none', 'squat', 'bench', 'deadlift'],
   weakType: ['strength', 'technique', 'fatigue'], sleep: ['high', 'mid', 'low'], stress: ['low', 'mid', 'high'],
-  exp: ['beg', 'int', 'adv'], equipment: ['commercial', 'basic', 'minimal'],
+  exp: ['beg', 'int', 'adv'], equipment: ['commercial', 'basic', 'minimal'], style: ['focused', 'balanced', 'full'],
 };
 const INJ_KEYS = ['back', 'knee', 'shoulder'];
 
@@ -65,10 +65,10 @@ export default async function handler(req, res) {
     if (!isPro) Object.assign(overrides, PRO_ONLY);
 
     // ---- Block-end evaluation of the previous block (System 2.0 Ch 8/9): what did the logs say?
-    const { data: prev } = await supabaseAdmin.from('generated_programs').select('id, created_at, program_snapshot').eq('user_id', user.id).eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    const { data: prev } = await supabaseAdmin.from('generated_programs').select('id, created_at, program_snapshot').eq('user_id', user.id).eq('is_active', true).eq('is_deleted', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
     let evaluation = null;
     if (prev?.program_snapshot?.weeks) {
-      const { data: logs } = await supabaseAdmin.from('workout_logs').select('week_number, day_number, date_completed, logged_exercises').eq('program_id', prev.id).eq('user_id', user.id).limit(200);
+      const { data: logs } = await supabaseAdmin.from('workout_logs').select('week_number, day_number, date_completed, logged_exercises').eq('program_id', prev.id).eq('user_id', user.id).eq('is_deleted', false).limit(200);
       if (logs && logs.length >= 4) { // fewer than 4 sessions is a re-generate, not a finished block
         evaluation = evaluateBlock(prev.program_snapshot, logs, prev.program_snapshot.adjustments?.checkins || {});
         // Remember the verdict on the finished block (only the `adjustments` key is ever written; weeks stay immutable).
@@ -108,7 +108,7 @@ export default async function handler(req, res) {
     let snapshot = toSnapshot(program, form, maxes, decisions);
     // Rebuilt mid-week? The rest of this week keeps the previous block's sessions; the new block starts Monday.
     if (prev?.program_snapshot?.weeks) {
-      const { data: prevLogs } = await supabaseAdmin.from('workout_logs').select('week_number, day_number').eq('program_id', prev.id).eq('user_id', user.id).limit(300);
+      const { data: prevLogs } = await supabaseAdmin.from('workout_logs').select('week_number, day_number').eq('program_id', prev.id).eq('user_id', user.id).eq('is_deleted', false).limit(300);
       const prevSnap = applyAdjustments(prev.program_snapshot, prev.program_snapshot.adjustments);
       snapshot = bridgeWeek(snapshot, prevSnap, prevLogs || [], prev.created_at, calToday(form.today));
     }
@@ -130,13 +130,14 @@ export default async function handler(req, res) {
       engine_version_id: engineVersion.id,
       program_snapshot: snapshot,
       is_active: true
-    }).select('id').single();
+    }).select('id, created_at').single();
 
     if (saveError) throw saveError;
 
     // Only one block is "active" at a time — the newest one. Done AFTER the insert so a failed
-    // save never leaves the athlete with no active program.
-    await supabaseAdmin.from('generated_programs').update({ is_active: false }).eq('user_id', user.id).eq('is_active', true).neq('id', newProgram.id);
+    // save never leaves the athlete with no active program; only OLDER blocks are switched off, so two
+    // requests at once (double tap, two tabs) can't switch each other off.
+    await supabaseAdmin.from('generated_programs').update({ is_active: false }).eq('user_id', user.id).eq('is_active', true).lt('created_at', newProgram.created_at);
 
     // Audit log is best-effort — never fail the save because of it.
     const { error: logError } = await supabaseAdmin.from('decision_audit_logs').insert({
@@ -146,7 +147,7 @@ export default async function handler(req, res) {
     });
     if (logError) console.error('Decision log insert failed:', logError.message);
 
-    return res.status(200).json({ success: true, programId: newProgram.id, engineData: { blockType: snapshot.blockType, log: decisions, evaluation } });
+    return res.status(200).json({ success: true, programId: newProgram.id, snapshot, engineData: { blockType: snapshot.blockType, log: decisions, evaluation } });
 
   } catch (error) {
     console.error('Engine Error:', error);

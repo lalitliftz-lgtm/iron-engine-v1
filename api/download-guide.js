@@ -16,7 +16,7 @@ export default async function handler(req, res) {
     const { data: product, error: prodError } = await supabaseAdmin.from('products').select('id, name, storage_path, version').eq('id', productId).single();
     if (prodError || !product) return res.status(404).json({ error: 'Product not found' });
 
-    const { data: ownership, error: ownError } = await supabaseAdmin.from('purchases').select('id').eq('user_id', user.id).eq('product_id', productId).maybeSingle();
+    const { data: ownership, error: ownError } = await supabaseAdmin.from('purchases').select('id').eq('user_id', user.id).eq('product_id', productId).limit(1).maybeSingle();
 
     if (ownError || !ownership) return res.status(403).json({ error: 'FORBIDDEN: You do not own this product.' });
 

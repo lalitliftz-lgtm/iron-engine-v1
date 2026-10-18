@@ -3,7 +3,8 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { buildProgram, downloadXLSX, LIFT_NAMES } from '../../lib/engine';
+import { LIFT_NAMES } from '../../lib/engine';
+import { printBlock, downloadBlockXlsx } from '../../lib/exportBlock';
 import { applyAdjustments, attemptPlan } from '../../lib/autoreg';
 import StalePlanBanner from '../../components/dashboard/StalePlanBanner';
 import { planSchedule, lockReason, appNow } from '../../lib/schedule';
@@ -57,11 +58,14 @@ export default function Programs() {
     fetchProgram();
   }, [user]);
 
-  const handlePrint = () => { window.print(); };
-  const handleExcel = () => {
-    const { form, maxes } = program.program_snapshot.meta;
-    // Pure, deterministic — rebuilding from the saved inputs reproduces the block exactly.
-    downloadXLSX(buildProgram(form, maxes), form);
+  // Both exports use the SAVED block as shown in the app (check-in adjustments, bridge week, rest days).
+  const exportSnap = () => applyAdjustments(program.program_snapshot, program.program_snapshot.adjustments);
+  const athleteName = () => program.program_snapshot?.meta?.form?.name || '';
+  const [exporting, setExporting] = useState('');
+  const handlePrint = () => printBlock(exportSnap(), athleteName());
+  const handleExcel = async () => {
+    setExporting('xlsx');
+    try { await downloadBlockXlsx(exportSnap(), athleteName()); } catch (e) { window.alert(`Could not build the Excel file: ${e.message}`); } finally { setExporting(''); }
   };
 
   if (loading) return <div className="flex justify-center items-center min-h-[60vh]"><div className="animate-spin h-8 w-8 border-2 border-gray-900 rounded-full border-t-transparent"></div></div>;
@@ -110,9 +114,9 @@ export default function Programs() {
           <div className="flex items-center gap-2 shrink-0">
             <details className="relative">
               <summary className="list-none cursor-pointer px-3 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50" aria-label="Export">Export</summary>
-              <div className="absolute right-0 mt-2 w-40 bg-white border border-gray-200 rounded-lg p-1 z-20 shadow-lg">
-                {meta?.form && <button onClick={handleExcel} className="w-full text-left px-3 py-2 text-sm text-gray-700 rounded hover:bg-gray-50">Excel sheet</button>}
-                <button onClick={handlePrint} className="w-full text-left px-3 py-2 text-sm text-gray-700 rounded hover:bg-gray-50">Print / PDF</button>
+              <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg p-1 z-20 shadow-lg">
+                <button onClick={handlePrint} className="w-full text-left px-3 py-2 text-sm text-gray-700 rounded hover:bg-gray-50"><b className="block text-gray-900">PDF</b><span className="text-xs text-gray-500">Whole block · {weeks.length} weeks · print or save</span></button>
+                <button onClick={handleExcel} disabled={!!exporting} className="w-full text-left px-3 py-2 text-sm text-gray-700 rounded hover:bg-gray-50 disabled:opacity-50"><b className="block text-gray-900">{exporting ? 'Building…' : 'Excel'}</b><span className="text-xs text-gray-500">One sheet per week + log columns</span></button>
               </div>
             </details>
             <Link to="/dashboard/generate" className="px-3 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">New block</Link>

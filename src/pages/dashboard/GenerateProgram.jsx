@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { profileToForm, STICKING, LIFT_NAMES, daysToMeet, SCHEMES, buildProgram, localYmd } from '../../lib/engine';
 import { evaluateBlock } from '../../lib/autoreg';
 import { appNow } from '../../lib/schedule';
+import BlockReady from '../../components/dashboard/BlockReady';
 
 // Settings the athlete can tune on top of the assessment defaults.
 const GOALS = [
@@ -135,6 +136,7 @@ export default function GenerateProgram() {
   const [slides, setSlides] = useState([]);
   const [slideIdx, setSlideIdx] = useState(0);
   const [saved, setSaved] = useState(false);
+  const [result, setResult] = useState(null); // the saved snapshot, for the "block ready" screen
   const [lastBlock, setLastBlock] = useState(null);
 
   useEffect(() => {
@@ -145,7 +147,7 @@ export default function GenerateProgram() {
         const d = profileToForm(data, { today: localYmd(appNow()) });
         setDefaults(d);
         const { goal, focus, weak, sticking, weakType, variationIdx, accIdx, injuries, sleep, stress, days, equipment } = d.form;
-        setSettings({ goal, focus, weak, sticking, weakType, variationIdx, accIdx, injuries, sleep, stress, days, equipment });
+        setSettings({ goal, focus, weak, sticking, weakType, variationIdx, accIdx, injuries, sleep, stress, days, equipment, style: d.form.style });
       }
       // Review of the current block (same function the API uses) so the athlete sees what the engine will do with it.
       const { data: prev } = await supabase.from('generated_programs').select('id, program_snapshot').eq('user_id', user.id).eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
@@ -166,7 +168,7 @@ export default function GenerateProgram() {
   useEffect(() => {
     if (appStatus !== 'generating' || !slides.length) return;
     if (slideIdx < slides.length - 1) { const t = setTimeout(() => setSlideIdx((i) => i + 1), 1600); return () => clearTimeout(t); }
-    if (saved) { const t = setTimeout(() => navigate('/dashboard/programs'), 1400); return () => clearTimeout(t); }
+    if (saved) { const t = setTimeout(() => setAppStatus('ready'), 900); return () => clearTimeout(t); }
   }, [appStatus, slides, slideIdx, saved, navigate]);
 
   const handleGenerate = async () => {
@@ -187,21 +189,18 @@ export default function GenerateProgram() {
         body: JSON.stringify({ ...(settings || {}), today }),
       });
 
-      if (response.status === 403) {
-        const data = await response.json();
-        if (data.error === 'UPGRADE_REQUIRED') {
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({})); // read the body once
+        if (response.status === 403 && errData.error === 'UPGRADE_REQUIRED') {
           setShowUpgradeModal(true);
           setAppStatus('idle');
           return;
         }
-      }
-
-      if (!response.ok) {
-        const errData = await response.json();
         throw new Error(errData.error || 'Engine failed to generate program');
       }
 
-      await response.json();
+      const out = await response.json();
+      setResult(out.snapshot || null);
       setSaved(true);
     } catch (err) {
       setError(err.message);
@@ -300,6 +299,10 @@ export default function GenerateProgram() {
                 <Seg options={DAYS} value={settings.days} onChange={(v) => set('days', v)} locked={['taper', 'meetweek'].includes(meet.phase)} />
               </Field>
 
+              <Field label="Accessory Work" hint="Main lifts stay the same — this sets how much extra work surrounds them. Session length still caps it.">
+                <Seg options={[{ v: 'focused', l: 'Focused', s: 'essentials only' }, { v: 'balanced', l: 'Balanced', s: '3–4 a day' }, { v: 'full', l: 'Full', s: 'more pump work' }]} value={settings.style || 'balanced'} onChange={(v) => set('style', v)} />
+              </Field>
+
               <Field label="Weakest Lift" hint="Gets +1 set and a targeted variation" pro={!isPro} locked={!isPro} onLockedClick={lockedClick}>
                 <Seg options={WEAK} value={settings.weak} onChange={setWeak} locked={!isPro} />
               </Field>
@@ -378,6 +381,10 @@ export default function GenerateProgram() {
             </div>
           </div>
         )}
+
+        {appStatus === 'ready' && (result
+          ? <BlockReady snapshot={result} athlete={profile?.full_name} />
+          : <div className="text-center py-16"><Link to="/dashboard/programs" className="bg-gray-900 text-white px-6 py-3 rounded-lg font-semibold">Open my program</Link></div>)}
 
         {appStatus === 'error' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-gray-900 border border-red-900 rounded-2xl p-10 text-center shadow-2xl">

@@ -15,13 +15,14 @@ export default async function handler(req, res) {
     const { orderId } = req.body;
     if (!orderId) return res.status(400).json({ error: 'Order ID is required' });
 
-    const { data: activeSub } = await supabaseAdmin.from('subscriptions').select('id, end_date').eq('user_id', user.id).eq('status', 'active').gte('end_date', new Date().toISOString()).order('end_date', { ascending: false }).limit(1).maybeSingle();
-    if (activeSub) return res.status(200).json({ status: 'success', message: 'Access already active' });
-
     const provider = getPaymentProvider();
     const paymentData = await provider.fetchPaymentStatus(orderId);
 
+    // Only the buyer can poll their own order.
+    if (paymentData.notes?.user_id && paymentData.notes.user_id !== user.id) return res.status(403).json({ status: 'error', error: 'Not your order' });
+
     if (paymentData.status === 'captured') {
+      // Idempotent: records the payment once and (re)grants access if an earlier attempt failed half-way.
       const result = await processSuccessfulPayment(supabaseAdmin, paymentData);
       if (result.success) return res.status(200).json({ status: 'success', message: 'Payment verified and access granted' });
     }

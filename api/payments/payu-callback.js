@@ -25,7 +25,10 @@ export default async function handler(req, res) {
     const { valid, paymentData } = provider.verifyResponse(req.body);
 
     if (!valid) {
-      res.writeHead(302, { Location: `${base}/dashboard/subscription?payment=invalid` });
+      // A bad hash can also be a real payment with fields we don't hash for — let the polling page ask
+      // PayU directly (server-to-server) instead of telling a paying user it failed.
+      const txn = typeof req.body?.txnid === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(req.body.txnid) ? req.body.txnid : null;
+      res.writeHead(302, { Location: txn ? `${base}/payment/processing?order_id=${txn}` : `${base}/dashboard/subscription?payment=invalid` });
       return res.end();
     }
 
@@ -42,7 +45,8 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('PayU Callback Error:', error);
-    res.writeHead(302, { Location: `${base}/dashboard/subscription?payment=error` });
+    const txn = typeof req.body?.txnid === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(req.body.txnid) ? req.body.txnid : null;
+    res.writeHead(302, { Location: txn ? `${base}/payment/processing?order_id=${txn}` : `${base}/dashboard/subscription?payment=error` });
     return res.end();
   }
 }
