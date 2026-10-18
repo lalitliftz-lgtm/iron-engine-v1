@@ -80,6 +80,8 @@ export default function Account() {
         <LinkRow to="/dashboard/library" title="My guides" sub="Download the PDFs you bought" />
       </section>
 
+      <OwnerLink />
+
       <CoachLanguage />
 
       <TestDateCard />
@@ -116,6 +118,24 @@ function CoachLanguage() {
         {opt('en', 'English', 'Simple English')}
         {opt('hi', 'Hinglish', 'Aasaan Hinglish')}
       </div>
+    </section>
+  );
+}
+
+/** Shown only to the owner (the server checks the login email against OWNER_EMAIL). */
+function OwnerLink() {
+  const [owner, setOwner] = useState(false);
+  useEffect(() => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/admin?action=check', { headers: { Authorization: `Bearer ${session?.access_token}` } }).catch(() => null);
+      if (res?.ok) setOwner(true);
+    })();
+  }, []);
+  if (!owner) return null;
+  return (
+    <section className="bg-white border border-gray-200 rounded-xl p-5">
+      <LinkRow to="/dashboard/owner" title="Owner panel" sub="All users, lifting data, payments, invites — only you see this" />
     </section>
   );
 }

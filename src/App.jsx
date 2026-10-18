@@ -22,6 +22,7 @@ import WorkoutSession from './pages/dashboard/WorkoutSession';
 import WeeklyCheckin from './pages/dashboard/WeeklyCheckin';
 import Account from './pages/dashboard/Account';
 import MyLibrary from './pages/dashboard/MyLibrary';
+import OwnerPanel from './pages/dashboard/OwnerPanel';
 
 import PrivacyPolicy from './pages/legal/PrivacyPolicy';
 import Terms from './pages/legal/Terms';
@@ -63,6 +64,7 @@ export default function App() {
               <Route path="account" element={<Account />} />
               <Route path="history" element={<WorkoutHistory />} />
               <Route path="library" element={<MyLibrary />} />
+              <Route path="owner" element={<OwnerPanel />} />
               <Route path="assessment" element={<AssessmentWizard />} />
               <Route path="settings" element={<Navigate to="/dashboard/account" replace />} />
             </Route>
