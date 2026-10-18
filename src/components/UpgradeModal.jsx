@@ -78,13 +78,14 @@ export default function UpgradeModal({ isOpen, onClose }) {
                 </div>
                 
                 <div className="flex items-baseline justify-center gap-2 mb-1">
-                  <span className="text-4xl md:text-5xl font-bold text-gray-900">₹1,999</span>
-                  <span className="text-gray-500 font-medium">/ year</span>
+                  <span className="text-gray-500 font-medium">from</span>
+                  <span className="text-4xl md:text-5xl font-bold text-gray-900">₹833</span>
+                  <span className="text-gray-500 font-medium">/ month</span>
                 </div>
-                <p className="text-xs text-gray-400 mb-8">Full access for 365 days. All Iron Engine updates included during your active subscription.</p>
+                <p className="text-xs text-gray-400 mb-8">1 month ₹1,499 · 3 months ₹3,499 · 6 months ₹5,999 · 1 year ₹9,999. No auto-debit. All Iron Engine updates included.</p>
 
                 <button onClick={goToCheckout} className="w-full md:w-auto bg-gray-900 hover:bg-gray-800 text-white px-12 py-4 rounded-xl text-sm font-semibold transition-colors shadow-lg hover:shadow-xl">
-                  {isExpired ? 'Renew Pro Access' : 'Upgrade to Pro'}
+                  {isExpired ? 'Renew Pro — see plans' : 'Upgrade to Pro — see plans'}
                 </button>
                 <p className="text-xs text-gray-400 mt-4">Secure payment. Instant access after successful payment verification.</p>
               </div>

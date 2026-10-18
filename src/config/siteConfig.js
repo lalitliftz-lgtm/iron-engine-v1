@@ -13,14 +13,34 @@ export const CONFIG = {
     "State & District Gold Medalist · All India Inter-University Powerlifter",
   coachingFormUrl: "#", // 👈 your Google Form link for 1:1 coaching applications
 
+  // Iron Engine Pro plans. `productName` must match products.name in Supabase; the database price is what PayU
+  // charges and products.duration_days is how long access lasts — keep these display prices in sync with it.
+  proPlans: [
+    { productName: "Iron Engine Pro", label: "1 Month", months: 1, price: 1499 },
+    { productName: "Iron Engine Pro — 3 Months", label: "3 Months", months: 3, price: 3499 },
+    { productName: "Iron Engine Pro — 6 Months", label: "6 Months", months: 6, price: 5999 },
+    { productName: "Iron Engine Pro — 1 Year", label: "1 Year", months: 12, price: 9999, best: true },
+  ],
+
   products: [
     {
-      id: "guide1",
+      id: "system2",
       // 👇 must match products.name in Supabase for checkout to resolve
-      productName: "All About Powerlifting System",
+      productName: "Powerlifting System 2.0",
+      type: "pdf_guide",
+      tag: "NEW · GUIDE · PDF",
+      name: "Powerlifting System 2.0",
+      desc: "The evolved version of the original system — 16 chapters + worksheets: volume & progression, periodization, fatigue & deloads, weak-point diagnostics, technique in detail, build your own program with worked examples, and meet prep & peaking.",
+      mrp: "",
+      price: "₹1,499",
+      cta: "Buy Guide",
+    },
+    {
+      id: "guide1",
+      productName: "All About Powerlifting System 1.0",
       type: "pdf_guide",
       tag: "GUIDE · PDF",
-      name: "All About Powerlifting System",
+      name: "All About Powerlifting System 1.0",
       desc: "Basic to Advanced — technique, programming logic, fatigue management, and block design. Learn to build your own programs.",
       mrp: "₹2,999",
       price: "₹999",
@@ -45,7 +65,7 @@ export const CONFIG = {
       name: "Iron Engine — Program Builder",
       desc: "Generate personalized 4-week powerlifting blocks — sticking-point analysis, injury-aware, recovery-adjusted. Unlimited programs, Excel + PDF export.",
       mrp: "",
-      price: "₹1,999 / year",
+      price: "From ₹833 / month",
       cta: "Try Free Sample",
       locked: true,
     },

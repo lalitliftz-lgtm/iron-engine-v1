@@ -14,7 +14,7 @@ export default function PrivacyPolicy() {
         <li><strong>Payment Data:</strong> We use PayU to process payments. We do not store your credit card number or sensitive financial data on our servers; we only store transaction IDs and payment status.</li>
       </ul>
       <h2 className="text-xl font-bold text-gray-900 mt-8 mb-3">2. How We Use Your Data</h2>
-      <p>Your data is used exclusively to operate the Iron Engine, display your training history, secure your account, and process your 365-day subscription access. We do not sell your personal data to third parties.</p>
+      <p>Your data is used exclusively to operate the Iron Engine, display your training history, secure your account, and process your Iron Engine Pro access. We do not sell your personal data to third parties.</p>
       <h2 className="text-xl font-bold text-gray-900 mt-8 mb-3">3. Data Security</h2>
       <p>All data is stored securely using Supabase (PostgreSQL) with Row-Level Security. Access to your personal workout data is strictly restricted to your authenticated account and authorized administrators for support purposes.</p>
       <h2 className="text-xl font-bold text-gray-900 mt-8 mb-3">4. Your Rights</h2>

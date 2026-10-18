@@ -9,6 +9,7 @@ import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
 import PaymentProcessing from './pages/PaymentProcessing';
 import PurchaseSuccess from './pages/PurchaseSuccess';
+import Invite from './pages/Invite';
 
 import DashboardLayout from './components/dashboard/DashboardLayout';
 import Overview from './pages/dashboard/Overview';
@@ -21,6 +22,7 @@ import WorkoutSession from './pages/dashboard/WorkoutSession';
 import WeeklyCheckin from './pages/dashboard/WeeklyCheckin';
 import Account from './pages/dashboard/Account';
 import MyLibrary from './pages/dashboard/MyLibrary';
+import OwnerPanel from './pages/dashboard/OwnerPanel';
 
 import PrivacyPolicy from './pages/legal/PrivacyPolicy';
 import Terms from './pages/legal/Terms';
@@ -41,6 +43,7 @@ export default function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/payment/processing" element={<PaymentProcessing />} />
             <Route path="/purchase-success" element={<PurchaseSuccess />} />
+            <Route path="/invite/:code" element={<Invite />} />
             
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<Terms />} />
@@ -61,6 +64,7 @@ export default function App() {
               <Route path="account" element={<Account />} />
               <Route path="history" element={<WorkoutHistory />} />
               <Route path="library" element={<MyLibrary />} />
+              <Route path="owner" element={<OwnerPanel />} />
               <Route path="assessment" element={<AssessmentWizard />} />
               <Route path="settings" element={<Navigate to="/dashboard/account" replace />} />
             </Route>
