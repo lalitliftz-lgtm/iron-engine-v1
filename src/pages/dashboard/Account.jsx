@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { supabase } from '../../lib/supabase';
 import InstallApp from '../../components/dashboard/InstallApp';
-import { TestDateCard } from '../../components/dashboard/TestDate';
+import { TestDateCard, tapForTestMode } from '../../components/dashboard/TestDate';
 import { parseYmd } from '../../lib/schedule';
 
 const EXP = { Beginner: 'Novice', Intermediate: 'Intermediate', Advanced: 'Advanced' };
@@ -49,7 +49,7 @@ export default function Account() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-8 py-8 md:py-12 space-y-6">
-      <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight">Account</h1>
+      <h1 onClick={tapForTestMode} className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight select-none">Account</h1>
 
       <section className="bg-white border border-gray-200 rounded-xl p-5">
         <div className="flex items-center justify-between mb-2">

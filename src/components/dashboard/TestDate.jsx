@@ -9,8 +9,22 @@ const flagOn = () => {
   } catch { return false; }
 };
 
+// Hidden switch without a URL (installed home-screen app has no address bar):
+// tap the "Account" heading 5 times quickly to show or hide the Testing card.
+let taps = [];
+export function tapForTestMode() {
+  const now = Date.now();
+  taps = [...taps.filter((t) => now - t < 3000), now];
+  if (taps.length < 5) return;
+  taps = [];
+  try {
+    if (localStorage.getItem(FLAG) === '1') { localStorage.removeItem(FLAG); setTestToday(null); } else localStorage.setItem(FLAG, '1');
+  } catch { /* storage blocked */ }
+  window.location.reload();
+}
+
 /**
- * Coach testing tool (hidden): open /dashboard/account?testmode=1 once to show it.
+ * Coach testing tool (hidden): open any dashboard page with ?testmode=1, or tap "Account" 5 times.
  * "Pretend today is…" moves the app's calendar so a whole block can be walked through in one sitting.
  * Only this browser is affected. Workouts saved in test mode still carry the real time.
  */
@@ -41,6 +55,7 @@ export function TestDateCard() {
 
 /** Thin bar on every dashboard page while a test date is active, so it's never mistaken for real. */
 export function TestDateBanner() {
+  flagOn(); // ?testmode=1 works on any dashboard page (it survives the login redirect less often than you'd hope)
   const t = testToday();
   if (!t) return null;
   const label = new Date(`${t}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
