@@ -3,6 +3,8 @@ import { getPaymentProvider } from '../../src/lib/payments/PaymentFactory.js';
 
 const supabaseAdmin = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
+const RENEW_WINDOW_DAYS = 7;
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
@@ -18,8 +20,12 @@ export default async function handler(req, res) {
     if (prodError || !product) return res.status(404).json({ error: 'Product not found' });
 
     if (product.type === 'subscription') {
-      // Pro plans are passes that stack: buying while active adds the new plan after the current end date
-      // (see grantAccess), so an early renewal or an upgrade to a longer plan never loses days.
+      // While Pro is active no new plan can be bought — renewal opens in the last 7 days, and the new plan
+      // then starts when the current one ends (see grantAccess), so no days are lost.
+      const { data: activeSub } = await supabaseAdmin.from('subscriptions').select('end_date').eq('user_id', user.id).eq('status', 'active').gte('end_date', new Date().toISOString()).order('end_date', { ascending: false }).limit(1).maybeSingle();
+      if (activeSub && new Date(activeSub.end_date) - Date.now() > RENEW_WINDOW_DAYS * 24 * 3600 * 1000) {
+        return res.status(400).json({ error: `Your Pro is active until ${new Date(activeSub.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}. Renewal opens ${RENEW_WINDOW_DAYS} days before that.` });
+      }
     } else if (product.type === 'pdf_guide') {
       const { data: existingPurchase } = await supabaseAdmin.from('purchases').select('id').eq('user_id', user.id).eq('product_id', productId).limit(1).maybeSingle();
       if (existingPurchase) return res.status(400).json({ error: 'You already own this product.' });
