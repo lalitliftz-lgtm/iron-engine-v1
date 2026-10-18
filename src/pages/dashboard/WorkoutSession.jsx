@@ -561,6 +561,16 @@ export default function WorkoutSession() {
                             <button type="button" title="Pain on this set" onClick={() => updateSet(exIdx, setIdx, { pain: !set.pain })} className={`ml-1 h-8 px-2 rounded-lg text-xs font-bold border ${set.pain ? 'bg-red-600 border-red-600 text-white' : 'border-gray-200 text-gray-500'}`}>Pain</button>
                           </div>
                         )}
+                        {/* Right under the set it came from — not at the bottom of the card where it scrolls out of view. */}
+                        {isMain && ex.suggest && setIdx === lIdx && (
+                          <div className={`mt-3 ml-8 rounded-xl border p-3 ${ex.suggest.tone === 'down' ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
+                            <p className={`text-sm ${ex.suggest.tone === 'down' ? 'text-amber-700' : 'text-green-700'}`}>{ex.suggest.text}</p>
+                            <div className="flex gap-2 mt-2">
+                              <button type="button" onClick={() => applySuggest(exIdx)} className="text-sm font-semibold bg-gray-900 text-white px-3 py-1.5 rounded-lg">Use {ex.suggest.kg} kg</button>
+                              <button type="button" onClick={() => setSuggest(exIdx, null)} className="text-sm font-semibold border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg">Keep plan</button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -568,15 +578,6 @@ export default function WorkoutSession() {
                     <div className="mx-4 my-3 rounded-xl border p-3 bg-red-50 border-red-200">
                       <p className="text-sm text-red-700">Two painful sets — stop this lift for today. Pain is a signal, not effort. Do pain-free work instead; if it comes back next session, add it to injuries in your profile.</p>
                       <button type="button" onClick={() => stopExercise(exIdx)} className="mt-2 text-sm font-semibold bg-gray-900 text-white px-3 py-1.5 rounded-lg">Stop {ex.name}</button>
-                    </div>
-                  )}
-                  {isMain && ex.suggest && (
-                    <div className={`mx-4 my-3 rounded-xl border p-3 ${ex.suggest.tone === 'down' ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
-                      <p className={`text-sm ${ex.suggest.tone === 'down' ? 'text-amber-700' : 'text-green-700'}`}>{ex.suggest.text}</p>
-                      <div className="flex gap-2 mt-2">
-                        <button type="button" onClick={() => applySuggest(exIdx)} className="text-sm font-semibold bg-gray-900 text-white px-3 py-1.5 rounded-lg">Use {ex.suggest.kg} kg</button>
-                        <button type="button" onClick={() => setSuggest(exIdx, null)} className="text-sm font-semibold border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg">Keep plan</button>
-                      </div>
                     </div>
                   )}
                   {isMain && (
