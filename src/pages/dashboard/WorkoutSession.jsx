@@ -5,7 +5,9 @@ import { supabase } from '../../lib/supabase';
 import { platesPerSide, round25 } from '../../lib/engine';
 import { applyAdjustments } from '../../lib/autoreg';
 import { readDraft, saveDraft, clearDraft } from '../../lib/workoutDraft';
-import { warmupSets, CUES, RPE_SCALE } from '../../lib/education';
+import { warmupSets, CUES, RPE_SCALE, CUES_HI, RPE_SCALE_HI } from '../../lib/education';
+import { useLang } from '../../lib/useLang';
+import LangToggle from '../../components/dashboard/LangToggle';
 import { reentry, trained, startOfDay, planSchedule, lockReason, appNow } from '../../lib/schedule';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -78,6 +80,7 @@ export default function WorkoutSession() {
   const [loading, setLoading] = useState(true);
   const [exercises, setExercises] = useState([]);
   const [notes, setNotes] = useState('');
+  const { lang, t: tx } = useLang();
   const [now, setNow] = useState(() => Date.now());
   // Timing is kept as timestamps, never as a counting-down number: phones pause
   // background tabs (screen lock, Spotify), and a timestamp is right the moment you come back.
@@ -481,15 +484,16 @@ export default function WorkoutSession() {
                   {plates && <p className="text-[11px] text-gray-400 mt-0.5">Per side: {plates.length ? plates.map((p) => p.w).join(' + ') : 'bar only'}</p>}
                   {isMain && ex.lift && !ex.skipped && warmupSets(curKg, ex.lift).length > 0 && !ex.loggedSets.some((x) => x.completed) && (
                     <details className="mt-2" open={isBeginner}>
-                      <summary className="text-xs font-semibold text-gray-500 cursor-pointer">Warm-up sets</summary>
-                      <p className="text-xs text-gray-700 mt-1 tabular-nums">{warmupSets(curKg, ex.lift).map((w) => (w.bar ? `bar × ${w.reps}` : `${w.kg} × ${w.reps}`)).join('  →  ')}  →  work sets</p>
-                      <p className="text-[11px] text-gray-400">Easy and fast — rest 1–2 min between. Warm-ups rehearse the lift; they should never tire you.</p>
+                      <summary className="text-xs font-semibold text-gray-500 cursor-pointer">{tx.warmup}</summary>
+                      <p className="text-xs text-gray-700 mt-1 tabular-nums">{warmupSets(curKg, ex.lift).map((w) => (w.bar ? `${tx.bar} × ${w.reps}` : `${w.kg} × ${w.reps}`)).join('  →  ')}  →  {tx.workSets}</p>
+                      <p className="text-[11px] text-gray-400">{tx.warmupHint}</p>
                     </details>
                   )}
                   {isBeginner && isMain && CUES[ex.lift] && !ex.skipped && !/Technique/i.test(ex.name) && (
                     <details className="mt-1.5">
-                      <summary className="text-xs font-semibold text-gray-500 cursor-pointer">Form cues</summary>
-                      <ul className="mt-1 space-y-1">{CUES[ex.lift].map((c, i) => <li key={i} className="text-xs text-gray-700">• {c}</li>)}</ul>
+                      <summary className="text-xs font-semibold text-gray-500 cursor-pointer">{tx.cues}</summary>
+                      <ul className="mt-1 space-y-1">{(lang === 'hi' ? CUES_HI : CUES)[ex.lift].map((c, i) => <li key={i} className="text-xs text-gray-700">• {c}</li>)}</ul>
+                      <LangToggle className="mt-1.5" />
                     </details>
                   )}
                   {ex.note && isMain && <p className="text-xs text-gray-500 mt-1">→ {ex.note}</p>}
@@ -577,8 +581,8 @@ export default function WorkoutSession() {
                   )}
                   {isMain && (
                     <p className="px-4 py-2 text-[11px] text-gray-400">
-                      RPE 7 = 3 reps left · 8 = 2 left · 9 = 1 left. Log it after each set — the plan adjusts the next sets.{' '}
-                      <button type="button" onClick={() => setRpeHelp(true)} className="underline font-semibold text-gray-500">What is RPE?</button>
+                      {tx.rpeLine}{' '}
+                      <button type="button" onClick={() => setRpeHelp(true)} className="underline font-semibold text-gray-500">{tx.rpeWhat}</button>
                     </p>
                   )}
                 </div>
@@ -589,21 +593,24 @@ export default function WorkoutSession() {
         {rpeHelp && (
           <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/60 p-4" onClick={() => setRpeHelp(false)}>
             <div className="bg-white border border-gray-200 rounded-2xl p-5 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-lg font-bold text-gray-900">RPE — how hard was that set?</h3>
-              <p className="text-sm text-gray-500 mt-1">Count the reps you still had in the tank, honestly. Bar speed is a good guide: still fast = 7, slowing down = 8–9.</p>
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="text-lg font-bold text-gray-900">{tx.rpeTitle}</h3>
+                <LangToggle className="shrink-0 mt-1" />
+              </div>
+              <p className="text-sm text-gray-500 mt-1">{tx.rpeIntro}</p>
               <div className="mt-4 divide-y divide-gray-200">
-                {RPE_SCALE.map(([r, d]) => (
+                {(lang === 'hi' ? RPE_SCALE_HI : RPE_SCALE).map(([r, d]) => (
                   <div key={r} className="flex gap-4 py-2.5"><span className="w-8 text-lg font-bold text-gray-900 tabular-nums">{r}</span><span className="text-sm text-gray-700">{d}</span></div>
                 ))}
               </div>
-              <p className="text-xs text-gray-500 mt-3">Most work sets should land at 7–8. Halves are fine: 8.5 = maybe two, surely one more.</p>
-              <button type="button" onClick={() => setRpeHelp(false)} className="mt-4 w-full bg-gray-900 text-white py-3 rounded-lg text-sm font-semibold">Got it</button>
+              <p className="text-xs text-gray-500 mt-3">{tx.rpeFoot}</p>
+              <button type="button" onClick={() => setRpeHelp(false)} className="mt-4 w-full bg-gray-900 text-white py-3 rounded-lg text-sm font-semibold">{tx.gotIt}</button>
             </div>
           </div>
         )}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
           <h3 className="text-sm font-semibold text-gray-700 mb-2">Session notes</h3>
-          <textarea value={notes} onChange={(e) => { bump(); setNotes(e.target.value); }} placeholder="How did it feel? Anything the coach should know?" rows={3} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          <textarea value={notes} onChange={(e) => { bump(); setNotes(e.target.value); }} placeholder="How did it feel? Saved in your History. (Pain on a set → tap Pain on that set — that is what adjusts your plan.)" rows={3} className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
       </div>
     </div>

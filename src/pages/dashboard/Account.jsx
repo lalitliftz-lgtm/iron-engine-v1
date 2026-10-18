@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { supabase } from '../../lib/supabase';
 import InstallApp from '../../components/dashboard/InstallApp';
+import { useLang } from '../../lib/useLang';
 import { TestDateCard, tapForTestMode } from '../../components/dashboard/TestDate';
 import { parseYmd } from '../../lib/schedule';
 
@@ -79,6 +80,8 @@ export default function Account() {
         <LinkRow to="/dashboard/library" title="My guides" sub="Download the PDFs you bought" />
       </section>
 
+      <CoachLanguage />
+
       <TestDateCard />
 
       <InstallApp />
@@ -93,5 +96,26 @@ export default function Account() {
         {resetMsg && <p className="text-xs text-gray-500 mt-2">{resetMsg}</p>}
       </section>
     </div>
+  );
+}
+
+/** Language for coaching text (tips, form cues, RPE help). Exercise names and numbers stay the same. */
+function CoachLanguage() {
+  const { lang, setLang } = useLang();
+  const opt = (v, l, sub) => (
+    <button type="button" onClick={() => setLang(v)} className={`flex-1 text-left border rounded-lg px-3 py-2.5 ${lang === v ? 'border-gray-900 bg-gray-50' : 'border-gray-200'}`}>
+      <span className="block text-sm font-semibold text-gray-900">{l}</span>
+      <span className="block text-xs text-gray-500">{sub}</span>
+    </button>
+  );
+  return (
+    <section className="bg-white border border-gray-200 rounded-xl p-5">
+      <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Coaching language</h2>
+      <p className="text-sm text-gray-500 mb-3">Tips, form cues and RPE help. You can also switch on any tip with the अ / A button.</p>
+      <div className="flex gap-2">
+        {opt('en', 'English', 'Simple English')}
+        {opt('hi', 'Hinglish', 'Aasaan Hinglish')}
+      </div>
+    </section>
   );
 }
