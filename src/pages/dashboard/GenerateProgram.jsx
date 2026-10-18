@@ -138,21 +138,38 @@ export default function GenerateProgram() {
   const [saved, setSaved] = useState(false);
   const [result, setResult] = useState(null); // the saved snapshot, for the "block ready" screen
   const [lastBlock, setLastBlock] = useState(null);
+  const [levelChoice, setLevelChoice] = useState(null); // null | 'saving' | 'done' | 'stay' | error text
+
+  const applyProfile = (data) => {
+    setProfile(data || null);
+    if (data) {
+      const d = profileToForm(data, { today: localYmd(appNow()) });
+      setDefaults(d);
+      const { goal, focus, weak, sticking, weakType, variationIdx, accIdx, injuries, sleep, stress, days, equipment } = d.form;
+      setSettings({ goal, focus, weak, sticking, weakType, variationIdx, accIdx, injuries, sleep, stress, days, equipment, style: d.form.style });
+    }
+  };
+
+  // The block's data says linear progression has run out → the athlete confirms the move to intermediate.
+  const moveToIntermediate = async () => {
+    setLevelChoice('saving');
+    const assessment_data = { ...(profile?.assessment_data || {}), progress_rate: 'week', level_unsure: false };
+    const { data, error } = await supabase.from('athlete_profiles')
+      .update({ experience_level: 'Intermediate', assessment_data, updated_at: new Date().toISOString() })
+      .eq('user_id', user.id).select('*').maybeSingle();
+    if (error || !data) { setLevelChoice(`Could not save: ${error?.message || 'please try again'}`); return; }
+    applyProfile(data);
+    setLevelChoice('done');
+  };
 
   useEffect(() => {
     const load = async () => {
       const { data } = await supabase.from('athlete_profiles').select('*').eq('user_id', user.id).maybeSingle();
-      setProfile(data || null);
-      if (data) {
-        const d = profileToForm(data, { today: localYmd(appNow()) });
-        setDefaults(d);
-        const { goal, focus, weak, sticking, weakType, variationIdx, accIdx, injuries, sleep, stress, days, equipment } = d.form;
-        setSettings({ goal, focus, weak, sticking, weakType, variationIdx, accIdx, injuries, sleep, stress, days, equipment, style: d.form.style });
-      }
+      applyProfile(data);
       // Review of the current block (same function the API uses) so the athlete sees what the engine will do with it.
       const { data: prev } = await supabase.from('generated_programs').select('id, program_snapshot').eq('user_id', user.id).eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
       if (prev?.program_snapshot?.weeks) {
-        const { data: logs } = await supabase.from('workout_logs').select('week_number, day_number, date_completed, logged_exercises').eq('program_id', prev.id).limit(200);
+        const { data: logs } = await supabase.from('workout_logs').select('week_number, day_number, date_completed, logged_exercises').eq('program_id', prev.id).eq('is_deleted', false).limit(200);
         if (logs?.length) setLastBlock({ block: prev.program_snapshot.blockType, ...evaluateBlock(prev.program_snapshot, logs, prev.program_snapshot.adjustments?.checkins || {}) });
       }
     };
@@ -262,6 +279,29 @@ export default function GenerateProgram() {
                 <p className="text-sm text-gray-800">{lastBlock.reason}</p>
                 {Object.entries(lastBlock.e1rm || {}).filter(([, v]) => v).length > 0 && (
                   <p className="text-xs text-gray-600 mt-2">Training-based maxes: {Object.entries(lastBlock.e1rm).filter(([, v]) => v).map(([l, v]) => `${LIFT_NAMES[l]} ~${v.e1rm} kg (${v.from})`).join(' · ')}. If higher than your profile, the engine updates it — no max test needed.</p>
+                )}
+              </div>
+            )}
+
+            {lastBlock?.levelUp && (isBeg || levelChoice === 'done') && levelChoice !== 'stay' && (
+              <div className="border border-blue-200 bg-blue-50 rounded-xl p-5 mb-6">
+                {levelChoice === 'done' ? (
+                  <>
+                    <h2 className="text-base font-semibold text-gray-900">You're an intermediate lifter now 🎉</h2>
+                    <p className="text-sm text-gray-700 mt-1">Your next block is built as an intermediate block. The settings below have been updated.</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">Level up</p>
+                    <h2 className="text-base font-semibold text-gray-900 mt-0.5">Your data says: time to train as an intermediate</h2>
+                    <p className="text-sm text-gray-700 mt-1">{lastBlock.levelUp.reason}</p>
+                    <p className="text-xs text-gray-500 mt-2">Life got in the way this block (illness, bad sleep, missed food)? Stay a beginner one more block — the app checks again at the end of it.</p>
+                    {typeof levelChoice === 'string' && levelChoice.startsWith('Could not') && <p className="text-xs text-red-600 mt-2">{levelChoice}</p>}
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <button type="button" disabled={levelChoice === 'saving'} onClick={moveToIntermediate} className="bg-gray-900 text-white text-sm font-semibold px-4 py-2.5 rounded-lg disabled:opacity-60">{levelChoice === 'saving' ? 'Saving…' : 'Yes, move me to Intermediate'}</button>
+                      <button type="button" onClick={() => setLevelChoice('stay')} className="border border-gray-300 text-gray-700 text-sm font-semibold px-4 py-2.5 rounded-lg">Stay beginner one more block</button>
+                    </div>
+                  </>
                 )}
               </div>
             )}

@@ -29,6 +29,12 @@ const steps = [
   { id: 'review', title: 'Review', fields: [] }
 ];
 
+/** The level a "Not sure" answer is saved as: whatever "how fast do your lifts go up" implies, else Beginner (safe start). */
+function unsureLevel(progressRate, level = 'Not sure') {
+  if (level !== 'Not sure') return level;
+  return { week: 'Intermediate', month: 'Advanced' }[progressRate] || 'Beginner';
+}
+
 export default function AssessmentWizard() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -54,6 +60,7 @@ export default function AssessmentWizard() {
         for (const [l] of LIFTS) { formData[`${l}_set_w`] = a.recent_sets?.[l]?.w ?? ''; formData[`${l}_set_r`] = a.recent_sets?.[l]?.r ?? ''; }
         // Estimated maxes are shown in the "recent set" row, not as a typed 1RM
         if (a.maxes_estimated) for (const [l] of LIFTS) if (a.recent_sets?.[l]?.w) formData[`${l}_1rm`] = '';
+        if (a.level_unsure) formData.experience_level = 'Not sure';
         delete formData.assessment_data; delete formData.id; delete formData.created_at; delete formData.updated_at; delete formData.user_id;
         reset({ ...DEFAULTS, ...formData });
       }
@@ -66,7 +73,7 @@ export default function AssessmentWizard() {
     setIsSaving(true);
     setSaveError('');
     const dbFields = {
-      full_name: formData.full_name || null, sex: formData.sex || null, experience_level: formData.experience_level || null,
+      full_name: formData.full_name || null, sex: formData.sex || null, experience_level: formData.experience_level === 'Not sure' ? unsureLevel(formData.progress_rate) : formData.experience_level || null,
       primary_goal: formData.primary_goal || null,
       competition_status: formData.competition_status === 'true',
       competition_date: formData.competition_status === 'true' && formData.competition_date ? formData.competition_date : null,
@@ -90,6 +97,9 @@ export default function AssessmentWizard() {
       squat_bar: formData.squat_bar || '', deadlift_stance: formData.deadlift_stance || '',
       meet_date_status: formData.meet_date_status || 'exact', sleep_level: formData.sleep_level || '', stress_level: formData.stress_level || '',
       max_tested: formData.max_tested || '', other_sport: formData.other_sport || '',
+      // "Not sure" is saved as the level their progress answer implies (Beginner when that's unknown too) + this flag;
+      // the block-end review moves a beginner up when their logs say so.
+      level_unsure: formData.experience_level === 'Not sure',
     };
     const payload = { ...dbFields, user_id: user.id, assessment_data: jsonFields, updated_at: new Date().toISOString() };
     const { error } = await supabase.from('athlete_profiles').upsert(payload, { onConflict: 'user_id' });
@@ -123,7 +133,7 @@ export default function AssessmentWizard() {
   const onSubmit = async (data) => { clearTimeout(saveTimer.current); const ok = await saveData(data); if (ok) setIsSubmitted(true); };
   // A lift is "known" when a 1RM is typed OR a recent set (weight + reps) is given. Beginners may leave it blank.
   const liftKnown = (l) => { const v = getValues(); return !!num(v[`${l}_1rm`]) || (!!num(v[`${l}_set_w`]) && !!num(v[`${l}_set_r`])); };
-  const liftRule = (l) => ({ validate: () => getValues('experience_level') === 'Beginner' || liftKnown(l) || 'Enter a 1RM or a recent set' });
+  const liftRule = (l) => ({ validate: () => unsureLevel(getValues('progress_rate'), getValues('experience_level')) === 'Beginner' || liftKnown(l) || 'Enter a 1RM or a recent set' });
 
   if (loadState) return <div className="flex justify-center min-h-[60vh] items-center"><div className="animate-spin h-8 w-8 border-2 border-gray-900 rounded-full border-t-transparent"></div></div>;
 
@@ -152,7 +162,7 @@ export default function AssessmentWizard() {
 
   const progress = ((currentStep + 1) / steps.length) * 100;
   const formData = watch();
-  const isBeginner = watch('experience_level') === 'Beginner';
+  const isBeginner = unsureLevel(watch('progress_rate'), watch('experience_level')) === 'Beginner';
   // The engine treats "lifts go up almost every session" as a beginner too.
   const noviceLike = isBeginner || watch('progress_rate') === 'session';
   const hasMeet = watch('competition_status') === 'true';
@@ -188,7 +198,7 @@ export default function AssessmentWizard() {
                   options={[['Male', 'Male'], ['Female', 'Female'], ['Other', 'Other']]} />
                 <Choice label="Training experience" {...register('experience_level', { required: 'Please pick one' })} error={errors.experience_level}
                   hint="Rough guide only — the next step asks how fast you progress, which matters more."
-                  options={[['Beginner', 'Beginner', '0–2 years of real barbell training'], ['Intermediate', 'Intermediate', '2–4 years'], ['Advanced', 'Advanced', '4+ years, progress is slow now']]} />
+                  options={[['Beginner', 'Beginner', '0–2 years of real barbell training'], ['Intermediate', 'Intermediate', '2–4 years'], ['Advanced', 'Advanced', '4+ years, progress is slow now'], ['Not sure', 'Not sure', 'Start safe — the app checks your level from your training data']]} />
               </div>
             )}
             {currentStep === 1 && (
@@ -222,7 +232,7 @@ export default function AssessmentWizard() {
                   hint="Main lifts and their sets are the same in all three — this only changes the extra work around them."
                   options={[['focused', 'Focused', 'Main lifts + the essentials · shortest sessions'], ['balanced', 'Balanced (recommended)', '3–4 accessories a day, arms & shoulders included'], ['full', 'Full', 'More accessories and pump work · longer sessions']]} />
                 <Choice label="How often do your lifts go up?" {...register('progress_rate')}
-                  hint="Training age is how fast you progress, not years in the gym. This decides how your program progresses."
+                  hint="Training age is how fast you progress, not years in the gym. Quick check: can you add 2.5–5 kg to the bar every week without missing reps? Yes → almost every session. Only some weeks → week to week. Still not sure? Pick “Not sure” — your training data will tell."
                   options={[['session', 'Almost every session', 'I can still add weight each workout'], ['week', 'Week to week, or every few weeks', 'Progress comes block by block'], ['month', 'Only every month or two', 'Even when sleep, food and effort are right'], ['', 'Not sure']]} />
               </div>
             )}

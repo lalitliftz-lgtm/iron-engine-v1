@@ -200,7 +200,29 @@ export function evaluateBlock(snapshot, logs, checkins = {}) {
   else if (reds >= 2 || grinds > total * 0.3 || painSets >= 3) { verdict = "repeat-lighter"; loadDelta = -7.5; volumeDelta = -1; reason = `Struggled: ${reds ? `${reds} red-light weeks` : ""}${grinds ? ` ${grinds} grind sets` : ""}${painSets ? ` ${painSets} painful sets` : ""}. Repeat the block 5–10% lighter with one set less — do not escalate intensity on a tired body.`; }
   else if (completion >= 90 && (rpeOk === null || rpeOk >= 70) && yellows <= 1) { verdict = "advance"; reason = `${completion}% of sessions done${rpeOk !== null ? `, RPE in range ${rpeOk}% of the time` : ""}${progressed.length ? `, ${progressed.map((l) => LIFT_NAMES[l]).join("/")} e1RM up` : ""}. Move to the next phase.`; }
   else { verdict = "repeat-less-volume"; volumeDelta = -1; reason = `Mostly done (${completion}%) but fatigue showed (${yellows} yellow weeks${rpeOk !== null ? `, RPE in range only ${rpeOk}%` : ""}). Repeat a similar block with ~20% less volume.`; }
-  return { verdict, reason, completion, rpeOk, grinds, painSets, reds, yellows, e1rm, progressed, volumeDelta, loadDelta };
+  return { verdict, reason, completion, rpeOk, grinds, painSets, reds, yellows, e1rm, progressed, volumeDelta, loadDelta, levelUp: noviceLevelUp(snapshot, logs) };
+}
+
+/** Novice → intermediate (Helms: training age = how fast you progress). Weekly linear progression has run out
+ *  when a lift misses its reps (or grinds at RPE 9.5+) in two different weeks — on at least two of the three lifts.
+ *  Light technique work and "done as planned" sets don't count. Returns null when it's not time yet. */
+export function noviceLevelUp(snapshot, logs) {
+  if (snapshot?.meta?.form?.exp !== "beg") return null;
+  const has = (v) => v !== "" && v !== null && v !== undefined && num(v) !== null;
+  const stallWeeks = {};
+  for (const log of logs) for (const ex of log.logged_exercises || []) {
+    if (ex.type !== "Main" || !ex.lift || ex.skipped || /Technique/i.test(ex.name)) continue;
+    const target = parseInt(ex.reps, 10);
+    const sets = (ex.loggedSets || []).filter((s) => s.completed && !s.planned);
+    const stalled = sets.some((s) => (target && has(s.reps) && num(s.reps) < target) || (has(s.rpe) && num(s.rpe) >= 9.5));
+    if (stalled) (stallWeeks[ex.lift] ||= new Set()).add(log.week_number);
+  }
+  const lifts = LIFTS.filter((l) => stallWeeks[l]?.size >= 2);
+  if (lifts.length < 2) return null;
+  return {
+    to: "int", lifts,
+    reason: `${lifts.map((l) => LIFT_NAMES[l]).join(", ").replace(/, ([^,]*)$/, " and $1")} missed reps or ground out in two different weeks. Adding weight every week has done its job — your progress now comes week to week. That is intermediate training: blocks with planned heavy and lighter days instead of +5 kg every week.`,
+  };
 }
 
 /* ---------------- 8. Attempt calculator (Ch 16 — illustrative %, adjusted by training) ---------------- */

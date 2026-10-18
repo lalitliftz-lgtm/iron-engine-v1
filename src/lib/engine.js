@@ -1250,7 +1250,10 @@ export function profileToForm(profile, overrides = {}) {
   else if (profile?.primary_goal === "Hypertrophy") goal = "hyp";
   if (PROGRESS_EXP[a.progress_rate] && PROGRESS_EXP[a.progress_rate] !== expFromYears) {
     const lbl = { beg: "Beginner", int: "Intermediate", adv: "Advanced" };
-    decisions.push({ step: "Training Age", decision: lbl[exp], reason: `Your lifts go up ${{ session: "almost every session", week: "week to week / every block", month: "only every month or two" }[a.progress_rate]} — that is ${lbl[exp].toLowerCase()} progression, whatever the years say (${profile?.experience_level || "not set"}). The program matches how fast you actually adapt.` });
+    decisions.push({ step: "Training Age", decision: lbl[exp], reason: `Your lifts go up ${{ session: "almost every session", week: "week to week / every block", month: "only every month or two" }[a.progress_rate]} — that is ${lbl[exp].toLowerCase()} progression, whatever the years say (${a.level_unsure ? "not sure" : profile?.experience_level || "not set"}). The program matches how fast you actually adapt.` });
+  }
+  else if (a.level_unsure && exp === "beg") {
+    decisions.push({ step: "Training Age", decision: "Beginner — to start", reason: "You weren't sure of your level, so you start on the beginner plan: weight goes up every week. If you are really further along, the weights get hard within 2–3 weeks — and at the end of the block the app reads your logs and offers to move you up. Your data decides, not a guess." });
   }
   if (meet.reason && a.meet_date_status === "approx" && ["peak", "taper", "meetweek"].includes(meet.phase)) decisions.push({ step: "Block Selection", decision: "Peak & Hold", reason: "Meet date not confirmed — peak toward the earliest likely date, then hold a ready pattern until the date is announced." });
   else if (meet.reason) decisions.push({ step: "Block Selection", decision: { base: "Base Block", strength: "Strength Block", peak: "Peaking Block", taper: "Taper → Meet", meetweek: "Meet Week", post: "Post-meet deload", beginner: "Beginner Linear" }[meet.phase] || SCHEMES[goal]?.label, reason: meet.reason });
