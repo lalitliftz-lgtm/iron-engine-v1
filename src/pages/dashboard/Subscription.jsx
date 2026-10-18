@@ -35,6 +35,7 @@ export default function Subscription() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [extendOpen, setExtendOpen] = useState(false);
   const [error, setError] = useState(null);
   const [invite, setInvite] = useState(() => { try { return params.get('invite') || localStorage.getItem(INVITE_KEY) || ''; } catch { return params.get('invite') || ''; } });
   const [inviteMsg, setInviteMsg] = useState(null); // { ok, text }
@@ -121,7 +122,7 @@ export default function Subscription() {
       const res = await fetch('/api/payments/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ productId: product.id }),
+        body: JSON.stringify({ productId: product.id, extend: extendOpen }),
       });
       const order = await res.json();
       if (!res.ok) throw new Error(order.error || 'Could not start payment.');
@@ -136,7 +137,8 @@ export default function Subscription() {
     }
   };
 
-  const renewLocked = !!activeSub && daysRemaining(activeSub.end_date) > 7;
+  // Active Pro: the plans stay closed; "Extend Pro" opens them on purpose (no accidental second payment).
+  const renewLocked = !!activeSub && daysRemaining(activeSub.end_date) > 7 && !extendOpen;
 
   if (loading) return <div className="animate-pulse text-knurl">Loading subscription…</div>;
 
@@ -181,11 +183,16 @@ export default function Subscription() {
           ) : (
             <p className="text-knurl mb-8">You don't have an active subscription. Upgrade to unlock the full Iron Engine.</p>
           )}
-          {/* Active Pro: plans stay visible but locked until the last 7 days (the server enforces the same rule). */}
-          <p className="text-chalk font-semibold mb-1">{renewLocked ? 'Your Pro is active' : activeSub ? 'Renew your Pro' : 'Choose your plan'}</p>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+            <p className="text-chalk font-semibold">{renewLocked ? 'Your Pro is active' : extendOpen ? 'Extend your Pro' : activeSub ? 'Renew your Pro' : 'Choose your plan'}</p>
+            {renewLocked && (
+              <button type="button" onClick={() => setExtendOpen(true)} className="text-sm font-semibold px-4 py-2 rounded-lg" style={{ background: '#C9A24B', color: '#14161B' }}>Extend Pro</button>
+            )}
+            {extendOpen && <button type="button" onClick={() => setExtendOpen(false)} className="text-sm font-semibold text-knurl hover:text-chalk">Cancel</button>}
+          </div>
           <p className="text-knurl text-sm mb-4">{renewLocked
-            ? `Nothing to pay now. Renewal opens ${new Date(new Date(activeSub.end_date).getTime() - 7 * 864e5).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} — 7 days before your Pro ends.`
-            : `One-time payment · no auto-debit${activeSub ? ' · the new plan starts when your current Pro ends, so no days are lost' : ''}`}</p>
+            ? 'Nothing to pay now. Want more time? Tap Extend Pro — the extra time starts when your current Pro ends.'
+            : `One-time payment · no auto-debit${activeSub ? ` · starts after your current Pro ends (${new Date(activeSub.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}), so no days are lost` : ''}`}</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {CONFIG.proPlans.map((p) => {
               const perMonth = Math.round(p.price / p.months);
