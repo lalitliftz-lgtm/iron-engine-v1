@@ -136,6 +136,8 @@ export default function Subscription() {
     }
   };
 
+  const renewLocked = !!activeSub && daysRemaining(activeSub.end_date) > 7;
+
   if (loading) return <div className="animate-pulse text-knurl">Loading subscription…</div>;
 
   return (
@@ -179,15 +181,18 @@ export default function Subscription() {
           ) : (
             <p className="text-knurl mb-8">You don't have an active subscription. Upgrade to unlock the full Iron Engine.</p>
           )}
-          <p className="text-chalk font-semibold mb-1">{activeSub ? 'Extend your Pro' : 'Choose your plan'}</p>
-          <p className="text-knurl text-sm mb-4">One-time payment · no auto-debit{activeSub ? ' · the new plan starts when your current Pro ends, so no days are lost' : ''}</p>
+          {/* Active Pro: plans stay visible but locked until the last 7 days (the server enforces the same rule). */}
+          <p className="text-chalk font-semibold mb-1">{renewLocked ? 'Your Pro is active' : activeSub ? 'Renew your Pro' : 'Choose your plan'}</p>
+          <p className="text-knurl text-sm mb-4">{renewLocked
+            ? `Nothing to pay now. Renewal opens ${new Date(new Date(activeSub.end_date).getTime() - 7 * 864e5).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} — 7 days before your Pro ends.`
+            : `One-time payment · no auto-debit${activeSub ? ' · the new plan starts when your current Pro ends, so no days are lost' : ''}`}</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {CONFIG.proPlans.map((p) => {
               const perMonth = Math.round(p.price / p.months);
               const save = Math.round((1 - p.price / (CONFIG.proPlans[0].price * p.months)) * 100);
               return (
-                <button key={p.productName} type="button" onClick={() => startCheckout(p.productName)} disabled={busy}
-                  className={`relative text-left rounded-xl border p-4 transition disabled:opacity-50 ${p.best ? 'border-[#C9A24B] bg-steel2' : 'border-line hover:border-knurl'}`}>
+                <button key={p.productName} type="button" onClick={() => startCheckout(p.productName)} disabled={busy || renewLocked}
+                  className={`relative text-left rounded-xl border p-4 transition disabled:opacity-50 disabled:cursor-not-allowed ${p.best ? 'border-[#C9A24B] bg-steel2' : 'border-line hover:border-knurl'}`}>
                   {p.best && <span className="absolute -top-2.5 left-3 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: '#C9A24B', color: '#14161B' }}>Best value</span>}
                   <span className="block text-knurl text-xs uppercase tracking-wider">{p.label}</span>
                   <span className="block text-2xl font-bold text-chalk mt-1">₹{p.price.toLocaleString('en-IN')}</span>

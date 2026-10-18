@@ -92,9 +92,11 @@ export const SCHEMES = {
 export const LIFT_NAMES = { squat: "Squat", bench: "Bench Press", deadlift: "Deadlift" };
 export const PAUSED = { squat: "Paused Squat (2 sec)", bench: "Paused Bench (3 sec)", deadlift: "Paused Deadlift (below knee)" };
 
+// Rest days are spread out: never two rest days in a row from 4 days a week up (4 days = rest Wed, Fri, Sun).
+// 3 days can't avoid one 2-day gap (4 rest days, 3 gaps) — Mon/Wed/Fri keeps it on the weekend.
 export const WEEKDAYS = {
   3: ["Monday", "Wednesday", "Friday"],
-  4: ["Monday", "Tuesday", "Thursday", "Friday"],
+  4: ["Monday", "Tuesday", "Thursday", "Saturday"],
   5: ["Monday", "Tuesday", "Thursday", "Friday", "Saturday"],
   6: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
 };
@@ -285,7 +287,7 @@ export function weekdaysFor(tmpl, days) {
   const supportCount = tmpl.length - coreCount;
   if (supportCount === 0) return WEEKDAYS[days] || WEEKDAYS[4];
   const core = WEEKDAYS[Math.min(5, coreCount)] || WEEKDAYS[4];
-  const supportSlots = ["Wednesday", "Saturday", "Sunday"].filter((d) => !core.includes(d));
+  const supportSlots = ["Wednesday", "Friday", "Saturday", "Sunday"].filter((d) => !core.includes(d));
   const out = [];
   let ci = 0, si = 0;
   for (const d of tmpl) out.push(d.support ? supportSlots[si++] || "Extra" : core[ci++]);
