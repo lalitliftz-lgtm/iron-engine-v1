@@ -276,6 +276,7 @@ ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO public.products (name, type, price_cents, short_description, version, storage_path) VALUES
 ('Iron Engine Pro', 'subscription', 199900, 'Unlimited program generation and advanced features.', '1.0', NULL),
-('All About Powerlifting System', 'pdf_guide', 99900, 'Complete guide to powerlifting mechanics.', '1.0', 'powerlifting-system.pdf'),
+('Powerlifting System 2.0', 'pdf_guide', 149900, 'The evolved Powerlifting System: programming, progression, periodization, fatigue, weak points, technique, building your own program and meet prep.', '1.0', 'powerlifting-system-2.pdf'),
+('All About Powerlifting System 1.0', 'pdf_guide', 99900, 'Complete guide to powerlifting mechanics.', '1.0', 'powerlifting-system.pdf'),
 ('Learn Lift Eat & Repeat', 'pdf_guide', 69900, 'Nutrition and training handbook.', '1.0', 'learn-lift-eat.pdf')
 ON CONFLICT (name) DO NOTHING;

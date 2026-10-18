@@ -15,12 +15,23 @@ export const CONFIG = {
 
   products: [
     {
-      id: "guide1",
+      id: "system2",
       // 👇 must match products.name in Supabase for checkout to resolve
-      productName: "All About Powerlifting System",
+      productName: "Powerlifting System 2.0",
+      type: "pdf_guide",
+      tag: "NEW · GUIDE · PDF",
+      name: "Powerlifting System 2.0",
+      desc: "The evolved version of the original system — 16 chapters + worksheets: volume & progression, periodization, fatigue & deloads, weak-point diagnostics, technique in detail, build your own program with worked examples, and meet prep & peaking.",
+      mrp: "",
+      price: "₹1,499",
+      cta: "Buy Guide",
+    },
+    {
+      id: "guide1",
+      productName: "All About Powerlifting System 1.0",
       type: "pdf_guide",
       tag: "GUIDE · PDF",
-      name: "All About Powerlifting System",
+      name: "All About Powerlifting System 1.0",
       desc: "Basic to Advanced — technique, programming logic, fatigue management, and block design. Learn to build your own programs.",
       mrp: "₹2,999",
       price: "₹999",

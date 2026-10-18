@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { CONFIG } from '../../config/siteConfig';
+
+// Old storefront links may still carry a product's previous name.
+const RENAMED = { 'All About Powerlifting System': 'All About Powerlifting System 1.0' };
 
 // Redirect the browser to PayU by auto-submitting a hidden form.
 function redirectToPayU(gatewayUrl, params) {
@@ -23,7 +27,8 @@ export default function Subscription() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const intendedProduct = params.get('product'); // product NAME passed from landing
+  const intendedProduct = RENAMED[params.get('product')] || params.get('product'); // product NAME passed from landing
+  const intendedIsGuide = CONFIG.products.find((p) => p.productName === intendedProduct)?.type === 'pdf_guide';
 
   const [activeSub, setActiveSub] = useState(null);
   const [history, setHistory] = useState([]);
@@ -106,11 +111,12 @@ export default function Subscription() {
     <div className="max-w-4xl mx-auto">
       <h2 className="text-3xl text-chalk mb-8" style={{ fontFamily: "'Archivo Black', sans-serif" }}>My Subscription</h2>
 
-      {intendedProduct && !activeSub && (
+      {/* A PDF guide can be bought with or without Pro; only the subscription itself is hidden when Pro is active. */}
+      {intendedProduct && (intendedIsGuide || !activeSub) && (
         <div className="mb-6 rounded-xl border border-red-600 bg-steel p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <p className="text-chalk font-semibold">Finish unlocking {intendedProduct}</p>
-            <p className="text-knurl text-sm">One step left — complete checkout to activate full access.</p>
+            <p className="text-knurl text-sm">{intendedIsGuide ? 'One step left — after payment the PDF is waiting in My guides.' : 'One step left — complete checkout to activate full access.'}</p>
           </div>
           <button onClick={() => startCheckout(intendedProduct)} disabled={busy}
             className="bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-6 rounded-lg disabled:opacity-50 whitespace-nowrap">
