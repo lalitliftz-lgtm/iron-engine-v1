@@ -15,13 +15,13 @@ const num = (v) => (v === '' || v === null || v === undefined || Number.isNaN(Nu
 const e1rm = (w, r) => { const W = num(w), R = num(r); return W && R ? round25(epley(W, Math.min(R, 10))) : null; };
 
 // Answers the old dropdowns pre-selected; radios need them explicitly.
-const DEFAULTS = { competition_status: 'false', meet_date_status: 'exact', meet_events: 'full', cutting: 'no', session_minutes: '', progress_rate: '',
+const DEFAULTS = { training_style: 'balanced', competition_status: 'false', meet_date_status: 'exact', meet_events: 'full', cutting: 'no', session_minutes: '', progress_rate: '',
   squat_weak_point: 'None', bench_weak_point: 'None', deadlift_weak_point: 'None', weak_type: 'strength', squat_bar: '', deadlift_stance: '',
   rpe_experience: 'true', equipment_level: 'commercial' };
 
 const steps = [
   { id: 'basics', title: 'Basic Info', fields: ['full_name', 'age', 'sex', 'height_cm', 'bodyweight_kg', 'experience_level'] },
-  { id: 'strength', title: 'Strength Metrics', fields: ['squat_1rm', 'bench_1rm', 'deadlift_1rm', 'training_days_per_week', 'session_minutes', 'progress_rate', 'squat_set_w', 'squat_set_r', 'bench_set_w', 'bench_set_r', 'deadlift_set_w', 'deadlift_set_r'] },
+  { id: 'strength', title: 'Strength Metrics', fields: ['squat_1rm', 'bench_1rm', 'deadlift_1rm', 'training_days_per_week', 'session_minutes', 'training_style', 'progress_rate', 'squat_set_w', 'squat_set_r', 'bench_set_w', 'bench_set_r', 'deadlift_set_w', 'deadlift_set_r'] },
   { id: 'goals', title: 'Goals & Competition', fields: ['primary_goal', 'competition_status', 'competition_date', 'meet_date_status', 'meet_events', 'cutting'] },
   { id: 'recovery', title: 'Recovery & Life', fields: ['sleep_level', 'stress_level', 'max_tested', 'other_sport'] },
   { id: 'diagnostics', title: 'Diagnostics', fields: ['squat_weak_point', 'bench_weak_point', 'deadlift_weak_point', 'squat_bar', 'deadlift_stance', 'rpe_experience'] },
@@ -85,7 +85,7 @@ export default function AssessmentWizard() {
       rpe_experience: formData.rpe_experience, coach_notes: formData.coach_notes,
       weak_type: formData.weak_type, equipment_level: formData.equipment_level,
       recent_sets, maxes_estimated: estimated,
-      progress_rate: formData.progress_rate || '', session_minutes: formData.session_minutes || '',
+      progress_rate: formData.progress_rate || '', session_minutes: formData.session_minutes || '', training_style: formData.training_style || 'balanced',
       meet_events: formData.meet_events || 'full', cutting: formData.cutting || 'no',
       squat_bar: formData.squat_bar || '', deadlift_stance: formData.deadlift_stance || '',
       meet_date_status: formData.meet_date_status || 'exact', sleep_level: formData.sleep_level || '', stress_level: formData.stress_level || '',
@@ -216,6 +216,9 @@ export default function AssessmentWizard() {
                 <Choice label="How long can one session be?" cols={2} {...register('session_minutes')}
                   hint="Decides how many accessories fit in a day. Main lifts always come first."
                   options={[['', 'No real limit'], ['45', '~45 min'], ['60', '~1 hour'], ['90', '~1.5 hours'], ['120', '2 hours']]} />
+                <Choice label="How much accessory work do you like?" {...register('training_style')}
+                  hint="Main lifts and their sets are the same in all three — this only changes the extra work around them."
+                  options={[['focused', 'Focused', 'Main lifts + the essentials · shortest sessions'], ['balanced', 'Balanced (recommended)', '3–4 accessories a day, arms & shoulders included'], ['full', 'Full', 'More accessories and pump work · longer sessions']]} />
                 <Choice label="How often do your lifts go up?" {...register('progress_rate')}
                   hint="Training age is how fast you progress, not years in the gym. This decides how your program progresses."
                   options={[['session', 'Almost every session', 'I can still add weight each workout'], ['week', 'Week to week, or every few weeks', 'Progress comes block by block'], ['month', 'Only every month or two', 'Even when sleep, food and effort are right'], ['', 'Not sure']]} />
@@ -307,6 +310,7 @@ export default function AssessmentWizard() {
                     <ReviewItem label="Squat / Bench / Deadlift" value={LIFTS.map(([l]) => num(formData[`${l}_1rm`]) || (e1rm(formData[`${l}_set_w`], formData[`${l}_set_r`]) ? `~${e1rm(formData[`${l}_set_w`], formData[`${l}_set_r`])}` : '—')).join(' / ') + ' kg'} />
                     <ReviewItem label="Days per week" value={formData.training_days_per_week} />
                     <ReviewItem label="Session length" value={formData.session_minutes ? `${formData.session_minutes} min` : 'No limit'} />
+                    <ReviewItem label="Accessory work" value={{ focused: 'Focused', balanced: 'Balanced', full: 'Full' }[formData.training_style] || 'Balanced'} />
                     <ReviewItem label="Progress speed" value={{ session: 'Every session', week: 'Weekly / per block', month: 'Monthly or slower' }[formData.progress_rate] || 'Not sure'} />
                   </ReviewSection>
                   <ReviewSection title="Goal" onEdit={() => setCurrentStep(2)}>

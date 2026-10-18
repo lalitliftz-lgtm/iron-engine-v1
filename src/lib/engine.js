@@ -360,6 +360,25 @@ export const ACC = {
   ],
 };
 
+/* ---------------- Extras: low-fatigue isolation work (arms, delts, calves, core) ----------------
+   Helms: isolation for small muscles adds little systemic fatigue and does not compete with the main lifts,
+   so it is NOT counted in the movement-pattern budget. How much of it a lifter gets is their choice
+   (training style) and their session length — main lifts and their volume never change. */
+export const EXTRAS = {
+  squatDay: [{ name: "Standing Calf Raise", sr: "3 × 12–15", rpe: "RPE 8" }, { name: "Lateral Raise", sr: "3 × 12–15", rpe: "RPE 8–9" }],
+  benchDay: [{ name: "Lateral Raise", sr: "3 × 12–15", rpe: "RPE 8–9" }, { name: "Hammer Curl", sr: "3 × 10–12", rpe: "RPE 8" }],
+  deadDay: [{ name: "Biceps Curl", sr: "3 × 10–12", rpe: "RPE 8" }, { name: "Cable Crunch / Weighted Plank", sr: "3 × 10–15", rpe: "RPE 8" }],
+  volumeDay: [{ name: "Lateral Raise", sr: "3 × 12–15", rpe: "RPE 8–9" }, { name: "Overhead Triceps Extension", sr: "3 × 10–12", rpe: "RPE 8" }],
+  squatVol: [{ name: "Standing Calf Raise", sr: "3 × 12–15", rpe: "RPE 8" }, { name: "Hanging Knee Raise", sr: "3 × 10–15", rpe: "RPE 8" }],
+  upperDay: [{ name: "Lateral Raise", sr: "3 × 12–15", rpe: "RPE 8–9" }, { name: "Hammer Curl", sr: "3 × 10–12", rpe: "RPE 8" }],
+  begAcc: [{ name: "Lateral Raise", sr: "2 × 12–15", rpe: "RPE 8" }, { name: "Biceps Curl", sr: "2 × 10–12", rpe: "RPE 8" }],
+  pullA: [{ name: "Lateral Raise", sr: "2 × 12–15", rpe: "RPE 8" }],
+  pullB: [{ name: "Triceps Pushdown", sr: "2 × 10–12", rpe: "RPE 8" }],
+  pullC: [{ name: "Hammer Curl", sr: "2 × 10–12", rpe: "RPE 8" }],
+};
+/** Extras per training day by style: focused 0 · balanced 1 · full 2 (beginners one less). */
+const EXTRAS_PER_DAY = { focused: 0, balanced: 1, full: 2 };
+
 /* ---------------- Injury swaps ---------------- */
 export const SWAPS = {
   back: {
@@ -384,6 +403,7 @@ export const SWAPS = {
     "Overhead Press (strict)": "Landmine Press (shoulder-safe)",
     "Incline DB Press": "Incline DB Press (neutral grip)",
     "Dips (weighted if possible)": "JM Press or Pushdown (avoid dips)",
+    "Lateral Raise": "Lateral Raise (light, pain-free range)",
   },
 };
 
@@ -402,6 +422,7 @@ export function applySwaps(accList, injuries) {
    minimal = barbell, rack, bench, plates only */
 const EQUIP_SUBS = {
   basic: [
+    ["Cable Crunch / Weighted Plank", "Weighted Plank / DB Crunch"],
     ["Leg Press or Bulgarian Split Squat", "Bulgarian Split Squat (DB)"],
     ["Leg Press (deep ROM)", "Goblet Squat (deep, pause)"],
     ["Leg Press (quad focus)", "Front Squat (light) or Goblet Squat"],
@@ -436,6 +457,11 @@ const EQUIP_SUBS = {
     ["Sled push / incline walk / cardio", "Incline walk / cardio"],
   ],
   minimal: [
+    ["Lateral Raise (light, pain-free range)", "Plate Lateral Raise (light, pain-free range)"],
+    ["Lateral Raise", "Plate Lateral Raise"],
+    ["Hammer Curl", "Barbell Curl"],
+    ["Overhead Triceps Extension", "Skull Crushers (bar)"],
+    ["Cable Crunch / Weighted Plank", "Weighted Plank (plate)"],
     ["Leg Press or Bulgarian Split Squat", "Bulgarian Split Squat (bodyweight / plate)"],
     ["Leg Press (deep ROM)", "Paused Goblet Squat with a plate"],
     ["Leg Press (quad focus)", "Front Squat (light)"],
@@ -905,6 +931,11 @@ export function buildProgram(form, maxes) {
   // An aggressive cut for a weight class steps volume down one level.
   const step = form.cutting === "weightclass" ? { beg: "beg", int: "beg", adv: "int" }[level] : level;
   const budget = { beg: [10, 12], int: [13, 15], adv: [16, 20] }[step];
+  // Training style (the athlete's choice): focused trims to the bottom of the range, balanced to the top,
+  // full allows the next level's range (Helms: periods above the range are normal — still capped by recovery).
+  const style = ["focused", "balanced", "full"].includes(form.style) ? form.style : "balanced";
+  const NEXT_MAX = { beg: 15, int: 20, adv: 20 };
+  const budgetMax = style === "focused" ? budget[0] : style === "full" && rec.level !== "poor" && form.cutting !== "weightclass" ? NEXT_MAX[step] : budget[1];
   // Session length decides how many accessories fit (main lifts never get cut).
   const sessionAccCap = form.sessionMin && form.sessionMin <= 45 ? 1 : form.sessionMin && form.sessionMin <= 60 ? 2 : 99;
 
@@ -929,8 +960,17 @@ export function buildProgram(form, maxes) {
         const main = d.slots.map((s) => buildLift(s, wi, form, maxes, rec, w)).filter(Boolean);
         let acc = applyEquipment(applySwaps([...(ACC[d.acc] || [])], form.injuries), form.equipment);
         // accessories scale with the block: base 3–4, strength 2–3, peaking 0–2, taper 0
-        const cap = isBeg ? acc.length : d.support ? acc.length : d.acc === "deadDay" ? Math.max(0, accCount - 1) : accCount;
+        const styleBonus = style === "full" ? 1 : style === "focused" ? -1 : 0;
+        const cap = isBeg ? acc.length : d.support ? acc.length : Math.max(1, (d.acc === "deadDay" ? accCount - 1 : accCount) + styleBonus);
         acc = acc.slice(0, cap);
+        // Extras (isolation) on loading weeks only — never in deload, peaking or taper weeks.
+        // Strength blocks (fewer, heavier accessories): "full" gets one extra less than in a base block.
+        const nExtra = Math.max(0, (EXTRAS_PER_DAY[style] ?? 1) - (isBeg ? 1 : 0) - (!isBeg && accCount <= 3 && style === "full" ? 1 : 0));
+        if (nExtra && !d.support && !d.optional && !deload && !w.taper && !w.peak && accCount > 0) {
+          const have = new Set(acc.map((a) => a.name));
+          const extra = (EXTRAS[d.acc] || []).filter((e) => !have.has(e.name)).slice(0, nExtra);
+          acc = [...acc, ...applyEquipment(applySwaps(extra, form.injuries), form.equipment)];
+        }
         if (form.weak !== "none" && stick && weakType === "strength" && !d.optional && !deload && !w.taper) {
           if (d.slots.find((s) => s.lift === form.weak && s.role === "primary")) {
             const extra = { ...stick.acc, name: "Weak-point: " + stick.acc.name };
@@ -989,9 +1029,9 @@ export function buildProgram(form, maxes) {
   // Trim ONCE on the heaviest-volume week and hold the same accessory menu all block — a coach never rotates accessories by accident.
   const trimmed = new Set();
   const refWeek = weeks.find((w) => !w.deload && !w.taper && !w.meetWeek) || weeks.find((w) => !w.meetWeek);
-  if (refWeek) trimToBudget(refWeek, budget[1]).forEach((n) => trimmed.add(n));
+  if (refWeek) trimToBudget(refWeek, budgetMax).forEach((n) => trimmed.add(n));
   if (trimmed.size) for (const w of weeks) if (w !== refWeek && !w.meetWeek) for (const d of w.days) d.acc = d.acc.filter((a) => !trimmed.has(a.name));
-  if (trimmed.size) notes.push(`Volume kept inside ${budget[0]}–${budget[1]} hard sets/week per movement for your level — dropped: ${[...trimmed].join(", ")}. Add back only if you are recovering easily.`);
+  if (trimmed.size) notes.push(`Volume kept at ≤${budgetMax} hard sets/week per movement pattern (${style} style, your level ${budget[0]}–${budget[1]}) — dropped: ${[...trimmed].join(", ")}. Arm, shoulder, calf and core work doesn't count toward this; it scales with your style and session length.`);
 
   const count = { squat: 0, bench: 0, deadlift: 0 };
   tmpl.forEach((d) => d.slots.forEach((s) => count[s.lift]++));
@@ -1005,7 +1045,10 @@ export function buildProgram(form, maxes) {
 
 /** Which volume bucket an accessory belongs to (Lower / Upper push / Upper pull). */
 export function accBucket(name) {
-  if (/mobility|plank|dead bug|core|cardio|walk|sled|jump rope|stretch|leg raise|ab wheel|crunch|pallof|carry/i.test(name)) return null;
+  if (/mobility|plank|dead bug|core|cardio|walk|sled|jump rope|stretch|leg raise|knee raise|ab wheel|crunch|pallof|carry/i.test(name)) return null;
+  if (/leg curl|nordic/i.test(name)) return "lower";
+  // Small-muscle isolation (arms, delts, calves, upper-back pump work): low systemic fatigue, own bucket.
+  if (/curl|biceps|triceps|pushdown|skull|lateral raise|rear delt|face pull|band pull|calf|shrug|overhead triceps/i.test(name)) return "iso";
   if (/back ext|good morning|rdl|romanian|hip thrust|glute bridge/i.test(name)) return "hinge"; // posterior chain: counts as lower AND pull
   if (/row|pull-?up|chin|lat |pulldown|face pull|rear delt|snatch|band pull/i.test(name)) return "pull";
   if (/squat|leg|lunge|hip|glute|nordic|step|deadlift|block|deficit|belt|hack|pendulum|extension|bridge/i.test(name)) return "lower";
@@ -1160,6 +1203,7 @@ export function profileToForm(profile, overrides = {}) {
     meetApprox: a.meet_date_status === "approx",
     compLifts: EVENTS[events],
     sessionMin: [45, 60, 90, 120].includes(Number(a.session_minutes)) ? Number(a.session_minutes) : null,
+    style: ["focused", "balanced", "full"].includes(a.training_style) ? a.training_style : "balanced",
     cutting: ["no", "mild", "weightclass"].includes(a.cutting) ? a.cutting : "no",
     squatBar: ["high", "low"].includes(a.squat_bar) ? a.squat_bar : null,
     dlStance: ["conventional", "sumo"].includes(a.deadlift_stance) ? a.deadlift_stance : null,

@@ -12,7 +12,7 @@ const PRO_ONLY = { focus: 'bal', weak: 'none', sticking: null, variationIdx: 0, 
 const ENUMS = {
   goal: ['hyp', 'str', 'peak'], focus: ['bal', 'squat', 'bench', 'dead'], weak: ['none', 'squat', 'bench', 'deadlift'],
   weakType: ['strength', 'technique', 'fatigue'], sleep: ['high', 'mid', 'low'], stress: ['low', 'mid', 'high'],
-  exp: ['beg', 'int', 'adv'], equipment: ['commercial', 'basic', 'minimal'],
+  exp: ['beg', 'int', 'adv'], equipment: ['commercial', 'basic', 'minimal'], style: ['focused', 'balanced', 'full'],
 };
 const INJ_KEYS = ['back', 'knee', 'shoulder'];
 
@@ -146,7 +146,7 @@ export default async function handler(req, res) {
     });
     if (logError) console.error('Decision log insert failed:', logError.message);
 
-    return res.status(200).json({ success: true, programId: newProgram.id, engineData: { blockType: snapshot.blockType, log: decisions, evaluation } });
+    return res.status(200).json({ success: true, programId: newProgram.id, snapshot, engineData: { blockType: snapshot.blockType, log: decisions, evaluation } });
 
   } catch (error) {
     console.error('Engine Error:', error);
