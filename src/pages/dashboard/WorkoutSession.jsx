@@ -533,10 +533,11 @@ export default function WorkoutSession() {
                             <input type="text" inputMode="decimal" aria-label="Weight in kg" value={set.weight} onChange={(e) => updateSet(exIdx, setIdx, { weight: e.target.value })} placeholder="kg" className="w-full min-w-0 h-10 text-center bg-gray-50 border border-gray-200 rounded-lg text-base font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:opacity-60" />
                             <button type="button" aria-label="More weight" onClick={() => step('weight', 2.5)} className={btn}>+</button>
                           </div>
-                          <div className="flex items-center gap-1 w-[7.5rem] shrink-0">
-                            <button type="button" aria-label="One rep less" onClick={() => step('reps', -1)} className={btn}>−</button>
+                          {/* Phones: reps is a plain box (tap to type) so the weight box keeps room for "102.5"; ± buttons from sm up. */}
+                          <div className="flex items-center gap-1 w-12 sm:w-[7.5rem] shrink-0">
+                            <button type="button" aria-label="One rep less" onClick={() => step('reps', -1)} className={`${btn} hidden sm:block`}>−</button>
                             <input type="text" inputMode="numeric" aria-label="Reps" value={set.reps} onChange={(e) => updateSet(exIdx, setIdx, { reps: e.target.value })} placeholder="reps" className="w-full min-w-0 h-10 text-center bg-gray-50 border border-gray-200 rounded-lg text-base font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:opacity-60" />
-                            <button type="button" aria-label="One rep more" onClick={() => step('reps', 1)} className={btn}>+</button>
+                            <button type="button" aria-label="One rep more" onClick={() => step('reps', 1)} className={`${btn} hidden sm:block`}>+</button>
                           </div>
                           <button onClick={() => toggleSetComplete(exIdx, setIdx)} aria-label={set.completed ? 'Undo set' : 'Set done'}
                             disabled={set.completed ? setIdx !== lIdx : setIdx !== nIdx}
@@ -552,7 +553,7 @@ export default function WorkoutSession() {
                           <p className="text-xs text-red-600 mt-2 pl-8">Pain noted — no load change. Next set lighter or skip it; if it hurts again, stop this lift for today.</p>
                         )}
                         {isMain && (
-                          <div className="flex items-center gap-1.5 mt-2 pl-8 overflow-x-auto">
+                          <div className="flex flex-wrap items-center gap-1.5 mt-2 pl-8">
                             <span className={`text-[11px] font-semibold uppercase tracking-wider mr-1 ${set.completed && !set.rpe ? 'text-amber-700' : 'text-gray-400'}`}>{set.completed && !set.rpe ? 'RPE?' : 'RPE'}</span>
                             {RPE_OPTIONS.map((r) => (
                               <button key={r} type="button" onClick={() => setRpe(exIdx, setIdx, set.rpe === r ? '' : r)}
