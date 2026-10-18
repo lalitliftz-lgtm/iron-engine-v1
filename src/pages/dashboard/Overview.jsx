@@ -9,6 +9,7 @@ import { readDraft, draftSetsDone } from '../../lib/workoutDraft';
 import { planSchedule, reentry, appNow, parseYmd, startOfDay } from '../../lib/schedule';
 import SessionActions from '../../components/dashboard/SessionActions';
 import { seasonRoadmap } from '../../lib/roadmap';
+import LessonCard from '../../components/dashboard/LessonCard';
 
 export default function Overview() {
   const { user } = useAuth();
@@ -210,6 +211,9 @@ export default function Overview() {
           </>
         )}
       </section>
+
+      {/* New lifters: one coach tip a day (beginner block, or "explain RPE to me" in the assessment). */}
+      {(snap?.meta?.form?.exp === 'beg' || String(profile?.assessment_data?.rpe_experience) === 'false') && <LessonCard />}
 
       {/* 2 — only when it's due */}
       {checkinWeek && (
