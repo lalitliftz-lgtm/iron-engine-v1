@@ -163,8 +163,9 @@ export default function WorkoutSession() {
             setResumed(true);
           } else {
             // Same rule as the Program page: only what Today offers can be started.
-            const { data: blockLogs } = await supabase.from('workout_logs').select('week_number, day_number, date_completed, logged_exercises').eq('user_id', user.id).eq('program_id', data.id).limit(300);
-            const lock = lockReason(planSchedule(snap, blockLogs || [], data.created_at), wData, dData, data.created_at);
+            const { data: blockLogs } = await supabase.from('workout_logs').select('week_number, day_number, date_completed, logged_exercises').eq('user_id', user.id).eq('program_id', data.id).eq('is_deleted', false).limit(300);
+            const sched = planSchedule(snap, blockLogs || [], data.created_at);
+            const lock = lockReason(sched, wData, dData, data.created_at);
             if (lock) { setLocked(lock); setLoading(false); return; }
             let fresh = dData.exercises.map((ex) => ({ ...ex, loggedSets: newSets(ex), skipped: false }));
             const { data: recent } = await supabase.from('workout_logs').select('program_id, week_number, day_number, date_completed, logged_exercises').eq('user_id', user.id).order('date_completed', { ascending: false }).limit(20);
@@ -175,10 +176,16 @@ export default function WorkoutSession() {
             const lastTrained = (recent || []).find(trained);
             const gap = lastTrained ? Math.round((startOfDay(appNow()) - startOfDay(lastTrained.date_completed)) / 864e5) : null;
             const back = reentry(gap);
-            if (back) {
-              fresh = fresh.map((ex) => (ex.type !== 'Main' ? ex : { ...ex, loggedSets: ex.loggedSets.map((x) => (x.weight ? { ...x, weight: String(round25(Number(x.weight) * back.factor)) } : x)) }));
-              startNotes.push(back.text);
-            }
+            // A meet-block make-up (hard session moved to a free day) runs 5% lighter — Helms: drop the load
+            // so back-to-back hard days still land at the planned effort.
+            const key = `${week}-${day}`;
+            const makeUp = sched.makeUp?.key === key;
+            const factor = Math.min(back ? back.factor : 1, makeUp ? 0.95 : 1);
+            if (factor < 1) fresh = fresh.map((ex) => (ex.type !== 'Main' ? ex : { ...ex, loggedSets: ex.loggedSets.map((x) => (x.weight ? { ...x, weight: String(round25(Number(x.weight) * factor)) } : x)) }));
+            if (back) startNotes.push(back.text);
+            if (makeUp) startNotes.push('Make-up session: main lifts 5% lighter so it stays at the planned effort. Your meet date doesn\'t move.');
+            if (sched.easier?.key === key) startNotes.push('Easier session first today — the harder one is waiting for your next training day.');
+            if (sched.rolling && sched.next?.key === key) startNotes.push(`Catching up: this is the ${dData.weekday || ''} ${dData.date || ''} session. The plan moves along — nothing is lost.`.replace(/\s+/g, ' '));
             setExercises(fresh);
             setStartNote(startNotes.join(' '));
           }

@@ -74,9 +74,9 @@ export default function Overview() {
   const back = sched ? reentry(sched.gapDays) : null;
   // What the season roadmap says comes next (named on the "block finished" card).
   const nextBlockName = snap ? seasonRoadmap(snap, program.created_at, profile?.competition_date, snap.meta?.form?.exp, profile?.assessment_data?.meet_date_status === 'approx')?.blocks?.[1]?.name || null : null;
-  // Only the last week's misses are worth a mention; older ones simply count as missed in the block review.
-  const weekAgo = new Date(new Date(appNow()).setHours(0, 0, 0, 0) - 7 * 864e5);
-  const recentMissed = sched && sched.when !== 'overdue' ? sched.missed.filter((m) => m.at && m.at >= weekAgo).slice(-3) : [];
+  const fmtDay = (d) => d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  // Where the next session really falls: its own date, or — while catching up — the day it slid to.
+  const nextWhen = next ? (sched?.projected?.get(next.key) ? fmtDay(sched.projected.get(next.key)) : `${next.day.weekday || ''} ${next.day.date || ''}`.trim()) : '';
   // A finished training week with no check-in yet → ask for it (Pro). The latest such week wins.
   let checkinWeek = null;
   for (const w of snap?.weeks || []) {
@@ -129,14 +129,19 @@ export default function Overview() {
         ) : program && sched?.when === 'today' ? (
           <>
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-              {next.day.optional ? 'Today · optional session' : "Today's session"} · {next.week.label || `Week ${currentWeek}`}{next.day.weekday ? ` · ${next.day.weekday} ${next.day.date || ''}` : ''}
+              {sched.rolling ? 'Today · catching up' : next.day.optional ? 'Today · optional session' : "Today's session"} · {next.week.label || `Week ${currentWeek}`}{next.day.weekday ? ` · ${sched.rolling ? 'planned ' : ''}${next.day.weekday} ${next.day.date || ''}` : ''}
             </p>
             <h2 className="text-xl md:text-2xl font-bold text-gray-900 mt-1">{next.day.focus}</h2>
             {next.day.optional && <p className="text-sm text-gray-500 mt-1">Optional — technique and conditioning. Do it if you feel fresh; skipping it costs nothing.</p>}
+            {sched.rolling && (
+              <p className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-800">
+                Missed a session? Pick up where you left off — this is the one you missed. Every later session moves along{sched.newEnd ? `, so the block now ends ${fmtDay(sched.newEnd)}` : ''}. Nothing is lost.
+              </p>
+            )}
             {(back || sched.droppedForMeet > 0 || sched.repeatLifts.length > 0) && (
               <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700 space-y-1">
                 {back && <p>{back.text}{back.rebuild && <> <Link to="/dashboard/generate" className="underline font-semibold">Build a fresh block</Link></>}</p>}
-                {sched.droppedForMeet > 0 && <p>{sched.droppedForMeet} missed session{sched.droppedForMeet > 1 ? 's' : ''} left behind — your meet date doesn't move, so the plan continues with today's session. Don't try to make them up.</p>}
+                {sched.droppedForMeet > 0 && <p>{sched.droppedForMeet} missed session{sched.droppedForMeet > 1 ? 's' : ''} left behind — your meet date doesn't move, so the plan continues with today's session. Light sessions are simply skipped; a missed hard one can be made up on a free day in the same week.</p>}
                 {sched.repeatLifts.length > 0 && <p>You already trained {sched.repeatLifts.map((l) => LIFT_NAMES[l]).join(' and ')} today. This session has it again — the same lift needs ~48 h between hard sessions.</p>}
               </div>
             )}
@@ -150,6 +155,11 @@ export default function Overview() {
               {nextMains.length === 0 && <p className="text-sm text-gray-500 py-2">Accessories + technique day</p>}
             </div>
             <Link to={`/dashboard/workout?week=${next.week.week}&day=${next.day.day}`} className="mt-5 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Start session</Link>
+            {sched.easier && (
+              <p className="mt-3 text-sm text-gray-600">
+                Rough day? <Link to={`/dashboard/workout?week=${sched.easier.week.week}&day=${sched.easier.day.day}`} className="font-semibold text-gray-900 underline">Do the easier {sched.easier.day.focus} today instead</Link> — this one moves to your next training day.
+              </p>
+            )}
             <SessionActions programId={program.id} week={next.week} day={next.day} onDone={() => setReloadKey((k) => k + 1)} />
           </>
         ) : program && sched?.blockOver ? (
@@ -173,11 +183,20 @@ export default function Overview() {
             <p className="text-sm text-gray-500 mt-1">
               {sched.todayDone ? 'Recover: eat, sleep, walk.' : restToday?.notes || 'No workout today. Rest is when you actually get stronger.'}
             </p>
-            {recentMissed.length > 0 && (
-              <p className="text-sm text-amber-700 mt-3">Missed: {recentMissed.map((m) => `${m.day.weekday || ''} ${m.day.date} ${m.day.focus}`.trim()).join(', ')}. No need to make it up — just do the next one.</p>
+            {!sched.todayDone && sched.catchUp && (
+              <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-800">
+                <p>You're {sched.behind} session{sched.behind > 1 ? 's' : ''} behind — the plan has moved along, nothing is lost. Feeling fresh? You can catch up today (optional), otherwise rest.</p>
+                <Link to={`/dashboard/workout?week=${sched.catchUp.week.week}&day=${sched.catchUp.day.day}`} className="mt-2 inline-block bg-gray-900 text-white text-sm font-semibold px-4 py-2 rounded-lg">Catch up: {sched.catchUp.day.focus}</Link>
+              </div>
+            )}
+            {!sched.todayDone && sched.makeUp && (
+              <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+                <p>You missed {sched.makeUp.day.weekday} {sched.makeUp.day.date} — {sched.makeUp.day.focus}. Your meet date can't move, so you can make it up today, main lifts 5% lighter (optional).</p>
+                <Link to={`/dashboard/workout?week=${sched.makeUp.week.week}&day=${sched.makeUp.day.day}`} className="mt-2 inline-block bg-gray-900 text-white text-sm font-semibold px-4 py-2 rounded-lg">Make it up today</Link>
+              </div>
             )}
             <div className="mt-4 pt-4 border-t border-gray-100">
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Next workout · {next.day.weekday} {next.day.date}</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Next workout · {nextWhen}</p>
               <p className="text-sm font-semibold text-gray-900 mt-1">{next.day.focus}</p>
               {sched.optionalBefore && <p className="text-xs text-gray-500 mt-1">Optional before that: {sched.optionalBefore.day.weekday} {sched.optionalBefore.day.date} · {sched.optionalBefore.day.focus}</p>}
             </div>
