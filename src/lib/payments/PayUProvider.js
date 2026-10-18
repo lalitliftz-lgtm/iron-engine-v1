@@ -107,10 +107,12 @@ export class PayUProvider extends PaymentProvider {
     const {
       status, txnid, amount, productinfo, firstname, email,
       udf1 = '', udf2 = '', udf3 = '', udf4 = '', udf5 = '',
-      hash: receivedHash, mihpayid,
+      hash: receivedHash, mihpayid, additionalCharges,
     } = body;
 
     const seq = [
+      // With a convenience fee PayU prefixes the reverse hash with additionalCharges.
+      ...(additionalCharges ? [additionalCharges] : []),
       this.salt, status,
       '', '', '', '', '', // udf10..udf6 (unused)
       udf5, udf4, udf3, udf2, udf1,

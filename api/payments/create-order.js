@@ -14,14 +14,14 @@ export default async function handler(req, res) {
     const { productId } = req.body;
     if (!productId) return res.status(400).json({ error: 'Product ID is required' });
 
-    const { data: product, error: prodError } = await supabaseAdmin.from('products').select('id, name, price_cents, type').eq('id', productId).single();
+    const { data: product, error: prodError } = await supabaseAdmin.from('products').select('id, name, price_cents, type').eq('id', productId).eq('is_active', true).eq('is_deleted', false).single();
     if (prodError || !product) return res.status(404).json({ error: 'Product not found' });
 
     if (product.type === 'subscription') {
       const { data: activeSub } = await supabaseAdmin.from('subscriptions').select('id').eq('user_id', user.id).eq('status', 'active').gte('end_date', new Date().toISOString()).order('end_date', { ascending: false }).limit(1).maybeSingle();
       if (activeSub) return res.status(400).json({ error: 'You already have an active subscription.' });
     } else if (product.type === 'pdf_guide') {
-      const { data: existingPurchase } = await supabaseAdmin.from('purchases').select('id').eq('user_id', user.id).eq('product_id', productId).maybeSingle();
+      const { data: existingPurchase } = await supabaseAdmin.from('purchases').select('id').eq('user_id', user.id).eq('product_id', productId).limit(1).maybeSingle();
       if (existingPurchase) return res.status(400).json({ error: 'You already own this product.' });
     }
 

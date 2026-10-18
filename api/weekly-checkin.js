@@ -24,7 +24,7 @@ export default async function handler(req, res) {
     const c = req.body?.checkin || {};
     if (!programId || !week) return res.status(400).json({ error: 'programId and week are required' });
 
-    const { data: program } = await supabaseAdmin.from('generated_programs').select('id, program_snapshot').eq('id', programId).eq('user_id', user.id).maybeSingle();
+    const { data: program } = await supabaseAdmin.from('generated_programs').select('id, program_snapshot').eq('id', programId).eq('user_id', user.id).eq('is_deleted', false).maybeSingle();
     if (!program) return res.status(404).json({ error: 'Program not found' });
     const snap = program.program_snapshot;
     const weekPlan = snap.weeks.find((w) => w.week === week);
@@ -42,7 +42,7 @@ export default async function handler(req, res) {
       notes: String(c.notes || '').slice(0, 500),
     };
 
-    const { data: logs } = await supabaseAdmin.from('workout_logs').select('week_number, day_number, date_completed, logged_exercises').eq('program_id', program.id).eq('user_id', user.id).eq('week_number', week).limit(20);
+    const { data: logs } = await supabaseAdmin.from('workout_logs').select('week_number, day_number, date_completed, logged_exercises').eq('program_id', program.id).eq('user_id', user.id).eq('is_deleted', false).eq('week_number', week).limit(20);
     const adjustments = snap.adjustments || {};
     const prevCheckin = adjustments.checkins?.[String(week - 1)];
     const missHistory = {};

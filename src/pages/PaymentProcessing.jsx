@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
+import { CONFIG } from '../config/siteConfig';
 
 export default function PaymentProcessing() {
   const navigate = useNavigate();
@@ -20,7 +21,12 @@ export default function PaymentProcessing() {
   const startPolling = (id) => {
     setStatus('verifying');
     checkStatus(id);
-    intervalRef.current = setInterval(() => { checkStatus(id); }, 5000);
+    const started = Date.now();
+    intervalRef.current = setInterval(() => {
+      // Stop after ~3 minutes: the payment may still settle, but don't spin forever.
+      if (Date.now() - started > 3 * 60 * 1000) { clearInterval(intervalRef.current); setStatus('timeout'); return; }
+      checkStatus(id);
+    }, 5000);
   };
 
   const checkStatus = async (id) => {
@@ -63,13 +69,24 @@ export default function PaymentProcessing() {
             <p className="text-gray-500 text-sm mb-8">Your Iron Engine Pro access is now active. Redirecting to your dashboard...</p>
           </>
         )}
+        {status === 'timeout' && (
+          <>
+            <h1 className="text-xl font-bold text-gray-900 mb-2">Still confirming your payment</h1>
+            <p className="text-gray-500 text-sm mb-2">The bank hasn't confirmed it yet. If money was deducted, tap Check again in a few minutes — access is granted the moment it's confirmed.</p>
+            <p className="text-xs text-gray-400 mb-6">Order ID: <span className="font-mono select-all">{orderId}</span> · Need help? Message @{CONFIG.insta} with this ID.</p>
+            <div className="flex gap-3 justify-center">
+              <button onClick={() => startPolling(orderId)} className="bg-gray-900 text-white px-6 py-2.5 rounded-lg text-sm font-medium">Check again</button>
+              <button onClick={() => navigate('/dashboard')} className="border border-gray-200 text-gray-700 px-6 py-2.5 rounded-lg text-sm font-medium">Dashboard</button>
+            </div>
+          </>
+        )}
         {status === 'error' && (
           <>
             <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
               <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
             </div>
             <h1 className="text-xl font-bold text-gray-900 mb-2">Verification Issue</h1>
-            <p className="text-gray-500 text-sm mb-8">We couldn't find your transaction. If money was deducted, it will be auto-verified within 24 hours.</p>
+            <p className="text-gray-500 text-sm mb-8">We couldn't confirm this payment. If money was deducted, sign in and open this page again, or message us with your order ID.</p>
             <button onClick={() => navigate('/dashboard')} className="bg-gray-900 text-white px-6 py-2.5 rounded-lg text-sm font-medium">Back to Dashboard</button>
           </>
         )}

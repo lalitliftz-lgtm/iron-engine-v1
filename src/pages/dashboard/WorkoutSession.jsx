@@ -309,6 +309,8 @@ export default function WorkoutSession() {
     const s = buildSummary();
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      // Logged out (or the login could not be refreshed): say so instead of retrying forever as "offline".
+      if (!session) { setOffline(false); setSaveError('You are signed out. Your sets are safe on this phone — sign in again, then tap Finish.'); return; }
       const res = await fetch('/api/save-workout', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
@@ -331,9 +333,12 @@ export default function WorkoutSession() {
   };
 
   // Finished without signal (basement gym): save automatically as soon as the internet is back.
+  // The ref always holds the latest handler, so sets ticked while waiting are included in the save.
+  const finishRef = useRef(null);
+  finishRef.current = handleFinishWorkout;
   useEffect(() => {
     if (!offline) return;
-    const retry = () => handleFinishWorkout(true);
+    const retry = () => finishRef.current?.(true);
     window.addEventListener('online', retry);
     const t = setInterval(() => { if (navigator.onLine) retry(); }, 30000);
     return () => { window.removeEventListener('online', retry); clearInterval(t); };
