@@ -164,7 +164,7 @@ export class PayUProvider extends PaymentProvider {
         provider: 'payu',
         orderId: txnid,
         paymentId: details.mihpayid,
-        amount: Number(details.amt || details.amount || 0),
+        amount: Number(details.amt || details.transaction_amount || details.amount || 0),
         currency: 'INR',
         status: 'captured',
         timestamp: new Date().toISOString(),

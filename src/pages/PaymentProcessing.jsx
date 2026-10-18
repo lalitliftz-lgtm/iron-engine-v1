@@ -39,6 +39,7 @@ export default function PaymentProcessing() {
         body: JSON.stringify({ orderId: id })
       });
       const data = await response.json();
+      if (data.status === 'failed') { clearInterval(intervalRef.current); setStatus('error'); return; }
       if (data.status === 'success') {
         clearInterval(intervalRef.current);
         setStatus('success');

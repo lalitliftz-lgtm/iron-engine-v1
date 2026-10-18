@@ -95,7 +95,13 @@ async function summary() {
   lifting.avgRpe = lifting.rpeN ? Math.round((lifting.rpeSum / lifting.rpeN) * 10) / 10 : null;
   delete lifting.rpeSum; delete lifting.rpeN;
 
+  // Payments that need the owner: paid but not granted (price mismatch) or paid twice (refund).
+  const { data: alertRows } = await supabaseAdmin.from('security_audit_logs').select('user_id, action, metadata, created_at').in('action', ['PAYMENT_AMOUNT_MISMATCH', 'DUPLICATE_PURCHASE_REFUND']).order('created_at', { ascending: false }).limit(50);
+  const alerts = (alertRows || []).map((a) => ({ when: a.created_at, email: emailOf[a.user_id] || a.user_id, action: a.action, paymentId: a.metadata?.paymentId, amount: a.metadata?.amount }));
+
   return {
+    payuMode: String(process.env.PAYU_MODE || 'test').toLowerCase(),
+    alerts,
     lifting,
     totals: {
       users: users.length,
@@ -193,7 +199,9 @@ export default async function handler(req, res) {
     if (!token) return res.status(404).json({ error: 'Not found' });
     const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
     const owner = ownerEmail();
-    if (error || !user || !owner || String(user.email || '').toLowerCase() !== owner || !user.email_confirmed_at) {
+    // Optional extra lock: OWNER_USER_ID (the owner's account id) — then even an email mix-up can't open the panel.
+    const ownerId = String(process.env.OWNER_USER_ID || '').trim();
+    if (error || !user || !owner || String(user.email || '').toLowerCase() !== owner || !user.email_confirmed_at || (ownerId && user.id !== ownerId)) {
       return res.status(404).json({ error: 'Not found' });
     }
 

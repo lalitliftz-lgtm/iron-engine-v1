@@ -25,6 +25,7 @@ export default async function handler(req, res) {
       // Idempotent: records the payment once and (re)grants access if an earlier attempt failed half-way.
       const result = await processSuccessfulPayment(supabaseAdmin, paymentData);
       if (result.success) return res.status(200).json({ status: 'success', message: 'Payment verified and access granted' });
+      if (result.error) return res.status(200).json({ status: 'failed', message: result.error });
     }
 
     return res.status(200).json({ status: 'pending', message: 'Payment not captured yet' });

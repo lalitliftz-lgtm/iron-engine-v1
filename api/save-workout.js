@@ -75,6 +75,6 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('Save Workout Error:', error);
-    return res.status(500).json({ error: `Workout could not be saved: ${error?.message || error}` });
+    return res.status(500).json({ error: 'Workout could not be saved. Please try again.' });
   }
 }

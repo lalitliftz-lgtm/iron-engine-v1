@@ -130,7 +130,8 @@ function UserDetail({ email, onClose }) {
 
 function downloadCsv(rows) {
   const cols = ['email', 'name', 'joined', 'lastLogin', 'level', 'days', 'meet', 'squat', 'bench', 'deadlift', 'bodyweight', 'proUntil', 'proType', 'blocks', 'sessions', 'lastSession', 'guides', 'spent'];
-  const esc = (v) => `"${String(Array.isArray(v) ? v.join('; ') : v ?? '').replace(/"/g, '""')}"`;
+  // Names are typed by users: a leading = + - @ would run as a formula in Excel/Sheets — prefix ' to keep it text.
+  const esc = (v) => { const t = String(Array.isArray(v) ? v.join('; ') : v ?? ''); return `"${(/^[=+\-@\t\r]/.test(t) ? `'${t}` : t).replace(/"/g, '""')}"`; };
   const csv = [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
   Object.assign(document.createElement('a'), { href: url, download: `lalitlifts-users-${new Date().toISOString().slice(0, 10)}.csv` }).click();
@@ -186,7 +187,16 @@ export default function OwnerPanel() {
           <button onClick={load} className="text-sm font-semibold text-gray-500 hover:text-gray-900">↻ Refresh</button>
         </div>
       </div>
-      <p className="text-sm text-gray-500 mt-1 mb-6">Only you can see this page.</p>
+      <p className="text-sm text-gray-500 mt-1 mb-6">Only you can see this page.{data.payuMode !== 'live' && <span className="ml-2 text-amber-600 font-semibold">⚠ PayU is in TEST mode — test cards unlock real access. Set PAYU_MODE=live on Vercel before launch.</span>}</p>
+
+      {data.alerts?.length > 0 && (
+        <section className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 text-sm">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-red-700 mb-2">Payments that need you</h2>
+          {data.alerts.map((a, i) => (
+            <p key={i} className="text-red-800">{day(a.when)} · {a.email} · {a.action === 'DUPLICATE_PURCHASE_REFUND' ? 'paid twice for the same guide — refund the second payment' : 'paid an old/wrong price — not unlocked; refund or unlock by hand'} · {rupees(a.amount)} · PayU {a.paymentId}</p>
+          ))}
+        </section>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label="Users" value={t.users} sub={`+${t.new7} this week · +${t.new30} in 30 days`} />

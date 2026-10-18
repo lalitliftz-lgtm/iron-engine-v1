@@ -64,6 +64,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, light, decisions, adjustment: adj, nextWeek: nextWeek ? week + 1 : null, sessionsLogged: (logs || []).length });
   } catch (error) {
     console.error('Weekly check-in error:', error);
-    return res.status(500).json({ error: `Check-in could not be saved: ${error?.message || error}` });
+    return res.status(500).json({ error: 'Check-in could not be saved. Please try again.' });
   }
 }
