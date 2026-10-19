@@ -7,7 +7,9 @@ import { LIFT_NAMES } from '../../lib/engine';
 import { printBlock, downloadBlockXlsx } from '../../lib/exportBlock';
 import { applyAdjustments, attemptPlan } from '../../lib/autoreg';
 import StalePlanBanner from '../../components/dashboard/StalePlanBanner';
-import { planSchedule, lockReason, appNow, trained } from '../../lib/schedule';
+import { planSchedule, lockReason, appNow, trained, proWeekLocked } from '../../lib/schedule';
+import { useSubscription } from '../../context/SubscriptionContext';
+import { CONFIG } from '../../config/siteConfig';
 import SeasonRoadmap from '../../components/dashboard/SeasonRoadmap';
 
 const EXECUTION_RULES = [
@@ -20,6 +22,9 @@ const TEST_DAY_RULE = ["Test Day (Week 5)", "After the deload: 70% → 80% → 8
 
 export default function Programs() {
   const { user } = useAuth();
+  const { status } = useSubscription();
+  // Free plan = Week 1 only. While the plan status loads nothing is hidden (the server enforces it anyway).
+  const isPro = status === 'pro_active' || status === 'loading';
   const [loading, setLoading] = useState(true);
   const [program, setProgram] = useState(null);
   const [activeWeek, setActiveWeek] = useState(1);
@@ -62,8 +67,9 @@ export default function Programs() {
   const exportSnap = () => applyAdjustments(program.program_snapshot, program.program_snapshot.adjustments);
   const athleteName = () => program.program_snapshot?.meta?.form?.name || '';
   const [exporting, setExporting] = useState('');
-  const handlePrint = () => printBlock(exportSnap(), athleteName());
+  const handlePrint = () => { if (!isPro) { window.location.assign('/dashboard/subscription'); return; } printBlock(exportSnap(), athleteName()); };
   const handleExcel = async () => {
+    if (!isPro) { window.location.assign('/dashboard/subscription'); return; }
     setExporting('xlsx');
     try { await downloadBlockXlsx(exportSnap(), athleteName()); } catch (e) { window.alert(`Could not build the Excel file: ${e.message}`); } finally { setExporting(''); }
   };
@@ -100,8 +106,9 @@ export default function Programs() {
   const LIGHT_DOT = { green: 'bg-green-500', yellow: 'bg-amber-400', red: 'bg-red-500' };
   const currentWeekData = weeks.find(w => w.week === activeWeek) || weeks[0];
   const currentDayData = currentWeekData.days.find(d => d.day === activeDay) || currentWeekData.days[0];
-  const mains = currentDayData.exercises.filter((e) => e.type === 'Main');
-  const accs = currentDayData.exercises.filter((e) => e.type !== 'Main');
+  const weekLocked = proWeekLocked(isPro, currentWeekData);
+  const mains = weekLocked ? [] : currentDayData.exercises.filter((e) => e.type === 'Main');
+  const accs = weekLocked ? [] : currentDayData.exercises.filter((e) => e.type !== 'Main');
 
   return (
     <>
@@ -117,8 +124,8 @@ export default function Programs() {
             <details className="relative">
               <summary className="list-none cursor-pointer px-3 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50" aria-label="Export">Export</summary>
               <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg p-1 z-20 shadow-lg">
-                <button onClick={handlePrint} className="w-full text-left px-3 py-2 text-sm text-gray-700 rounded hover:bg-gray-50"><b className="block text-gray-900">PDF</b><span className="text-xs text-gray-500">Whole block · {weeks.length} weeks · print or save</span></button>
-                <button onClick={handleExcel} disabled={!!exporting} className="w-full text-left px-3 py-2 text-sm text-gray-700 rounded hover:bg-gray-50 disabled:opacity-50"><b className="block text-gray-900">{exporting ? 'Building…' : 'Excel'}</b><span className="text-xs text-gray-500">One sheet per week + log columns</span></button>
+                <button onClick={handlePrint} className="w-full text-left px-3 py-2 text-sm text-gray-700 rounded hover:bg-gray-50"><b className="block text-gray-900">PDF{!isPro && ' · 🔒 Pro'}</b><span className="text-xs text-gray-500">Whole block · {weeks.length} weeks · print or save</span></button>
+                <button onClick={handleExcel} disabled={!!exporting} className="w-full text-left px-3 py-2 text-sm text-gray-700 rounded hover:bg-gray-50 disabled:opacity-50"><b className="block text-gray-900">{exporting ? 'Building…' : 'Excel'}{!isPro && ' · 🔒 Pro'}</b><span className="text-xs text-gray-500">One sheet per week + log columns</span></button>
               </div>
             </details>
             <Link to="/dashboard/generate" className="px-3 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">New block</Link>
@@ -155,7 +162,7 @@ export default function Programs() {
             {weeks.map((w) => (
               <button key={w.week} onClick={() => { setActiveWeek(w.week); setActiveDay((w.days.find((d) => !d.rest) || w.days[0]).day); }} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap border ${activeWeek === w.week ? 'bg-gray-100 text-gray-900 border-gray-300' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
                 {checkins[String(w.week)] && <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${LIGHT_DOT[checkins[String(w.week)].light]}`} title={`Check-in: ${checkins[String(w.week)].light}`}></span>}
-                {w.label || `Week ${w.week}`}{w.meetWeek ? null : w.taper ? <span className="ml-1.5 text-[10px] uppercase tracking-wider opacity-75">Taper</span> : w.deload ? <span className="ml-1.5 text-[10px] uppercase tracking-wider opacity-75">Deload</span> : null}
+                {proWeekLocked(isPro, w) && <span className="mr-1" aria-label="Pro">🔒</span>}{w.label || `Week ${w.week}`}{w.meetWeek ? null : w.taper ? <span className="ml-1.5 text-[10px] uppercase tracking-wider opacity-75">Taper</span> : w.deload ? <span className="ml-1.5 text-[10px] uppercase tracking-wider opacity-75">Deload</span> : null}
               </button>
             ))}
           </div>
@@ -221,19 +228,29 @@ export default function Programs() {
                 </div>
                 {!currentDayData.meetDay && !currentDayData.rest && (() => {
                   // Every day can be viewed; only what Today offers can be started.
-                  const lock = lockReason(sched, currentWeekData, currentDayData, program.created_at);
+                  const lock = lockReason(sched, currentWeekData, currentDayData, program.created_at, isPro);
+                  if (lock?.kind === 'pro') return <Link to="/dashboard/subscription" className="no-print bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold py-2.5 px-5 rounded-lg transition-colors">🔒 Unlock with Pro</Link>;
                   return lock
                     ? <div className="no-print text-right"><span className="inline-block bg-gray-100 text-gray-500 text-sm font-semibold py-2.5 px-5 rounded-lg cursor-not-allowed" aria-disabled="true">Locked</span><p className="text-xs text-gray-500 mt-1.5 max-w-[16rem]">{lock.text}</p></div>
                     : <Link to={`/dashboard/workout?week=${activeWeek}&day=${activeDay}`} className="no-print bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold py-2.5 px-5 rounded-lg transition-colors">Start Workout →</Link>;
                 })()}
               </div>
-              {currentDayData.rest && (
+              {weekLocked && (
+                <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
+                  <p className="text-3xl mb-2" aria-hidden="true">🔒</p>
+                  <p className="text-lg font-bold text-gray-900">Week {activeWeek} is part of Iron Engine Pro</p>
+                  <p className="text-sm text-gray-600 mt-1 max-w-md mx-auto">The free plan is Week 1. Pro unlocks the rest of this block — progression, deload, weekly check-ins that set next week's kg — and every block after it.</p>
+                  <p className="text-xs text-gray-500 mt-1">Free mein sirf Week 1 hai. Baaki block Pro mein unlock hota hai.</p>
+                  <Link to="/dashboard/subscription" className="inline-block mt-4 bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold py-2.5 px-6 rounded-lg">See Pro plans · from ₹{(CONFIG.proPlans?.[0]?.price || 1499).toLocaleString('en-IN')} →</Link>
+                </div>
+              )}
+              {!weekLocked && currentDayData.rest && (
                 <div className="bg-white border border-dashed border-gray-300 rounded-xl p-6">
                   <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">{currentDayData.focus}</p>
                   <p className="text-sm text-gray-700">{currentDayData.notes}</p>
                 </div>
               )}
-              {currentDayData.meetDay && (
+              {!weekLocked && currentDayData.meetDay && (
                 <div className="bg-gray-900 text-white rounded-xl p-6">
                   <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Meet day</p>
                   <p className="text-sm">{currentDayData.notes}</p>

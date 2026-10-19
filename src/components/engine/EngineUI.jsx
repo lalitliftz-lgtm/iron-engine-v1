@@ -503,12 +503,12 @@ export function IronEngine({ full, onUpgrade }) {
           {!full && (
             <div style={{ marginBottom: 16, background: `linear-gradient(135deg, ${C.redDim} 0%, ${C.steel} 70%)`, border: `1px solid ${C.red}`, borderRadius: 10, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <div style={{ fontSize: 14, color: C.chalk }}>
-                <b>This is Week 1 of 4.</b> Your full 4-week block is free — create a free account and get every week, the workout logger and rest timer. No card needed.
-                <div style={{ fontSize: 12.5, color: C.knurl, marginTop: 4 }}>Poore 4 hafte free — free account banao. Koi card nahi chahiye.</div>
+                <b>This is Week 1 of 4.</b> Unlock the full block — progression, deload, sticking-point work, workout logger and Excel + PDF export.
+                <div style={{ fontSize: 12.5, color: C.knurl, marginTop: 4 }}>Ye sirf Week 1 hai. Poora block (Week 2–4) Pro mein unlock hota hai.</div>
               </div>
               <button onClick={onUpgrade}
                 style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: C.red, color: "#fff", cursor: "pointer", fontFamily: "'Archivo Black', sans-serif", fontSize: 14, letterSpacing: 1, whiteSpace: "nowrap" }}>
-                GET MY FREE BLOCK →
+                UNLOCK FULL ACCESS
               </button>
             </div>
           )}

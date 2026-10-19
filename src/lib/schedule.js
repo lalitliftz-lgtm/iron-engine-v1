@@ -224,8 +224,13 @@ export function planSchedule(snap, logs = [], createdAt, now = appNow()) {
 }
 
 /** Load factor for the first session back after a break (null = no change). */
+/** Free plan = Week 1 of a block. Week 2 onward needs Iron Engine Pro (the server enforces it too). */
+export const FREE_WEEKS = 1;
+export const proWeekLocked = (isPro, week) => !isPro && (week?.week ?? 1) > FREE_WEEKS;
+
 /** Why a session can't be started right now (null = it can). */
-export function lockReason(sched, week, day, createdAt) {
+export function lockReason(sched, week, day, createdAt, isPro = true) {
+  if (proWeekLocked(isPro, week)) return { kind: 'pro', text: 'Week 2 onward is part of Iron Engine Pro — upgrade to unlock the full block.' };
   if (!sched || sched.allowed.has(`${week.week}-${day.day}`)) return null;
   if (sched.doneKeys?.has(`${week.week}-${day.day}`)) return { kind: 'done', text: 'Already logged — see it in History.' };
   const moved = sched.projected?.get(`${week.week}-${day.day}`);

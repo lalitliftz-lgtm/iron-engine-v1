@@ -6,7 +6,7 @@ import { applyAdjustments, attemptPlan } from '../../lib/autoreg';
 import { LIFT_NAMES } from '../../lib/engine';
 import StalePlanBanner from '../../components/dashboard/StalePlanBanner';
 import { readDraft, draftSetsDone } from '../../lib/workoutDraft';
-import { planSchedule, reentry, appNow, parseYmd, startOfDay, trained } from '../../lib/schedule';
+import { planSchedule, reentry, appNow, parseYmd, startOfDay, trained, proWeekLocked } from '../../lib/schedule';
 import SessionActions from '../../components/dashboard/SessionActions';
 import { seasonRoadmap } from '../../lib/roadmap';
 import LessonCard from '../../components/dashboard/LessonCard';
@@ -121,7 +121,16 @@ export default function Overview() {
 
       {/* 1 — the one thing to do now */}
       <section className="bg-white border border-gray-200 rounded-2xl p-5 md:p-6">
-        {program && draft ? (
+        {program && next && proWeekLocked(isPro, next.week) ? (
+          <>
+            {/* Free plan = Week 1. Week 2 onward is Pro. */}
+            <p className="text-xs font-semibold uppercase tracking-wider text-green-700">Free week over · {sessionsDone} session{sessionsDone === 1 ? '' : 's'} logged</p>
+            <h2 className="text-xl md:text-2xl font-bold text-gray-900 mt-1">Week {next.week.week} is ready — unlock it with Pro</h2>
+            <p className="text-sm text-gray-600 mt-1">Your free week is over. Pro unlocks the rest of this block (progression, deload, weekly check-ins that set next week's kg) and every block after it.</p>
+            <p className="text-xs text-gray-500 mt-1">Free mein Week 1 tha. Aage ka block Pro mein unlock hota hai.</p>
+            <Link to="/dashboard/subscription" className="mt-5 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">🔒 Unlock Week {next.week.week} with Pro</Link>
+          </>
+        ) : program && draft ? (
           <>
             <p className="text-xs font-semibold uppercase tracking-wider text-green-700">Session in progress</p>
             <h2 className="text-xl md:text-2xl font-bold text-gray-900 mt-1">{draft.focus || `Week ${draft.week} · Day ${draft.day}`}</h2>

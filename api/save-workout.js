@@ -31,6 +31,11 @@ export default async function handler(req, res) {
     // The program must belong to this athlete.
     const { data: program } = await supabaseAdmin.from('generated_programs').select('id').eq('id', programId).eq('user_id', user.id).maybeSingle();
     if (!program) return res.status(404).json({ error: 'Program not found' });
+    // Free plan = Week 1 of the block. Week 2 onward needs an active Iron Engine Pro plan.
+    if (weekNumber > 1) {
+      const { data: activeSub } = await supabaseAdmin.from('subscriptions').select('id').eq('user_id', user.id).eq('status', 'active').gte('end_date', new Date().toISOString()).limit(1).maybeSingle();
+      if (!activeSub) return res.status(403).json({ error: 'Week 2 onward is part of Iron Engine Pro. Upgrade to log this session — your sets are still saved on this phone.' });
+    }
 
     // Keep only what the logger actually produces — never store arbitrary payloads.
     const exercises = loggedExercises.slice(0, 30).map((ex) => ({

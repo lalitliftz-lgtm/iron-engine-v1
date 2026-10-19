@@ -15,7 +15,7 @@ export default function UpgradeModal({ isOpen, onClose }) {
   useEffect(() => { if (isOpen) setIsVideoPlaying(false); }, [isOpen]);
   const goToCheckout = () => { onClose?.(); navigate('/dashboard/subscription'); };
 
-  const headerTitle = isExpired ? 'Renew Your Pro Access' : isFreeLimitReached ? 'Block 1 done — ready for Block 2?' : 'Upgrade to Iron Engine Pro';
+  const headerTitle = isExpired ? 'Renew Your Pro Access' : isFreeLimitReached ? 'Your free week is done — unlock the full block' : 'Upgrade to Iron Engine Pro';
   const headerSubtitle = isExpired ? 'Renew your subscription to continue generating programs and logging your workouts.' : isFreeLimitReached ? 'Pro builds your next block from your logs: updated maxes, weak-point work and weekly check-ins that set next week\'s kg.' : 'You\'ve seen the basics. Unlock the full power of automated, science-based programming.';
   const hasVideo = marketingAssets.demoVideoUrl && marketingAssets.demoVideoThumbnail;
 
@@ -63,12 +63,12 @@ export default function UpgradeModal({ isOpen, onClose }) {
                 </div>
                 
                 <div className="space-y-3">
-                  <ComparisonRow feature="Program Generation" free="1 full block" pro="Unlimited" />
+                  <ComparisonRow feature="Program Generation" free="Week 1 only" pro="Unlimited blocks" />
                   <ComparisonRow feature="Weak-point variations + accessories" free={<CrossIcon />} pro={<CheckIcon />} />
                   <ComparisonRow feature="Block focus (squat / bench / deadlift)" free={<CrossIcon />} pro={<CheckIcon />} />
-                  <ComparisonRow feature="Meet-aware peaking + taper" free="1 block" pro="Every block" />
+                  <ComparisonRow feature="Meet-aware peaking + taper" free={<CrossIcon />} pro={<CheckIcon />} />
                   <ComparisonRow feature="Injury-safe load caps + swaps" free={<CheckIcon />} pro={<CheckIcon />} />
-                  <ComparisonRow feature="Workout logger + history" free={<CheckIcon />} pro={<CheckIcon />} />
+                  <ComparisonRow feature="Workout logger + history" free="Week 1" pro={<CheckIcon />} />
                   <ComparisonRow feature="Weekly check-in sets next week's kg" free={<CrossIcon />} pro={<CheckIcon />} />
                 </div>
               </div>
