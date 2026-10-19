@@ -6,6 +6,8 @@
 // ============================================================
 export const CONFIG = {
   brand: "LALITLIFTS",
+  site: "lalitlifts.online",
+  supportEmail: "lalitliftz@gmail.com", // 👈 shown on the Contact page — change when you have a domain email
   insta: "lalit_lifts_",
   instaUrl: "https://instagram.com/lalit_lifts_",
   tagline: "Science-Based Powerlifting. No Bro-Science.",
