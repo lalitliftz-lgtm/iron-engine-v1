@@ -5,7 +5,6 @@
 // fine-tunes execution, fatigue is a signal, deload is training.
 // Pure functions + data tables + XLSX/text export.
 // ============================================================
-import * as XLSX from "xlsx";
 import { CONFIG } from "../config/siteConfig.js";
 
 export const C = {
@@ -400,11 +399,20 @@ export const SWAPS = {
     "Walking Lunge": "Leg Press (light, spine-safe)",
     "Good Morning": "Leg Curl (spine-safe swap)",
     "Romanian Deadlift (light)": "Leg Curl (spine-safe swap)",
+    "Nordic Curl (eccentric) or Romanian Deadlift": "Nordic Curl (eccentric)",
+    "Nordic Curl (eccentric) or DB RDL": "Nordic Curl (eccentric)",
+    "Barbell Row (light)": "Chest-Supported Row (spine-safe)",
+    "Barbell Row (underhand)": "Chest-Supported Row (spine-safe)",
+    "Pendlay Row (strict)": "Chest-Supported Row (spine-safe)",
     "Snatch-Grip Deadlift (light, upper back)": "Chest-Supported Row (spine-safe)",
   },
   knee: {
     "Leg Press or Bulgarian Split Squat": "Hip Thrust (knee-friendly)",
     "Bulgarian Split Squat or Step-up": "Hip Thrust (knee-friendly)",
+    "Bulgarian Split Squat (DB)": "Hip Thrust (knee-friendly)",
+    "Bulgarian Split Squat (bodyweight / plate)": "Glute Bridge",
+    "Step-ups (DB)": "Glute Bridge",
+    "Step-ups (bodyweight / plate)": "Glute Bridge",
     "Leg Press or Goblet Squat": "Leg Press (pain-free ROM only)",
     "Walking Lunge": "Leg Curl (knee-friendly swap)",
     "Leg Press (deep ROM)": "Leg Press (pain-free ROM only)",
@@ -439,6 +447,7 @@ const EQUIP_SUBS = {
     ["Cable Crunch / Weighted Plank", "Weighted Plank / DB Crunch"],
     ["Leg Press or Bulgarian Split Squat", "Bulgarian Split Squat (DB)"],
     ["Leg Press or Goblet Squat", "Goblet Squat (DB)"],
+    ["Leg Press (light, spine-safe)", "Goblet Squat (light, spine-safe)"],
     ["Leg Press (pain-free ROM only)", "Glute Bridge / Hip Thrust (knee-friendly)"],
     ["Leg Press (deep ROM)", "Goblet Squat (deep, pause)"],
     ["Leg Press (quad focus)", "Front Squat (light) or Goblet Squat"],
@@ -480,6 +489,7 @@ const EQUIP_SUBS = {
     ["Cable Crunch / Weighted Plank", "Weighted Plank (plate)"],
     ["Leg Press or Bulgarian Split Squat", "Bulgarian Split Squat (bodyweight / plate)"],
     ["Leg Press or Goblet Squat", "Goblet Squat (plate) or Front Squat (light)"],
+    ["Leg Press (light, spine-safe)", "Goblet Squat with a plate (light, spine-safe)"],
     ["Leg Press (pain-free ROM only)", "Glute Bridge / Hip Thrust (knee-friendly)"],
     ["Leg Press (deep ROM)", "Paused Goblet Squat with a plate"],
     ["Leg Press (quad focus)", "Front Squat (light)"],
@@ -533,6 +543,14 @@ export function applyEquipment(accList, equipment) {
     const hit = subs.find(([k]) => a.name === k) || subs.find(([k]) => a.name.startsWith(k));
     return hit ? { ...a, name: hit[1] } : a;
   });
+}
+
+/** Injury swaps, then equipment, then the injury swaps again: an equipment substitute must never bring back
+ *  what the injury removed (minimal gym: "Chest-Supported Row" → "Barbell Row" with a back flag). */
+export function fitAcc(accList, injuries, equipment) {
+  return applyEquipment(applySwaps(applyEquipment(applySwaps(accList, injuries), equipment), injuries), equipment)
+    // A substitute keeps the original sets × reps — fine, except eccentric Nordics: never 10–12 of those.
+    .map((a) => (/^Nordic Curl \(eccentric\)$/.test(a.name) ? { ...a, sr: "3 × 3–6", rpe: "RPE 8" } : a));
 }
 
 /* ---------------- Recovery / readiness ---------------- */
@@ -671,11 +689,22 @@ export function buildLift(slot, wk, form, maxes, rec, scheme) {
   // ---- Beginner: weekly load jumps per day while every rep stays clean (Helms novice + System 2.0)
   if (BEG_DAY[role]) {
     const cfg = BEG_DAY[role];
-    const inc = BEG_INC[lift];
+    // Weekly jump scales with the lifter (Helms: microload when a fixed jump is too big): ~4% of the max for
+    // squat/deadlift (2.5–5 kg), ~3% for bench (1.25–2.5 kg). No max → the standard jumps.
+    const inc = max ? (lift === "bench" ? Math.min(2.5, Math.max(1.25, Math.round((max * 0.03) / 1.25) * 1.25)) : Math.min(5, Math.max(2.5, Math.round((max * 0.04) / 2.5) * 2.5))) : BEG_INC[lift];
     const base = max ? round25((cfg.pct / 100) * max) : null;
     let kg = base ? round25(base + wk * inc) : null;
     let sets = cfg.sets, reps = cfg.reps;
     const notes = [];
+    // Safety rail only: a novice's max grows about as fast as the weekly jump, so the ceiling grows with it
+    // (week n assumes max + n × jump). It just stops a jump from landing past the day's RPE ceiling.
+    if (kg && max) {
+      const ceiling = Number(String(cfg.rpe).match(/(\d+(?:\.\d+)?)\s*$/)?.[1]) || 8;
+      let top = 95;
+      while (top > 40 && rpeFor(top, cfg.reps) > ceiling) top -= 2.5;
+      const capKg = Math.max(base, Math.floor(((top / 100) * (max + wk * inc)) / 2.5) * 2.5); // round DOWN
+      if (kg > capKg) kg = capKg;
+    }
     if (w.taper || w.meetweek) {
       kg = base ? round25(base * 0.95) : null;
       sets = 2; reps = Math.min(reps, 3);
@@ -684,7 +713,7 @@ export function buildLift(slot, wk, form, maxes, rec, scheme) {
     const pct = max && kg ? Math.round((kg / max) * 200) / 2 : null;
     if (role === "begTech") notes.push("Technique day: always 4–6 reps left in the tank. Same setup, same pause, every rep.");
     if (role === "begDL") notes.push("One heavy-ish pull a week is enough at this stage — clean reps, no grinding.");
-    if (wk === 0 && !w.taper && role !== "begTech") notes.push(`+${inc} kg next week on this day if every rep was clean. Missed reps → same weight next week. Missed two weeks in a row → −10% for one week, then back to that weight. Stall again → jumps of +${inc / 2} kg.`);
+    if (wk === 0 && !w.taper && role !== "begTech") notes.push(`+${inc} kg next week on this day if every rep was clean${inc % 2.5 ? " (no 1.25 kg plates? add 2.5 kg every other week)" : ""}. Missed reps → same weight next week. Missed two weeks in a row → −10% for one week, then back to that weight. Stall again → jumps of +${inc / 2} kg.`);
     if (!max) notes.push(`No max needed: pick a weight you can do for ${reps} clean reps with ${role === "begTech" ? "4–6" : "2–3"} reps left, then add ${inc} kg a week.`);
     return mk(LIFT_NAMES[lift] + cfg.label, sets, reps, pct, w.taper || w.meetweek ? "RPE 6" : cfg.rpe, notes.join(" · ") || null, kg);
   }
@@ -766,7 +795,8 @@ export function buildLift(slot, wk, form, maxes, rec, scheme) {
   }
 
   // paused / variation slot — dropped in deload and taper (nothing new, nothing extra)
-  if (w.deload || w.taper) return null;
+  // Peaking = competition lifts only (Helms: variations and extras go a week or more before the meet).
+  if (w.deload || w.taper || w.peak) return null;
   if (stick && form.weak === lift && weakType !== "fatigue") {
     const extraOff = weakType === "technique" ? -5 : 0;
     const pct = Math.max(40, (w.deload ? base.pct - 5 : base.pct) + stick.variation.off + extraOff);
@@ -797,6 +827,8 @@ function weekPlan(form, meet) {
       if (meet.fullWeeks < 1) return { weeks: [], final: true, blockLabel: "Taper → Meet" }; // no room for a full peaking week once the calendar is lined up
       const n = Math.min(3, meet.fullWeeks); // peaking weeks before the taper
       const peakWeeks = n === 1 ? [P[2]] : n === 2 ? [P[1], P[2]] : [P[0], P[1], P[2]];
+      // A 4th full week is a strength week first — otherwise it would stretch the taper to ~3 weeks.
+      if (meet.fullWeeks >= 4) peakWeeks.unshift({ ...SCHEMES.str.weeks[1], label: "Strength Week (lead-in to peaking)" });
       return { weeks: peakWeeks, final: true, blockLabel: SCHEMES.peak.label };
     }
     case "beginner":
@@ -831,7 +863,14 @@ function finalStretch(startOffset, form, maxes, rec, tmpl, wdays) {
   const on = (l) => comp.includes(l);
   const platform = comp.map((l) => LIFT_NAMES[l]).join(" + ");
   const kgOf = (lift, pct) => (maxes[lift] ? round25((pct / 100) * maxes[lift]) : null);
-  const single = (lift, sets, pct, rpe, note) => ({ name: LIFT_NAMES[lift], sets, reps: 1, pct, kg: kgOf(lift, pct), rpe, note: note || null, lift });
+  // Pain flags cap the taper and meet-week singles too (the same limits as the training block).
+  const injCap = (lift) => (form.injuries?.back && (lift === "squat" || lift === "deadlift") ? 80 : form.injuries?.knee && lift === "squat" ? 85 : form.injuries?.shoulder && lift === "bench" ? 85 : 100);
+  const single = (lift, sets, pct, rpe, note) => {
+    const capPct = injCap(lift);
+    const p = Math.min(pct, capPct);
+    const capNote = p < pct ? `Pain flag — held at ${capPct}% (planned ${pct}%). Pick a conservative opener you can hit on a bad day.` : null;
+    return { name: LIFT_NAMES[lift], sets, reps: 1, pct: p, kg: kgOf(lift, p), rpe, note: [note, capNote].filter(Boolean).join(" · ") || null, lift };
+  };
   const taperDays = [], meetDays = [];
   let taperIdx = 0, openerDone = false;
   for (let off = Math.max(0, startOffset); off <= D; off++) {
@@ -863,18 +902,23 @@ function finalStretch(startOffset, form, maxes, rec, tmpl, wdays) {
       const di = wdays.indexOf(weekday);
       const t = tmpl[di];
       if (!t || t.support) return;
+      // Helms: taper volume falls by ⅓–⅔ — at most 3 taper sessions before opener practice; the rest are recovery days.
+      if (taperIdx >= 3) return;
+      const firstTaper = taperIdx === 0;
       const variant = taperIdx++ % 2; // alternate doubles @ 80 and triples @ 77.5 so no two sessions are identical
       const reps = variant === 0 ? 2 : 3, pct = (variant === 0 ? 80 : 77.5) - (beg ? 5 : 0);
       const main = [];
       for (const l of ["squat", "bench", "deadlift"]) {
-        if (on(l)) main.push({ ...single(l, l === "deadlift" ? 2 : 3, pct, "RPE 6–7"), reps });
-        else if (before >= 8) main.push({ ...single(l, 2, 75, "RPE ≤ 6", "Not competed — light maintenance only, then it disappears until after the meet."), name: `${LIFT_NAMES[l]} (maintenance)`, reps: 3 });
+        // Deadlift (highest fatigue cost) in one taper session only, unless it's the only lift on the platform.
+        if (on(l) && l === "deadlift" && comp.length > 1 && !firstTaper) continue;
+        if (on(l)) main.push({ ...single(l, 2, pct, "RPE 6–7"), reps });
+        else if (before >= 8 && firstTaper) main.push({ ...single(l, 2, 75, "RPE ≤ 6", "Not competed — one light maintenance session, then it disappears until after the meet."), name: `${LIFT_NAMES[l]} (maintenance)`, reps: 3 });
       }
       if (!main.length) return;
       main[0].note = main[0].note || "Taper: intensity stays, volume halves. Low reps keep the RPE low — this should feel crisp, never hard.";
       // Bench-only lifters don't need leg/hinge accessories in the taper.
-      const accPool = applyEquipment(applySwaps([...(ACC[t.acc] || [])], form.injuries), form.equipment).filter((a) => on("squat") || on("deadlift") || !["quads", "posterior"].includes(accBucket(a.name)));
-      const acc = accPool.slice(0, 2).map((a) => ({ ...a, sr: a.sr.includes("×") ? a.sr.replace(/^\d+/, "2") : a.sr, rpe: a.rpe === "—" ? a.rpe : "RPE 7" }));
+      const accPool = fitAcc([...(ACC[t.acc] || [])], form.injuries, form.equipment).filter((a) => on("squat") || on("deadlift") || !["quads", "posterior"].includes(accBucket(a.name)));
+      const acc = accPool.filter((a, i) => accPool.findIndex((b) => b.name === a.name) === i).slice(0, 2).map((a) => ({ ...a, sr: a.sr.includes("×") ? a.sr.replace(/^\d+/, "2") : a.sr, rpe: a.rpe === "—" ? a.rpe : "RPE 7" }));
       taperDays.push(day(`Taper — ${comp.length === 3 ? "all three lifts" : platform} (${variant === 0 ? "doubles" : "triples"})`, main, { acc }));
     }
       };
@@ -931,7 +975,9 @@ export function buildProgram(form, maxes) {
   // structure — but only once when recovery is poor, fatigue is the issue, or the back is flagged.
   let dlNote = null;
   const dlSlots = tmpl.reduce((n, d) => n + d.slots.filter((x) => x.lift === "deadlift").length, 0);
-  if (!isBeg && dlSlots < 2) {
+  // A meet without deadlift on the platform doesn't get a second, technique pull.
+  const dlNotCompeted = form.compLifts && !form.compLifts.includes("deadlift") && meet.phase !== "none" && meet.phase !== "post";
+  if (!isBeg && dlSlots < 2 && !dlNotCompeted) {
     const tired = rec.level === "poor" || (form.weakType || "strength") === "fatigue" || form.injuries?.back || form.cutting === "weightclass";
     if (tired) dlNote = "Deadlift stays at 1× this week-plan: recovery is low (sleep/stress, fatigue, back flag or a hard cut). The second, technique pull comes back when recovery does.";
     else {
@@ -950,7 +996,8 @@ export function buildProgram(form, maxes) {
   const level = form.exp === "beg" ? "beg" : form.exp === "adv" ? "adv" : "int";
   // Volume by training age (novice 10–12, intermediate 13–15, advanced 16–20 sets/wk per movement).
   // An aggressive cut for a weight class steps volume down one level.
-  const step = form.cutting === "weightclass" ? { beg: "beg", int: "beg", adv: "int" }[level] : level;
+  // A hard cut or poor recovery (sleep/stress) both step the weekly volume down one level (Helms: less volume when stressed or dieting).
+  const step = form.cutting === "weightclass" || rec.level === "poor" ? { beg: "beg", int: "beg", adv: "int" }[level] : level;
   const budget = { beg: [10, 12], int: [13, 15], adv: [16, 20] }[step];
   // Training style (the athlete's choice): focused trims to the bottom of the range, balanced to the top,
   // full allows the next level's range (Helms: periods above the range are normal — still capped by recovery).
@@ -979,7 +1026,7 @@ export function buildProgram(form, maxes) {
       label, deload, taper: !!w.taper, phase: w.taper ? "Taper" : deload ? "Deload" : plan.blockLabel,
       days: tmpl.map((d, di) => {
         const main = d.slots.map((s) => buildLift(s, wi, form, maxes, rec, w)).filter(Boolean);
-        let acc = applyEquipment(applySwaps([...(ACC[d.acc] || [])], form.injuries), form.equipment);
+        let acc = fitAcc([...(ACC[d.acc] || [])], form.injuries, form.equipment);
         // accessories scale with the block: base 3–4, strength 2–3, peaking 0–2, taper 0
         const styleBonus = style === "full" ? 1 : style === "focused" ? -1 : 0;
         const cap = isBeg ? acc.length : d.support ? acc.length : Math.max(1, (d.acc === "deadDay" ? accCount - 1 : accCount) + styleBonus);
@@ -990,12 +1037,13 @@ export function buildProgram(form, maxes) {
         if (nExtra && !d.support && !d.optional && !deload && !w.taper && !w.peak && accCount > 0) {
           const have = new Set(acc.map((a) => a.name));
           const extra = (EXTRAS[d.acc] || []).filter((e) => !have.has(e.name)).slice(0, nExtra);
-          acc = [...acc, ...applyEquipment(applySwaps(extra, form.injuries), form.equipment)];
+          acc = [...acc, ...fitAcc(extra, form.injuries, form.equipment)];
         }
-        if (form.weak !== "none" && stick && weakType === "strength" && !d.optional && !deload && !w.taper) {
+        if (form.weak !== "none" && stick && weakType === "strength" && !d.optional && !deload && !w.taper && !w.peak) {
           if (d.slots.find((s) => s.lift === form.weak && s.role === "primary")) {
-            const extra = { ...stick.acc, name: "Weak-point: " + stick.acc.name };
-            acc = [...acc, applyEquipment(applySwaps([extra], form.injuries), form.equipment)[0]];
+            // Swap by the real exercise name first, THEN label it — the "Weak-point: " prefix hid it from the swaps.
+            const fit = fitAcc([{ ...stick.acc }], form.injuries, form.equipment)[0];
+            acc = [...acc, { ...fit, name: "Weak-point: " + fit.name }];
           }
         }
         // Equipment swaps can turn two exercises into the same one (minimal gym: both rows → Barbell Row).
@@ -1061,9 +1109,16 @@ export function buildProgram(form, maxes) {
   // Trim ONCE on the heaviest-volume week and hold the same accessory menu all block — a coach never rotates accessories by accident.
   const trimmed = new Set();
   const refWeek = weeks.find((w) => !w.deload && !w.taper && !w.meetWeek) || weeks.find((w) => !w.meetWeek);
-  if (refWeek) trimToBudget(refWeek, budgetMax).forEach((n) => trimmed.add(n));
-  if (trimmed.size) for (const w of weeks) if (w !== refWeek && !w.meetWeek) for (const d of w.days) d.acc = d.acc.filter((a) => !trimmed.has(a.name));
+  // Same weekday + same exercise is removed in every week (not every copy of that name on other days).
+  const trimmedAt = new Set();
+  if (refWeek) trimToBudget(refWeek, budgetMax).forEach((r) => { trimmed.add(r.name); trimmedAt.add(`${r.weekday}|${r.name}`); });
+  if (trimmed.size) for (const w of weeks) if (w !== refWeek && !w.meetWeek) for (const d of w.days) d.acc = d.acc.filter((a) => !trimmedAt.has(`${d.weekday}|${a.name}`));
   if (trimmed.size) notes.push(`Volume kept at ≤${budgetMax} hard sets/week per muscle group (${style} style, your level ${budget[0]}–${budget[1]}) — dropped: ${[...trimmed].join(", ")}. Arm, shoulder, calf and core work doesn't count toward this; it scales with your style and session length.`);
+
+  // A training day that ended up with nothing in it (restrictions, trimming, a deload) is a rest day, not a blank session.
+  for (const w of weeks) for (const d of w.days) {
+    if (!d.rest && !d.meetDay && !d.main?.length && !d.acc?.length) Object.assign(d, { title: "Rest day", rest: true, optional: false, note: "Rest — nothing planned today after your adjustments. Walk, mobility, sleep 7–9 h." });
+  }
 
   const count = { squat: 0, bench: 0, deadlift: 0 };
   tmpl.forEach((d) => d.slots.forEach((s) => count[s.lift]++));
@@ -1071,7 +1126,8 @@ export function buildProgram(form, maxes) {
   const volume = weeklyVolume(weeks.find((w) => !w.deload) || weeks[0]);
 
   // A test day only makes sense when there is no meet: the meet IS the test.
-  const testDay = meet.phase === "none" && !isBeg;
+  // …and not with a pain flag or fatigue (no heavy singles until those are sorted).
+  const testDay = meet.phase === "none" && !isBeg && !Object.values(form.injuries || {}).some(Boolean) && (form.weakType || "strength") !== "fatigue";
   return { weeks, rec, freq, restDays: ALL_DAYS.filter((d) => !wdays.includes(d)), phase: meet.phase, blockLabel: plan.blockLabel, notes, volume, budget, testDay, meetDays: form.meetDays ?? null, compLifts: form.compLifts || ["squat", "bench", "deadlift"] };
 }
 
@@ -1124,7 +1180,7 @@ function trimToBudget(week, budgetMax) {
       if (idx !== undefined && (!best || d.acc.length > best.d.acc.length)) best = { d, idx };
     }
     if (!best) break;
-    removed.push(best.d.acc[best.idx].name);
+    removed.push({ weekday: best.d.weekday, name: best.d.acc[best.idx].name });
     best.d.acc.splice(best.idx, 1);
   }
   return removed;
@@ -1140,11 +1196,17 @@ const EXP_MAP = { Beginner: "beg", Intermediate: "int", Advanced: "adv" };
 const TYPICAL_RATIO = { squat: 1, bench: 0.7, deadlift: 1.2 };
 
 export function injuriesFromText(text) {
-  const t = String(text || "").toLowerCase();
+  // Whole words, and not in clauses that say there is NO problem ("no injuries, back feels great") or where
+  // "back" isn't the body part ("came back after a break", "back squat").
+  const t = String(text || "").toLowerCase()
+    .split(/[.,;\n]|\bbut\b/)
+    .filter((c) => !/\b(no|none|not|never|nil|nothing|without|healthy|fine|great|good)\b/.test(c) || /\b(pain|hurts?|injur\w*|ache|aching|sore|strain\w*|tear|torn|bulge|impinge\w*)\b/.test(c) && !/\b(no|none|not|never|nil|nothing|without)\b[^.]*\b(pain|hurt|injur|ache|issue|problem)/.test(c))
+    .join(" ")
+    .replace(/\b(came|come|coming|get|got|getting|be) back\b|\bback (squat|squats|extension|extensions|off|after|to|into|in shape)\b/g, " ");
   return {
-    back: /back|spine|lumbar|disc|sciatic/.test(t),
-    knee: /knee|patell|menisc/.test(t),
-    shoulder: /shoulder|rotator|impinge|ac joint|labrum/.test(t),
+    back: /\bback\b|\bspine\b|spinal|lumbar|\bdisc\b|sciatic/.test(t),
+    knee: /\bknees?\b|patell|menisc/.test(t),
+    shoulder: /\bshoulders?\b|rotator|impinge|ac joint|labrum/.test(t),
   };
 }
 
@@ -1210,7 +1272,7 @@ function applyRestrictions(acc, restricted, equipment, injuries) {
       continue;
     }
     const bucket = accBucket(a.name) || (/plank|bug|raise|wheel|core|crunch/i.test(a.name) ? "core" : null);
-    const pool = (RESTRICT_ALT[bucket] || []).map((n) => applyEquipment(applySwaps([{ ...a, name: n }], injuries), equipment)[0]);
+    const pool = (RESTRICT_ALT[bucket] || []).map((n) => fitAcc([{ ...a, name: n }], injuries, equipment)[0]);
     const alt = pool.find((x) => !hit(x.name) && !acc.some((y) => y.name === x.name) && !out.some((y) => y.name === x.name));
     const prefix = a.name.startsWith("Weak-point: ") ? "Weak-point: " : "";
     if (alt) out.push({ ...alt, name: prefix + alt.name });
@@ -1274,8 +1336,9 @@ export function profileToForm(profile, overrides = {}) {
   let weak = "none", sticking = null;
   if (exp === "beg") {
     decisions.push({ step: "Weak-Point Diagnosis", decision: "Not yet — beginner", reason: "As a beginner every lift is still learning its pattern, so the 'weak point' is technique, not a muscle. All three lifts get even work and the form cues fix most problems. Weak-point work starts when your progress slows." });
-  } else if (flagged.length && maxes.squat) {
-    const lag = (l) => (maxes[l] / maxes.squat) / TYPICAL_RATIO[l];
+  } else if (flagged.length) {
+    // Rank by strength ratios when the squat max is known; otherwise the lifter's own first flag stands.
+    const lag = (l) => (maxes.squat && maxes[l] ? (maxes[l] / maxes.squat) / TYPICAL_RATIO[l] : 1);
     weak = flagged.sort((x, y) => lag(x) - lag(y))[0];
     sticking = WEAK_POINT_MAP[weak][a[`${weak}_weak_point`]];
     const st = STICKING[weak][sticking];
@@ -1425,7 +1488,9 @@ export function weekRows(w) {
   return rows;
 }
 
-export function downloadXLSX(program, form) {
+// Loaded only when someone taps Excel export (keeps the spreadsheet library out of the main bundle and the API).
+export async function downloadXLSX(program, form) {
+  const XLSX = await import("xlsx");
   const wb = XLSX.utils.book_new();
   const cols = [{ wch: 11 }, { wch: 18 }, { wch: 38 }, { wch: 6 }, { wch: 9 }, { wch: 10 }, { wch: 7 }, { wch: 9 }, { wch: 50 }];
   program.weeks.forEach((w) => {

@@ -328,7 +328,7 @@ export function IronEngine({ full, onUpgrade }) {
             <Seg value={form.rmMode} onChange={(v) => set("rmMode", v)} options={[
               { v: "know", l: "I know my 1RM" },
               { v: "calc", l: "Calculate from a recent set", s: "e.g. 100 kg × 5" },
-              { v: "none", l: "RPE only" },
+              { v: "none", l: "I don't know my max" },
             ]} />
             {form.rmMode === "know" && (
               <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
@@ -389,11 +389,12 @@ export function IronEngine({ full, onUpgrade }) {
 
         {step === 2 && (
           <>
-            <Label pro={!full} hint="The engine swaps exercises and adds safety caps">Injury / Issue (multi-select)</Label>
-            <Seg locked={!full} multi value={form.injuries} onChange={(v) => set("injuries", v)} options={[
+            {/* Safety is never a paid extra. */}
+            <Label hint="The engine swaps exercises and adds safety caps">Injury / Issue (multi-select)</Label>
+            <Seg multi value={form.injuries} onChange={(v) => set("injuries", v)} options={[
               { v: "back", l: "Lower Back" }, { v: "knee", l: "Knee" }, { v: "shoulder", l: "Shoulder" },
             ]} />
-            {full && (form.injuries.back || form.injuries.knee || form.injuries.shoulder) && (
+            {(form.injuries.back || form.injuries.knee || form.injuries.shoulder) && (
               <div style={{ marginTop: 8, fontSize: 13, color: C.knurl, background: C.steel2, padding: "8px 12px", borderRadius: 8, borderLeft: `3px solid ${C.red}` }}>
                 Don't train through active pain — get assessed. Pain = the set ends. Always.
               </div>
@@ -502,11 +503,12 @@ export function IronEngine({ full, onUpgrade }) {
           {!full && (
             <div style={{ marginBottom: 16, background: `linear-gradient(135deg, ${C.redDim} 0%, ${C.steel} 70%)`, border: `1px solid ${C.red}`, borderRadius: 10, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <div style={{ fontSize: 14, color: C.chalk }}>
-                <b>This is Week 1 of 4.</b> Unlock the full block — progression, deload, sticking-point work, injury-aware swaps, and Excel + PDF export.
+                <b>This is Week 1 of 4.</b> Your full 4-week block is free — create a free account and get every week, the workout logger and rest timer. No card needed.
+                <div style={{ fontSize: 12.5, color: C.knurl, marginTop: 4 }}>Poore 4 hafte free — free account banao. Koi card nahi chahiye.</div>
               </div>
               <button onClick={onUpgrade}
                 style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: C.red, color: "#fff", cursor: "pointer", fontFamily: "'Archivo Black', sans-serif", fontSize: 14, letterSpacing: 1, whiteSpace: "nowrap" }}>
-                UNLOCK FULL ACCESS
+                GET MY FREE BLOCK →
               </button>
             </div>
           )}

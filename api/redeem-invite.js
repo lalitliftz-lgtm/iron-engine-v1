@@ -19,9 +19,17 @@ export default async function handler(req, res) {
     const code = String(req.body?.code || '').trim();
     if (!code || code.length > 64) return res.status(400).json({ error: 'Enter your invite code.' });
 
+    // Guessing codes: after 8 wrong tries in an hour, stop answering for that account.
+    const hourAgo = new Date(Date.now() - 3600e3).toISOString();
+    const { count: fails } = await supabaseAdmin.from('security_audit_logs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('action', 'INVITE_FAILED').gte('created_at', hourAgo);
+    if ((fails || 0) >= 8) return res.status(429).json({ error: 'Too many wrong codes. Try again in an hour.' });
+
     const { data, error: rpcError } = await supabaseAdmin.rpc('redeem_invite', { p_code: code, p_user: user.id });
     if (rpcError) throw rpcError;
-    if (!data?.ok) return res.status(400).json({ error: data?.error || 'This invite code is not valid.' });
+    if (!data?.ok) {
+      await supabaseAdmin.from('security_audit_logs').insert({ user_id: user.id, action: 'INVITE_FAILED', metadata: { code: code.slice(0, 32) } });
+      return res.status(400).json({ error: data?.error || 'This invite code is not valid.' });
+    }
     return res.status(200).json({ success: true, endDate: data.end_date });
   } catch (err) {
     console.error('Invite redeem error:', err);

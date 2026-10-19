@@ -4,6 +4,13 @@ const supabaseAdmin = createClient(process.env.VITE_SUPABASE_URL, process.env.SU
 
 const int = (v, min, max) => { const n = Number(v); return Number.isInteger(n) && n >= min && n <= max ? n : null; };
 
+/** When the session was finished, as the phone saw it (an offline save can arrive hours later; the coach's
+ *  test mode moves the day). Anything unparseable or more than a year off → now. */
+function completedAt(v) {
+  const t = Date.parse(v);
+  return Number.isFinite(t) && Math.abs(t - Date.now()) <= 366 * 864e5 ? new Date(t).toISOString() : new Date().toISOString();
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
@@ -66,6 +73,7 @@ export default async function handler(req, res) {
       day_number: dayNumber,
       logged_exercises: exercises,
       duration_seconds: int(durationSeconds, 0, 6 * 3600) ?? 0,
+      date_completed: completedAt(req.body?.completedAt),
       recovery_checklist: { session_notes: String(sessionNotes || '').slice(0, 2000), ...(clientId ? { client_id: clientId } : {}), ...(skipReason ? { skip_reason: skipReason } : {}), ...(quick ? { quick: true } : {}) }
     }).select('id').single();
 
@@ -75,6 +83,6 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('Save Workout Error:', error);
-    return res.status(500).json({ error: `Workout could not be saved: ${error?.message || error}` });
+    return res.status(500).json({ error: 'Workout could not be saved. Please try again.' });
   }
 }

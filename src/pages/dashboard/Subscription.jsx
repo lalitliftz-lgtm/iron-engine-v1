@@ -56,6 +56,8 @@ export default function Subscription() {
       try { localStorage.removeItem(INVITE_KEY); } catch { /* ignore */ }
       setInviteMsg({ ok: true, text: `Done — Pro is free until ${new Date(body.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}. Reloading…` });
       setTimeout(() => window.location.reload(), 1500); // refresh the Pro status everywhere
+    } catch {
+      setInviteMsg({ ok: false, text: 'No connection — check your internet and try again.' });
     } finally {
       setInviteBusy(false);
     }
@@ -143,7 +145,7 @@ export default function Subscription() {
   if (loading) return <div className="animate-pulse text-knurl">Loading subscription…</div>;
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto px-4 md:px-8 py-6 md:py-10">
       <h2 className="text-3xl text-chalk mb-8" style={{ fontFamily: "'Archivo Black', sans-serif" }}>My Subscription</h2>
 
       {/* A PDF guide coming from the storefront gets its own buy card; Pro is bought from the plan picker below. */}
@@ -171,7 +173,7 @@ export default function Subscription() {
               <h3 className="text-2xl font-bold text-chalk">{activeSub ? activeSub.products?.name || 'Iron Engine Pro' : 'Free Tier'}</h3>
             </div>
             <span className={`px-3 py-1 text-xs font-semibold rounded-full ${activeSub ? 'bg-green-500 text-white' : 'bg-steel2 text-knurl'}`}>
-              {activeSub ? 'Active' : 'Inactive'}
+              {activeSub ? 'Active' : 'Free plan'}
             </span>
           </div>
           {activeSub ? (
@@ -181,7 +183,7 @@ export default function Subscription() {
               <div><p className="text-knurl text-xs mb-1">Days Remaining</p><p className="font-medium text-2xl" style={{ color: '#C9A24B' }}>{daysRemaining(activeSub.end_date)}</p></div>
             </div>
           ) : (
-            <p className="text-knurl mb-8">You don't have an active subscription. Upgrade to unlock the full Iron Engine.</p>
+            <p className="text-knurl mb-8">You're on the free plan — your first block is yours to keep. Pro builds every next block from your logs.</p>
           )}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
             <p className="text-chalk font-semibold">{renewLocked ? 'Your Pro is active' : extendOpen ? 'Extend your Pro' : activeSub ? 'Renew your Pro' : 'Choose your plan'}</p>

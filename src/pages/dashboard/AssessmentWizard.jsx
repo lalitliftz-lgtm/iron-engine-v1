@@ -110,11 +110,14 @@ export default function AssessmentWizard() {
 
   // Debounced autosave: one save 1.5 s after the last keystroke, not one per keystroke.
   useEffect(() => {
+    let pending = null;
     const subscription = watch((value) => {
+      pending = value;
       clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => saveData(value), 1500);
+      saveTimer.current = setTimeout(() => { pending = null; saveData(value); }, 1500);
     });
-    return () => { subscription.unsubscribe(); clearTimeout(saveTimer.current); };
+    // Leaving the page within 1.5 s of an edit (tap a menu link) saves it now instead of dropping it.
+    return () => { subscription.unsubscribe(); clearTimeout(saveTimer.current); if (pending) saveData(pending); };
   }, [watch, saveData]);
 
   useEffect(() => {
@@ -187,7 +190,7 @@ export default function AssessmentWizard() {
           <motion.div key={currentStep} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25, ease: 'easeInOut' }} className="flex-1">
             {currentStep === 0 && (
               <div>
-                <Heading title="Let's start with the basics." sub="Your coach-level plan starts with who you are. Takes about 3 minutes; everything saves as you go." />
+                <Heading title="Let's start with the basics." sub="Your coach-level plan starts with who you are. About 5 minutes; everything saves as you go." />
                 <Input label="Full name" {...register('full_name', { required: 'Name is required' })} error={errors.full_name} placeholder="Lalit Sharma" />
                 <div className="grid grid-cols-3 gap-3">
                   <Input label="Age" type="number" inputMode="numeric" {...register('age', { required: 'Required', valueAsNumber: true })} error={errors.age} placeholder="25" />

@@ -6,7 +6,7 @@ import { applyAdjustments, attemptPlan } from '../../lib/autoreg';
 import { LIFT_NAMES } from '../../lib/engine';
 import StalePlanBanner from '../../components/dashboard/StalePlanBanner';
 import { readDraft, draftSetsDone } from '../../lib/workoutDraft';
-import { planSchedule, reentry, appNow, parseYmd, startOfDay } from '../../lib/schedule';
+import { planSchedule, reentry, appNow, parseYmd, startOfDay, trained } from '../../lib/schedule';
 import SessionActions from '../../components/dashboard/SessionActions';
 import { seasonRoadmap } from '../../lib/roadmap';
 import LessonCard from '../../components/dashboard/LessonCard';
@@ -63,7 +63,9 @@ export default function Overview() {
   const currentBlock = snap?.blockType || null;
   const totalWeeks = snap?.weeks?.length || 4;
   // Next session = first session of the block that has no log yet (skipped days shift the plan, they don't vanish).
-  const done = new Set(logs.map((l) => `${l.week_number}-${l.day_number}`));
+  // A "can't train" skip closes a session only in a meet block; without a meet it is still owed (same rule as lib/schedule).
+  const meetBlock = snap?.meta?.meetDays !== null && snap?.meta?.meetDays !== undefined;
+  const done = new Set(logs.filter((l) => meetBlock || trained(l)).map((l) => `${l.week_number}-${l.day_number}`));
   // An unfinished session in this browser (same block, day not logged yet) → Resume instead of Start.
   const savedDraft = readDraft(user.id);
   const draft = savedDraft && program && savedDraft.programId === program.id && !done.has(`${savedDraft.week}-${savedDraft.day}`) ? savedDraft : null;
@@ -225,7 +227,7 @@ export default function Overview() {
         ) : (
           <>
             <h2 className="text-xl font-bold text-gray-900">No block yet</h2>
-            <p className="text-sm text-gray-500 mt-1">Answer the assessment (2–3 min) and the engine builds your first block around your numbers, weak points and meet date.</p>
+            <p className="text-sm text-gray-500 mt-1">Answer the assessment (about 5 min) and the engine builds your first block around your numbers, weak points and meet date.</p>
             <Link to="/dashboard/generate" className="mt-5 block w-full bg-gray-900 hover:bg-gray-800 text-white text-base font-semibold py-3.5 rounded-xl text-center">Build my block</Link>
           </>
         )}
@@ -239,9 +241,9 @@ export default function Overview() {
         <section className="bg-amber-50 border border-amber-300 rounded-2xl p-5 flex items-center justify-between gap-4 flex-wrap">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">Week {checkinWeek} done</p>
-            <p className="text-sm text-gray-800 mt-0.5">60-second check-in → the engine sets next week's kg.</p>
+            <p className="text-sm text-gray-800 mt-0.5">{isPro ? "60-second check-in → the engine sets next week's kg." : "Pro: a 60-second weekly check-in sets next week's kg from how this week went."}</p>
           </div>
-          <Link to={`/dashboard/checkin?week=${checkinWeek}`} className="text-sm font-semibold border border-amber-300 text-amber-800 px-4 py-2 rounded-lg whitespace-nowrap">Check in</Link>
+          <Link to={isPro ? `/dashboard/checkin?week=${checkinWeek}` : '/dashboard/subscription'} className="text-sm font-semibold border border-amber-300 text-amber-800 px-4 py-2 rounded-lg whitespace-nowrap">{isPro ? 'Check in' : '🔒 Go Pro'}</Link>
         </section>
       )}
 

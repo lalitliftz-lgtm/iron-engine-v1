@@ -18,7 +18,7 @@ export default function PrivacyPolicy() {
       <h2 className="text-xl font-bold text-gray-900 mt-8 mb-3">3. Data Security</h2>
       <p>All data is stored securely using Supabase (PostgreSQL) with Row-Level Security. Access to your personal workout data is strictly restricted to your authenticated account and authorized administrators for support purposes.</p>
       <h2 className="text-xl font-bold text-gray-900 mt-8 mb-3">4. Your Rights</h2>
-      <p>You have the right to access, modify, or request deletion of your athlete profile and workout data at any time from within the dashboard settings or by contacting us.</p>
+      <p>You have the right to access, modify, or request deletion of your athlete profile and workout data at any time by contacting us (WhatsApp or email on the Contact page) — we act on it within 7 days.</p>
     </LegalLayout>
   );
 }

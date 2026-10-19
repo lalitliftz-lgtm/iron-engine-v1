@@ -7,7 +7,7 @@ import { LIFT_NAMES } from '../../lib/engine';
 import { printBlock, downloadBlockXlsx } from '../../lib/exportBlock';
 import { applyAdjustments, attemptPlan } from '../../lib/autoreg';
 import StalePlanBanner from '../../components/dashboard/StalePlanBanner';
-import { planSchedule, lockReason, appNow } from '../../lib/schedule';
+import { planSchedule, lockReason, appNow, trained } from '../../lib/schedule';
 import SeasonRoadmap from '../../components/dashboard/SeasonRoadmap';
 
 const EXECUTION_RULES = [
@@ -92,8 +92,10 @@ export default function Programs() {
   const { blockType, weeks, meta } = snap;
   const checkins = program.program_snapshot.adjustments?.checkins || {};
   const isBeg = meta?.form?.exp === 'beg';
-  const logged = new Set(logs.map((l) => `${l.week_number}-${l.day_number}`));
-  const sched = program?.program_snapshot ? planSchedule(program.program_snapshot, logs, program.created_at) : null;
+  // Same rule as lib/schedule: without a meet a "can't train" skip is still owed, so it isn't ✓.
+  const meetBlock = snap?.meta?.meetDays !== null && snap?.meta?.meetDays !== undefined;
+  const logged = new Set(logs.filter((l) => meetBlock || trained(l)).map((l) => `${l.week_number}-${l.day_number}`));
+  const sched = program?.program_snapshot ? planSchedule(snap, logs, program.created_at) : null; // adjusted plan, as Today and the logger use
   const attempts = weeks.some((w) => w.meetWeek) ? attemptPlan(meta?.maxes || {}, logs, meta?.form?.exp, meta?.form?.compLifts) : null;
   const LIGHT_DOT = { green: 'bg-green-500', yellow: 'bg-amber-400', red: 'bg-red-500' };
   const currentWeekData = weeks.find(w => w.week === activeWeek) || weeks[0];
@@ -180,7 +182,7 @@ export default function Programs() {
               {currentWeekData.adjustNotes?.map((n, i) => <p key={i}>{n}</p>)}
             </div>
           )}
-          {!currentWeekData.meetWeek && !currentWeekData.taper && currentWeekData.days.filter((d) => !d.rest && !d.meetDay).every((d) => logged.has(`${activeWeek}-${d.day}`)) && !checkins[String(activeWeek)] && (
+          {!currentWeekData.meetWeek && !currentWeekData.taper && currentWeekData.days.filter((d) => !d.rest && !d.meetDay && !d.optional).every((d) => logged.has(`${activeWeek}-${d.day}`)) && !checkins[String(activeWeek)] && (
             <div className="bg-gray-900 text-white rounded-xl p-4 mb-6 flex items-center justify-between gap-4 flex-wrap no-print">
               <p className="text-sm">Every session this week is logged. Do the 60-second check-in and the engine sets next week's kg.</p>
               <Link to={`/dashboard/checkin?week=${activeWeek}`} className="bg-white text-gray-900 text-sm font-semibold px-4 py-2 rounded-lg whitespace-nowrap">Weekly check-in →</Link>
@@ -191,7 +193,7 @@ export default function Programs() {
               <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">How to read this (beginner)</p>
               <p><b className="text-gray-900">kg, not %.</b> Do the weight written. If every rep was clean and you had 2+ reps left (RPE ≤ 8), add the jump next week. Missed a rep? Same weight next week.</p>
               <p><b className="text-gray-900">Every rep = a competition rep.</b> Same setup, same depth, pause on the chest, full lockout. A rep you couldn't repeat on a platform doesn't count.</p>
-              <p><b className="text-gray-900">Warm-up:</b> bar × 8 → 40% × 5 → 60% × 3 → 80% × 1 → work sets. Warm-ups never tire you.</p>
+              <p><b className="text-gray-900">Warm-up:</b> bar × 8 → 40% × 5 → 55% × 3 → 70% × 2 → 80% × 1 → work sets. Warm-ups never tire you.</p>
               <p><b className="text-gray-900">Fix one thing per week.</b> Film one set per session. Technique first — strength comes through it, not before it.</p>
             </div>
           )}

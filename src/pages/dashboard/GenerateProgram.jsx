@@ -40,8 +40,8 @@ function Seg({ options, value, onChange, multi, locked }) {
       {options.map((o) => {
         const active = multi ? !!value[o.v] : value === o.v;
         return (
-          <button key={o.v} type="button" disabled={locked}
-            onClick={() => (multi ? onChange({ ...value, [o.v]: !value[o.v] }) : onChange(o.v))}
+          <button key={o.v} type="button" aria-disabled={locked || undefined}
+            onClick={() => { if (locked) return; (multi ? onChange({ ...value, [o.v]: !value[o.v] }) : onChange(o.v)); }}
             className={`px-3.5 py-2 rounded-lg text-sm font-semibold border transition-colors text-left ${active ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'} ${locked ? 'cursor-not-allowed' : ''}`}>
             {o.l}
             {o.s && <span className="block text-[11px] font-normal opacity-75">{o.s}</span>}
@@ -235,7 +235,7 @@ export default function GenerateProgram() {
       <div className="max-w-2xl mx-auto px-4 py-20 text-center">
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-12">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Assessment first</h1>
-          <p className="text-gray-500 mb-8">The engine needs your experience, training days, your three lifts (a 1RM or a recent heavy set) and weak points before it can build a block. 2–3 minutes.</p>
+          <p className="text-gray-500 mb-8">The engine needs your experience, training days, your three lifts (a 1RM or a recent heavy set) and weak points before it can build a block. About 5 minutes.</p>
           <Link to="/dashboard/assessment" className="inline-flex items-center justify-center bg-gray-900 hover:bg-gray-800 text-white px-8 py-3.5 rounded-lg text-sm font-medium transition-colors">
             {profile ? 'Complete Assessment' : 'Start Assessment'}
           </Link>
@@ -375,8 +375,9 @@ export default function GenerateProgram() {
                 <Seg options={EQUIP} value={settings.equipment || 'commercial'} onChange={(v) => set('equipment', v)} />
               </Field>
 
-              <Field label="Injury / Issue" hint="Swaps risky accessories and caps RPE on the affected lifts" pro={!isPro} locked={!isPro} onLockedClick={lockedClick}>
-                <Seg multi options={INJ} value={settings.injuries} onChange={(v) => set('injuries', v)} locked={!isPro} />
+              {/* Safety is never a paid extra: injury caps and swaps work on the free plan too. */}
+              <Field label="Injury / Issue" hint="Swaps risky accessories and caps RPE on the affected lifts">
+                <Seg multi options={INJ} value={settings.injuries} onChange={(v) => set('injuries', v)} />
               </Field>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -392,7 +393,7 @@ export default function GenerateProgram() {
                 {meetLocked ? 'Build my plan to the meet →' : 'Build my block →'}
               </button>
               {!isPro && (
-                <p className="text-xs text-gray-400 mt-3 text-center">Free tier: one program, balanced focus. <button onClick={() => setShowUpgradeModal(true)} className="text-blue-600 hover:text-blue-800 font-medium">Unlock Pro</button> for sticking-point work, injury-aware swaps and unlimited blocks.</p>
+                <p className="text-xs text-gray-400 mt-3 text-center">Free tier: one program, balanced focus. <button onClick={() => setShowUpgradeModal(true)} className="text-blue-600 hover:text-blue-800 font-medium">Unlock Pro</button> for sticking-point work, block focus and unlimited blocks.</p>
               )}
             </div>
           </motion.div>

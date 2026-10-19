@@ -22,6 +22,9 @@ export default function EngineGate() {
       )}&product=${encodeURIComponent(engine.productName)}`
     );
 
+  // The free account already gets one full 4-week block with the logger — the sample's main ask is that, not a payment.
+  const goFree = () => navigate(`/signup?next=${encodeURIComponent("/dashboard/assessment")}`);
+
   return (
     <div>
       {/* Upgrade strip */}
@@ -61,9 +64,9 @@ export default function EngineGate() {
                 maxWidth: 480,
               }}
             >
-              Full 4-week blocks · sticking-point analysis · injury-aware swaps
-              · block focus · unlimited programs · Excel + PDF export · saved to
-              your account
+              Unlimited blocks built from your logs · sticking-point work ·
+              weekly check-ins · block focus · Excel + PDF export. One-time
+              payment via PayU (UPI / cards) · no auto-debit.
             </div>
           </div>
           <button
@@ -129,7 +132,7 @@ export default function EngineGate() {
           Try the engine — generate Week 1 of a real program, no login needed.
         </span>
       </div>
-      <IronEngine full={false} onUpgrade={goBuy} />
+      <IronEngine full={false} onUpgrade={goFree} />
     </div>
   );
 }

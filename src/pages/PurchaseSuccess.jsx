@@ -90,7 +90,7 @@ export default function PurchaseSuccess() {
         </div>
         <div className="flex flex-col gap-3">
           <button onClick={() => navigate(isSubscription ? '/dashboard/generate' : '/dashboard/products')} className="w-full bg-gray-900 hover:bg-gray-800 text-white py-3.5 rounded-lg text-sm font-semibold transition-colors">{isSubscription ? 'Build My Next Block →' : 'Download Your Guide →'}</button>
-          {isSubscription && <p className="text-xs text-gray-400">No assessment yet? The engine will ask you to complete it first — 2–3 minutes.</p>}
+          {isSubscription && <p className="text-xs text-gray-400">No assessment yet? The engine will ask you to complete it first — about 5 minutes.</p>}
           <button onClick={() => navigate('/dashboard')} className="w-full text-gray-600 hover:text-gray-900 py-2.5 rounded-lg text-sm font-medium transition-colors">Go to Dashboard</button>
         </div>
       </motion.div>

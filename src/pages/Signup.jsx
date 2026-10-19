@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { withParams, safeNext } from '../lib/nav';
 import { useAuth } from '../context/AuthContext';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import AuthShell from '../components/AuthShell';
 
 export default function Signup() {
-  const { signUp } = useAuth();
+  const { signUp, user } = useAuth();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
-  const next = params.get('next') || '/dashboard';
+  const next = safeNext(params.get('next'));
   const product = params.get('product');
   const loginSuffix = `${next ? `?next=${encodeURIComponent(next)}` : ''}${product ? `${next ? '&' : '?'}product=${encodeURIComponent(product)}` : ''}`;
 
@@ -16,12 +18,14 @@ export default function Signup() {
   const [message, setMessage] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => { if (user) navigate(withParams(next, { product }), { replace: true }); }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true); setError(null); setMessage(null);
-    const { error } = await signUp(email, password);
+    const { error } = await signUp(email, password, window.location.origin + withParams('/login', { next, product }));
     if (error) setError(error.message);
-    else setMessage('Check your email for the verification link, then log in to continue.');
+    else setMessage(`Verification link sent to ${email}. Not in your inbox? Check Spam / Promotions (Inbox mein nahi? Spam check karo). Tap the link, then log in.`);
     setLoading(false);
   };
 

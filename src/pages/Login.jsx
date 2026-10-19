@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { withParams, safeNext } from '../lib/nav';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import AuthShell from '../components/AuthShell';
 
 export default function Login() {
-  const { signIn } = useAuth();
+  const { signIn, user } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const next = params.get('next') || '/dashboard';
+  const next = safeNext(params.get('next'));
   const product = params.get('product');
   const suffix = `${next ? `?next=${encodeURIComponent(next)}` : ''}${product ? `${next ? '&' : '?'}product=${encodeURIComponent(product)}` : ''}`;
 
@@ -22,9 +23,10 @@ export default function Login() {
     setError(null);
     const { error } = await signIn(email, password);
     if (error) { setError(error.message); setLoading(false); return; }
-    const dest = product ? `${next}?product=${encodeURIComponent(product)}` : next;
-    navigate(dest, { replace: true });
+    navigate(withParams(next, { product }), { replace: true });
   };
+  // Already logged in (installed app, same browser): go straight on.
+  useEffect(() => { if (user) navigate(withParams(next, { product }), { replace: true }); }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <AuthShell title="Log in" subtitle="Welcome back. Load the bar.">

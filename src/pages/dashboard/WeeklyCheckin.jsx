@@ -91,7 +91,8 @@ export default function WeeklyCheckin() {
     <div className="max-w-2xl mx-auto px-4 py-10">
       <div className="mb-8">
         <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight">Weekly check-in</h1>
-        <p className="text-gray-500 mt-1 text-sm">End of the training week, 60 seconds. The engine reads this plus your logged RPE and decides next week's kg — the System 2.0 fatigue checklist and load matrix.{!isPro && <span className="text-amber-700"> Pro feature.</span>}</p>
+        <p className="text-gray-500 mt-1 text-sm">60 seconds. Tell us how the week felt — the engine reads it with your logged RPE and sets next week's weights.</p>
+        {!isPro && <p className="mt-3 text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3">🔒 Weekly check-ins are a Pro feature — Pro reads your week and sets next week's kg. You can look at the questions; submitting needs Pro.</p>}
       </div>
 
       <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-7">

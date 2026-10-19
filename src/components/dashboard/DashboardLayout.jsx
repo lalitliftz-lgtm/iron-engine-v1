@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { NavLink, Outlet, Link, useLocation } from 'react-router-dom';
 import Footer from '../Footer';
 import { TestDateBanner } from './TestDate';
@@ -49,7 +50,7 @@ export default function DashboardLayout() {
 
       <main className={`flex-1 overflow-y-auto flex flex-col bg-iron ${inWorkout ? '' : 'pb-20 md:pb-0'}`}>
         <TestDateBanner />
-        <div className="flex-1"><Outlet /></div>
+        <div className="flex-1"><Suspense fallback={<div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-2 border-gray-900 rounded-full border-t-transparent" /></div>}><Outlet /></Suspense></div>
         <div className="hidden md:block"><Footer /></div>
       </main>
 

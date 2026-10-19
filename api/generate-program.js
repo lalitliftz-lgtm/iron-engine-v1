@@ -134,6 +134,16 @@ export default async function handler(req, res) {
 
     if (saveError) throw saveError;
 
+    // Free plan = one block. Parallel requests could each pass the count above, so re-check after saving:
+    // only the oldest of this user's blocks survives; a later duplicate is removed.
+    if (!isPro) {
+      const { data: firstBlock } = await supabaseAdmin.from('generated_programs').select('id').eq('user_id', user.id).eq('is_deleted', false).order('created_at', { ascending: true }).limit(1).maybeSingle();
+      if (firstBlock && firstBlock.id !== newProgram.id) {
+        await supabaseAdmin.from('generated_programs').delete().eq('id', newProgram.id);
+        return res.status(403).json({ error: 'UPGRADE_REQUIRED' });
+      }
+    }
+
     // Only one block is "active" at a time — the newest one. Done AFTER the insert so a failed
     // save never leaves the athlete with no active program; only OLDER blocks are switched off, so two
     // requests at once (double tap, two tabs) can't switch each other off.
@@ -151,8 +161,7 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('Engine Error:', error);
-    // Surface the database/engine reason so the athlete (and we) can see what actually failed.
-    const detail = error?.message || error?.details || String(error);
-    return res.status(500).json({ error: `Program could not be saved: ${detail}` });
+    // Details go to the server log (Vercel → Logs), not to the browser.
+    return res.status(500).json({ error: 'Program could not be saved. Please try again in a minute.' });
   }
 }

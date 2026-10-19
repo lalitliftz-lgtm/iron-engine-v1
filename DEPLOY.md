@@ -79,3 +79,36 @@ Open Supabase → SQL Editor → paste and run `supabase_migration_v2.sql`. It e
 security on the reference tables (products, exercises, engine_versions, …) so the public anon
 key can only read them, never change prices. The app keeps working because the Vercel functions
 use the service role key.
+
+## Database setup order (fresh Supabase project) — run each file once, in this order
+1. `supabase_schema.sql`
+2. `supabase_migration_v2.sql` (reference tables read-only)
+3. `supabase_migration_v3.sql` (removes browser write access to programs/logs/profiles — security)
+4. `supabase_migration_v4_products.sql` (PDF products, Pro 1/3/6/12-month plans, invite codes)
+5. `supabase_migration_v5_security.sql` (one payment = one grant, one free invite month per person)
+
+All four migrations are safe to run again.
+
+## Storage (PDF guides)
+Supabase → Storage → New bucket **`pdf_guides`**, **Public OFF**. Upload, with exactly these names:
+`powerlifting-system-2.pdf`, `powerlifting-system.pdf`, `learn-lift-eat.pdf` (free plan limit: 50 MB per file).
+
+## Email (sign-up confirmation + password reset) — needed before real users
+- Supabase → Authentication → **URL Configuration**: Site URL = your live URL
+  (e.g. `https://iron-engine-v1.vercel.app`), and add `https://iron-engine-v1.vercel.app/**` (and your custom
+  domain `/**`) to **Redirect URLs**. Otherwise verify/reset links point at localhost.
+- Supabase → Authentication → **Emails → SMTP Settings**: connect a real sender (Resend, Brevo, Amazon SES…).
+  Supabase's built-in sender is rate-limited to a few emails an hour and is meant for testing only.
+- Keep **Confirm email** ON (the owner panel relies on a confirmed email).
+
+## More environment variables
+| Variable | What | Secret? |
+|---|---|---|
+| `OWNER_EMAIL` | The owner's login email — opens the Owner panel | No |
+| `OWNER_USER_ID` | Optional: the owner's Supabase user id — extra lock on the Owner panel | No |
+
+Set `PAYU_MODE=live` before launch — the Owner panel shows a warning while it is `test`.
+
+## Hosting
+Vercel's free **Hobby** plan is for non-commercial use; taking payments needs **Pro**. Server logs
+(Vercel → Logs) are where API errors are written.

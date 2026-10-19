@@ -36,6 +36,8 @@ export default function Landing() {
         .ll-card { transition: transform .18s ease, border-color .18s ease; }
         .ll-card:hover { transform: translateY(-3px); border-color: ${C.red} !important; }
         @media (prefers-reduced-motion: reduce) { .ll-card { transition: none !important; } }
+        /* Phones: the sticky bar keeps only Log in / Get Started (the page sections are a scroll away). */
+        @media (max-width: 520px) { .ll-nav-scroll { display: none !important; } }
       `}</style>
 
       {/* ---------- NAV ---------- */}
@@ -77,6 +79,7 @@ export default function Landing() {
             ].map(([l, id]) => (
               <button
                 key={id}
+                className="ll-nav-scroll"
                 onClick={() => scrollTo(id)}
                 style={{
                   padding: "8px 12px",
@@ -197,7 +200,7 @@ export default function Landing() {
           </p>
           <div style={{ display: "flex", gap: 10, marginTop: 28, flexWrap: "wrap" }}>
             <button
-              onClick={() => scrollTo("products")}
+              onClick={() => scrollTo("engine")}
               style={{
                 padding: "15px 30px",
                 borderRadius: 10,
@@ -210,10 +213,10 @@ export default function Landing() {
                 letterSpacing: 1,
               }}
             >
-              VIEW PRODUCTS →
+              BUILD MY FREE PROGRAM →
             </button>
             <button
-              onClick={() => scrollTo("engine")}
+              onClick={() => scrollTo("products")}
               style={{
                 padding: "15px 30px",
                 borderRadius: 10,
@@ -226,7 +229,7 @@ export default function Landing() {
                 fontFamily: "'Barlow', sans-serif",
               }}
             >
-              Try Iron Engine Free
+              Guides & coaching
             </button>
           </div>
         </div>
@@ -402,7 +405,7 @@ export default function Landing() {
               marginBottom: 8,
             }}
           >
-            03 / PREMIUM · LIMITED SPOTS
+            03 / PREMIUM · 1:1 COACHING
           </div>
           <div
             style={{
@@ -431,7 +434,7 @@ export default function Landing() {
             >
               Personal programming, weekly video technique review, competition
               prep, and direct access. The guides and tools build your
-              foundation — coaching delivers the results. Serious lifters only.
+              foundation — coaching delivers the results. Beginners welcome; Lalit replies personally on WhatsApp.
             </p>
             <div style={{ display: "flex", gap: 10, marginTop: 22, flexWrap: "wrap" }}>
               <a

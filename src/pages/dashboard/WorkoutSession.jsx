@@ -173,7 +173,9 @@ export default function WorkoutSession() {
             if ((recent || []).some((l) => l.program_id === data.id && l.week_number === week && l.day_number === day && trained(l))) {
               startNotes.push('This session is already in your History. Logging it again adds a second entry — remove one in History if that was a mistake.');
             }
-            const lastTrained = (recent || []).find(trained);
+            // Re-entry is measured inside this block (as Today does): a fresh block after a break is already
+            // built from current strength, so its first session isn't cut again.
+            const lastTrained = (recent || []).find((l) => trained(l) && l.program_id === data.id);
             const gap = lastTrained ? Math.round((startOfDay(appNow()) - startOfDay(lastTrained.date_completed)) / 864e5) : null;
             const back = reentry(gap);
             // A meet-block make-up (hard session moved to a free day) runs 5% lighter — Helms: drop the load
@@ -305,6 +307,7 @@ export default function WorkoutSession() {
     return { duration: elapsedTime, sets: completedSets, completion, topSets, flags };
   };
 
+  const finishedAtRef = useRef(null);
   const handleFinishWorkout = async (auto = false) => {
     const anyTicked = exercises.some((ex) => ex.loggedSets.some((s) => s.completed));
     if (!auto && !anyTicked && !window.confirm('No sets ticked yet. Tap ✓ on each set you did so it counts.\n\nSave this session as empty anyway?')) return;
@@ -314,6 +317,9 @@ export default function WorkoutSession() {
       const doneN = live.reduce((n, ex) => n + ex.loggedSets.filter((x) => x.completed).length, 0);
       if (total && doneN / total < 0.5 && !window.confirm(`Only ${doneN} of ${total} sets ticked. Finish now? Sets not ticked count as not done.`)) return;
     }
+    // The session happened when Finish was tapped — keep that time even if it only saves later (offline),
+    // and use the app's day (test mode) so the schedule sees it on the right date.
+    if (!finishedAtRef.current) finishedAtRef.current = appNow().toISOString();
     if (!navigator.onLine) { setOffline(true); setSaveError(''); return; }
     if (savingRef.current) return;
     savingRef.current = true;
@@ -327,7 +333,7 @@ export default function WorkoutSession() {
       const res = await fetch('/api/save-workout', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ programId: program.id, weekNumber: week, dayNumber: day, loggedExercises: exercises, durationSeconds: Math.min(elapsedTime, 4 * 3600), sessionNotes: notes, clientId }),
+        body: JSON.stringify({ programId: program.id, weekNumber: week, dayNumber: day, loggedExercises: exercises, durationSeconds: Math.min(elapsedTime, 4 * 3600), sessionNotes: notes, clientId, completedAt: finishedAtRef.current }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || 'Could not save the session');
