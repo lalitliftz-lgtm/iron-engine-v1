@@ -389,6 +389,25 @@ export const EXTRAS = {
 /** Extras per training day by style: focused 0 · balanced 1 · full 2. */
 const EXTRAS_PER_DAY = { focused: 0, balanced: 1, full: 2 };
 
+/** Accessories follow the block (Helms): base block = 8–15 reps for muscle; strength block = compound
+ *  accessories 6–8 reps (heavier, closer to the main lifts); peaking = one set fewer at RPE 7 so the
+ *  fatigue goes to the competition lifts. Isolation work stays at 10–15 in every block. First week of a
+ *  block: RPE 7 — ease in, the RPE climbs as the block goes on. */
+export function periodizeAcc(a, phase, wi) {
+  const m = String(a.sr).match(/^(\d+)\s*×\s*(\d+)(?:–(\d+))?(.*)$/);
+  const b = accBucket(a.name.replace(/^Weak-point: /, ""));
+  if (!m || !b || /nordic/i.test(a.name)) return a;
+  // Machine / single-joint work (curls, extensions, flys, raises) stays in the 8–15 range in every block.
+  const compound = b !== "iso" && !/curl|extension|fly|raise|pushdown|pull-apart/i.test(a.name);
+  let sets = Number(m[1]);
+  let reps = m[3] ? `${m[2]}–${m[3]}` : m[2];
+  let rpe = a.rpe;
+  if (compound && (phase === "str" || phase === "peak") && Number(m[2]) >= 8 && (m[3] ? Number(m[3]) > 8 : Number(m[2]) > 8) && !/sec|min/.test(m[4])) reps = "6–8";
+  if (phase === "peak") { sets = Math.max(2, sets - 1); if (rpe !== "—") rpe = "RPE 7"; }
+  else if (wi === 0 && /^RPE 8/.test(rpe)) rpe = "RPE 7";
+  return { ...a, sr: `${sets} × ${reps}${m[4]}`, rpe };
+}
+
 /* ---------------- Injury swaps ---------------- */
 export const SWAPS = {
   back: {
@@ -785,11 +804,22 @@ export function buildLift(slot, wk, form, maxes, rec, scheme) {
     return out;
   }
 
+  if (role === "moderate") {
+    // Advanced: a second loaded session of the same lift between the heavy and the volume day (Helms advanced
+    // template: heavy + moderate + volume). One rep less, ~5% lighter than the heavy day — crisp, never a grind.
+    if (w.taper) return null;
+    const reps = Math.max(1, base.reps - 1);
+    const pct = base.pct - 5;
+    const sets = w.deload ? 2 : 3;
+    return mk(`${LIFT_NAMES[lift]} (moderate)`, sets, reps, pct, `RPE ${Math.max(5, Math.min(7, rpeFor(pct, reps)))}`, "Moderate day: same lift, lighter than the heavy day — 3–4 reps left in the tank. More practice at a heavy-ish weight without the fatigue of a second heavy day.");
+  }
+
   if (role === "secondary") {
     const sets = Math.max(2, base.sets - 1);
     const reps = Math.min(base.reps + 2, 8);
     let pct = Math.max(67.5, base.pct - 10);
-    const upright = lift === "squat" && form.squatBar === "low";
+    // Near a meet the volume squat is the competition squat too (specificity): no upright swap in peaking.
+    const upright = lift === "squat" && form.squatBar === "low" && !w.peak;
     if (upright) pct -= 5; // high-bar runs ~5–10% below a low-bar max
     return mk(upright ? "High-Bar Squat (upright — quads, hips get a break)" : LIFT_NAMES[lift], sets, reps, pct, `RPE ${Math.max(6, Math.min(w.rpe - 1, rpeFor(pct, reps)))}`, "Secondary slot — volume work, don't grind reps");
   }
@@ -959,6 +989,48 @@ export function buildProgram(form, maxes) {
   const plan = weekPlan(form, meet);
   const isBeg = form.exp === "beg";
   let tmpl = isBeg ? dayTemplates(form.days, "beg", form.focus) : dayTemplates(form.days, form.exp, form.focus);
+  // Helms frequency by training age (from 4 days a week): intermediate squat 3×/week = heavy + competition-squat
+  // volume + light technique; advanced = heavy + volume + a moderate day. Bench at least 3×. Low recovery
+  // (poor sleep/stress, fatigue, back/knee flag, hard cut) keeps the lighter template.
+  const freqNotes = [];
+  if (!isBeg && form.days >= 4) {
+    const inMeet = meet.phase !== "none" && meet.phase !== "post";
+    const competes = (l) => !inMeet || !form.compLifts || form.compLifts.includes(l);
+    const weakFor = (l) => form.weak === l && (form.weakType || "strength") !== "fatigue";
+    const tiredLegs = rec.level === "poor" || (form.weakType || "strength") === "fatigue" || form.injuries?.back || form.injuries?.knee || form.cutting === "weightclass";
+    tmpl = tmpl.map((d) => ({ ...d, slots: d.slots.map((x) => ({ ...x })) }));
+    const pos = weekdaysFor(tmpl, form.days).map((d) => ALL_DAYS.indexOf(d));
+    const core = tmpl.map((d, i) => ({ d, i })).filter(({ d }) => !d.support);
+    const has = (d, lift, roles) => d.slots.some((x) => x.lift === lift && (!roles || roles.includes(x.role)));
+    const heavyPull = (d) => has(d, "deadlift", ["primary"]);
+    const gap = (a, b) => { const g = Math.abs(pos[a] - pos[b]); return Math.min(g, 7 - g); };
+    const farthestFrom = (list, from) => [...list].sort((a, b) => (from < 0 ? 0 : gap(b.i, from) - gap(a.i, from)) || (has(a.d, "deadlift") - has(b.d, "deadlift")))[0];
+    if (competes("squat") && !tiredLegs) {
+      const heavyIdx = core.find(({ d }) => has(d, "squat", ["primary"]))?.i ?? -1;
+      if (!core.some(({ d }) => has(d, "squat", ["secondary"]))) {
+        // Competition-squat volume day: reuse a technique / paused squat slot (not the weak-point one), else add one.
+        const reuse = core.find(({ d }) => !heavyPull(d) && has(d, "squat", weakFor("squat") ? ["tech"] : ["paused", "tech"]));
+        if (reuse) {
+          reuse.d.slots.find((x) => x.lift === "squat" && ["paused", "tech"].includes(x.role) && (!weakFor("squat") || x.role === "tech")).role = "secondary";
+          reuse.d.title = /Squat (Technique|Variation)/.test(reuse.d.title) ? reuse.d.title.replace(/Squat (Technique|Variation)/, "Squat Volume") : /Squat Volume/.test(reuse.d.title) ? reuse.d.title : `${reuse.d.title} + Squat Volume`;
+        } else { const c = farthestFrom(core.filter(({ d }) => !has(d, "squat") && !heavyPull(d)), heavyIdx); if (c) { c.d.slots.push(S("squat", "secondary")); c.d.title += " + Squat Volume"; } }
+      }
+      // Third exposure: technique (intermediate) or moderate (advanced). A weak squat gets its variation here.
+      if (core.filter(({ d }) => has(d, "squat")).length < 3) {
+        const c = farthestFrom(core.filter(({ d }) => !has(d, "squat") && !has(d, "deadlift")), -1);
+        const role = form.exp === "adv" && !weakFor("squat") ? "moderate" : "tech";
+        if (c) { c.d.slots.push(S("squat", role)); c.d.title += role === "moderate" ? " + Squat (moderate)" : " + Squat Technique"; }
+      }
+      freqNotes.push(form.exp === "adv"
+        ? "Squat 3× a week (Helms, advanced): one heavy day, one moderate day, one competition-squat volume day. Weekly squat sets sit in your level's range — accessories make room."
+        : "Squat 3× a week (Helms, intermediate): one heavy day, one competition-squat volume day and light technique practice. Two real squat sessions, one easy one.");
+    } else if (competes("squat") && tiredLegs) freqNotes.push("Squat stays at one heavy day + light practice this block: recovery is low (sleep/stress, fatigue, back/knee flag or a hard cut). The second loaded squat day comes back when recovery does.");
+    if (competes("bench") && core.filter(({ d }) => has(d, "bench")).length < 3) {
+      const c = core.find(({ d }) => !has(d, "bench"));
+      if (c) c.d.slots.push(S("bench", "tech"));
+    }
+  }
+
   // Weak-point variation must actually appear: if the weak lift has no variation slot in this template,
   // turn its technique slot into one, or add one to the last core day.
   const stickEarly = stickingFor(form);
@@ -966,8 +1038,12 @@ export function buildProgram(form, maxes) {
     tmpl = tmpl.map((d) => ({ ...d, slots: d.slots.map((s) => ({ ...s })) }));
     const hasVar = tmpl.some((d) => d.slots.some((s) => s.lift === form.weak && s.role === "paused"));
     if (!hasVar) {
+      // Low-bar squatter: the volume squat is already a variant (high-bar) — the weak-point variation takes
+      // that slot, so the competition squat stays at 2× (heavy + technique). Helms: pick the variant for the fault.
+      const variantDay = form.weak === "squat" && form.squatBar === "low" ? tmpl.find((d) => !d.support && d.slots.some((s) => s.lift === "squat" && s.role === "secondary")) : null;
       const techDay = tmpl.find((d) => d.slots.some((s) => s.lift === form.weak && s.role === "tech"));
-      if (techDay) techDay.slots.find((s) => s.lift === form.weak && s.role === "tech").role = "paused";
+      if (variantDay) { variantDay.slots.find((s) => s.lift === "squat" && s.role === "secondary").role = "paused"; variantDay.title = variantDay.title.replace("Squat Volume", "Squat Variation"); }
+      else if (techDay) techDay.slots.find((s) => s.lift === form.weak && s.role === "tech").role = "paused";
       else { const last = [...tmpl].reverse().find((d) => !d.support); if (last) last.slots.push(S(form.weak, "paused")); }
     }
   }
@@ -987,7 +1063,8 @@ export function buildProgram(form, maxes) {
       // Farthest core day (around the week) from the heavy pull, without a heavy squat on it.
       const pick = core.filter(({ i, d }) => i !== dlIdx && !d.slots.some((x) => x.lift === "squat" && x.role === "primary"))
         .sort((a, b) => Math.min(Math.abs(b.i - dlIdx), tmpl.length - Math.abs(b.i - dlIdx)) - Math.min(Math.abs(a.i - dlIdx), tmpl.length - Math.abs(a.i - dlIdx)))[0];
-      if (pick) { pick.d.slots.push(S("deadlift", "tech")); dlNote = `Deadlift 2× a week: one heavy day + technique singles (~80%, RPE 4–5) on the ${pick.d.title} day. Low fatigue, more practice. Back tired or recovery poor → skip the singles that week.`; }
+      if (pick && form.exp === "adv" && form.days >= 5) { pick.d.slots.push(S("deadlift", "moderate")); dlNote = `Deadlift 2× a week (Helms, advanced): one heavy day + a moderate day (~5% lighter, one rep less) on the ${pick.d.title} day. Back tired or recovery poor → make it technique singles that week.`; }
+      else if (pick) { pick.d.slots.push(S("deadlift", "tech")); dlNote = `Deadlift 2× a week: one heavy day + technique singles (~80%, RPE 4–5) on the ${pick.d.title} day. Low fatigue, more practice. Back tired or recovery poor → skip the singles that week.`; }
     }
   }
   const wdays = weekdaysFor(tmpl, form.days);
@@ -1013,6 +1090,12 @@ export function buildProgram(form, maxes) {
   else if (meet.reason) notes.push(meet.reason);
   if (weakType === "technique") notes.push("Form breaks even at light loads → this is a TECHNIQUE issue. Variations at lighter loads, no extra accessory volume, film one set per session.");
   if (weakType === "fatigue") notes.push("Warm-ups feel heavy → FATIGUE, not weakness. No new variations this block; volume −1 set, RPE capped at 7. If it persists 2 weeks, deload now.");
+  notes.push(...freqNotes);
+  if (!isBeg && plan.weeks.length) notes.push(plan.goal === "str"
+    ? "Accessories in a strength block: compound accessories (rows, presses, leg press, RDL) drop to 6–8 reps and get heavier; arm/shoulder isolation stays 10–15. Week 1 at RPE 7, then RPE 8."
+    : plan.weeks.some((w) => w.peak)
+      ? "Peaking: competition lifts only, accessories one set fewer at RPE 7 — the fatigue goes where the meet is."
+      : "Accessories in a base block: 8–15 reps for muscle and work capacity. Week 1 at RPE 7, then RPE 8 as the block builds.");
   if (dlNote) notes.push(dlNote);
   if (step !== level) notes.push("Cutting for a weight class → weekly volume stepped down one level so recovery keeps up with the diet. Deload every block, no exceptions.");
   if (sessionAccCap < 99) notes.push(`${form.sessionMin}-minute sessions → main lifts first and complete, then max ${sessionAccCap} accessor${sessionAccCap === 1 ? "y" : "ies"}. Pair upper-body push + pull accessories back-to-back (~2 min between) to save time — never with squats or deadlifts.`);
@@ -1045,6 +1128,10 @@ export function buildProgram(form, maxes) {
             const fit = fitAcc([{ ...stick.acc }], form.injuries, form.equipment)[0];
             acc = [...acc, { ...fit, name: "Weak-point: " + fit.name }];
           }
+        }
+        if (!isBeg && !d.support && !d.optional && !deload && !w.taper) {
+          const accPhase = w.peak || /^Ready/.test(w.label || "") ? "peak" : plan.goal === "str" || /^Strength Week/.test(w.label || "") ? "str" : "base";
+          acc = acc.map((a) => periodizeAcc(a, accPhase, wi));
         }
         // Equipment swaps can turn two exercises into the same one (minimal gym: both rows → Barbell Row).
         acc = acc.filter((x, i) => acc.findIndex((y) => y.name === x.name) === i);
