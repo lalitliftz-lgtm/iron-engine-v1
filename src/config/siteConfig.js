@@ -11,6 +11,23 @@ export const CONFIG = {
   tagline: "Science-Based Powerlifting. No Bro-Science.",
   credentials:
     "State & District Gold Medalist · All India Inter-University Powerlifter",
+  // "Meet your coach" section on the landing page. Photo lives in /public.
+  coach: {
+    name: "Lalit",
+    role: "Strength & Conditioning Coach · State Gold Medalist",
+    photo: "/coach-lalit.jpg",
+    points: [
+      "5+ years of training experience",
+      "Coaching clients — every current client has hit a PR",
+      "This system was built with them, on evidence-based training principles",
+    ],
+    lifts: [
+      { v: "175", u: "kg", l: "Squat" },
+      { v: "110", u: "kg+", l: "Bench" },
+      { v: "200", u: "kg", l: "Deadlift" },
+      { v: "66", u: "kg", l: "Bodyweight" },
+    ],
+  },
   // 1:1 coaching applications open WhatsApp with this draft already typed — the lifter fills the blanks and sends.
   whatsapp: "918279951257", // 👈 country code + number, no + or spaces
   coachingMessage: [

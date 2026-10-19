@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { testToday, setTestToday } from '../../lib/schedule';
+import { useLang } from '../../lib/useLang';
 
 const FLAG = 'll-testmode';
 const flagOn = () => {
@@ -29,6 +30,7 @@ export function tapForTestMode() {
  * Only this browser is affected. Workouts saved in test mode still carry the real time.
  */
 export function TestDateCard() {
+  const { L } = useLang();
   const [on] = useState(flagOn);
   const [val, setVal] = useState(testToday() || '');
   if (!on) return null;
@@ -40,14 +42,14 @@ export function TestDateCard() {
   };
   return (
     <section className="bg-white border border-amber-300 rounded-xl p-5">
-      <h2 className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-1">Testing · pretend today is</h2>
-      <p className="text-sm text-gray-500 mb-3">Walk through a block day by day. Only this browser sees it; real users are not affected.</p>
+      <h2 className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-1">{L('Testing · pretend today is', 'Testing · maan lo aaj hai')}</h2>
+      <p className="text-sm text-gray-500 mb-3">{L('Walk through a block day by day. Only this browser sees it; real users are not affected.', 'Block ko din-ba-din check karo. Sirf yeh browser dekhega; real users pe koi asar nahi.')}</p>
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={() => shift(-1)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700">−1 day</button>
+        <button type="button" onClick={() => shift(-1)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700">{L('−1 day', '−1 din')}</button>
         <input type="date" id="test-date" value={val} onChange={(e) => setVal(e.target.value)} className="h-10 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
-        <button type="button" onClick={() => shift(1)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700">+1 day</button>
-        <button type="button" onClick={() => apply(val)} disabled={!val} className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-semibold disabled:opacity-40">Apply</button>
-        {testToday() && <button type="button" onClick={() => apply(null)} className="px-3 py-2 text-sm font-semibold text-red-600">Back to real date</button>}
+        <button type="button" onClick={() => shift(1)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700">{L('+1 day', '+1 din')}</button>
+        <button type="button" onClick={() => apply(val)} disabled={!val} className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-semibold disabled:opacity-40">{L('Apply', 'Lagao')}</button>
+        {testToday() && <button type="button" onClick={() => apply(null)} className="px-3 py-2 text-sm font-semibold text-red-600">{L('Back to real date', 'Asli date pe wapas')}</button>}
       </div>
     </section>
   );
@@ -55,14 +57,15 @@ export function TestDateCard() {
 
 /** Thin bar on every dashboard page while a test date is active, so it's never mistaken for real. */
 export function TestDateBanner() {
+  const { L } = useLang();
   flagOn(); // ?testmode=1 works on any dashboard page (it survives the login redirect less often than you'd hope)
   const t = testToday();
   if (!t) return null;
   const label = new Date(`${t}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
   return (
     <div className="bg-amber-50 border-b border-amber-300 text-amber-700 text-xs font-semibold px-4 py-2 flex items-center justify-between gap-3">
-      <span>TEST MODE · the app thinks today is {label}</span>
-      <button type="button" onClick={() => { setTestToday(null); window.location.reload(); }} className="underline">Back to real date</button>
+      <span>{L(`TEST MODE · the app thinks today is ${label}`, `TEST MODE · app ke hisaab se aaj ${label} hai`)}</span>
+      <button type="button" onClick={() => { setTestToday(null); window.location.reload(); }} className="underline">{L('Back to real date', 'Asli date pe wapas')}</button>
     </div>
   );
 }

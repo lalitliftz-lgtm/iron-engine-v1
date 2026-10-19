@@ -73,6 +73,7 @@ export default function Landing() {
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
             {[
+              ["Coach", "coach"],
               ["Products", "products"],
               ["Iron Engine", "engine"],
               ["Coaching", "coaching"],
@@ -213,7 +214,7 @@ export default function Landing() {
                 letterSpacing: 1,
               }}
             >
-              BUILD MY FREE PROGRAM →
+              TRY FREE WEEK 1 →
             </button>
             <button
               onClick={() => scrollTo("products")}
@@ -236,6 +237,45 @@ export default function Landing() {
       </header>
 
       <main style={{ maxWidth: 1020, margin: "0 auto", padding: "0 20px 80px" }}>
+        {/* ---------- COACH ---------- */}
+        <section id="coach" style={{ paddingTop: 56 }}>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: C.red, letterSpacing: 2.5 }}>
+            YOUR COACH
+          </div>
+          <div style={{ display: "flex", gap: 22, marginTop: 14, flexWrap: "wrap", alignItems: "center" }}>
+            <img
+              src={CONFIG.coach.photo}
+              alt={`${CONFIG.coach.name}, powerlifting coach`}
+              width={441}
+              height={552}
+              loading="lazy"
+              style={{ width: "min(220px, 42vw)", height: "auto", borderRadius: 12, border: `1px solid ${C.line}`, objectFit: "cover" }}
+            />
+            <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+              <h2 style={{ fontFamily: "'Archivo Black', sans-serif", fontSize: "clamp(26px, 5vw, 34px)" }}>{CONFIG.coach.name}</h2>
+              <p style={{ color: C.brass, marginTop: 4, fontSize: 15 }}>{CONFIG.coach.role}</p>
+              <ul style={{ listStyle: "none", padding: 0, marginTop: 14, display: "grid", gap: 8 }}>
+                {CONFIG.coach.points.map((t) => (
+                  <li key={t} style={{ display: "flex", gap: 10, color: C.chalk, fontSize: 15, lineHeight: 1.45 }}>
+                    <span style={{ color: C.red, flexShrink: 0 }}>●</span>
+                    {t}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginTop: 18 }}>
+            {CONFIG.coach.lifts.map((x) => (
+              <div key={x.l} style={{ background: C.steel, border: `1px solid ${C.line}`, borderRadius: 10, padding: "14px 10px", textAlign: "center" }}>
+                <div style={{ fontFamily: "'Archivo Black', sans-serif", fontSize: 26 }}>
+                  {x.v}<span style={{ color: C.red, fontSize: 14, marginLeft: 2 }}>{x.u}</span>
+                </div>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: 2, color: C.knurl, marginTop: 4, textTransform: "uppercase" }}>{x.l}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* ---------- PRODUCTS ---------- */}
         <section id="products" style={{ paddingTop: 60 }}>
           <div

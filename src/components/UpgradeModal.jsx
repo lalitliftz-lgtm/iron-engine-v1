@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSubscription } from '../context/SubscriptionContext';
 import { marketingAssets } from '../config/marketingConfig';
+import { useLang } from '../lib/useLang';
 
 export default function UpgradeModal({ isOpen, onClose }) {
   const { status, programCount } = useSubscription();
+  const { L } = useLang();
   const isExpired = status === 'pro_expired';
   const isFreeLimitReached = status === 'free' && programCount >= 1;
   
@@ -15,8 +17,8 @@ export default function UpgradeModal({ isOpen, onClose }) {
   useEffect(() => { if (isOpen) setIsVideoPlaying(false); }, [isOpen]);
   const goToCheckout = () => { onClose?.(); navigate('/dashboard/subscription'); };
 
-  const headerTitle = isExpired ? 'Renew Your Pro Access' : isFreeLimitReached ? 'Block 1 done — ready for Block 2?' : 'Upgrade to Iron Engine Pro';
-  const headerSubtitle = isExpired ? 'Renew your subscription to continue generating programs and logging your workouts.' : isFreeLimitReached ? 'Pro builds your next block from your logs: updated maxes, weak-point work and weekly check-ins that set next week\'s kg.' : 'You\'ve seen the basics. Unlock the full power of automated, science-based programming.';
+  const headerTitle = isExpired ? L('Renew Your Pro Access', 'Apna Pro access renew karo') : isFreeLimitReached ? L('Your free week is done — unlock the full block', 'Free week khatam — ab poora block unlock karo') : L('Upgrade to Iron Engine Pro', 'Iron Engine Pro pe upgrade karo');
+  const headerSubtitle = isExpired ? L('Renew your subscription to continue generating programs and logging your workouts.', 'Program banate rehne aur workouts log karne ke liye subscription renew karo.') : isFreeLimitReached ? L('Pro builds your next block from your logs: updated maxes, weak-point work and weekly check-ins that set next week\'s kg.', 'Pro tumhare logs se agla block banata hai: updated maxes, weak-point ka kaam aur weekly check-ins jo agle week ka kg set karte hain.') : L('You\'ve seen the basics. Unlock the full power of automated, science-based programming.', 'Basics dekh liye. Ab automated, science-based programming ki poori power unlock karo.');
   const hasVideo = marketingAssets.demoVideoUrl && marketingAssets.demoVideoThumbnail;
 
   return (
@@ -39,7 +41,7 @@ export default function UpgradeModal({ isOpen, onClose }) {
                         <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
                       </div>
                       <div className="absolute bottom-4 left-4 z-10">
-                        <span className="px-3 py-1 text-xs font-semibold bg-white/10 backdrop-blur-md text-white rounded-full border border-white/20 uppercase tracking-wider">Watch 30-sec Demo</span>
+                        <span className="px-3 py-1 text-xs font-semibold bg-white/10 backdrop-blur-md text-white rounded-full border border-white/20 uppercase tracking-wider">{L('Watch 30-sec Demo', '30-sec Demo dekho')}</span>
                       </div>
                     </button>
                   ) : (
@@ -57,38 +59,38 @@ export default function UpgradeModal({ isOpen, onClose }) {
 
               <div className="px-6 md:px-10 mb-10">
                 <div className="grid grid-cols-3 gap-2 text-center text-sm mb-2">
-                  <div className="text-left text-gray-500 font-medium pl-2">Features</div>
+                  <div className="text-left text-gray-500 font-medium pl-2">{L('Features', 'Features')}</div>
                   <div className="text-gray-500 font-medium">Free</div>
                   <div className="text-gray-900 font-bold">Pro</div>
                 </div>
                 
                 <div className="space-y-3">
-                  <ComparisonRow feature="Program Generation" free="1 full block" pro="Unlimited" />
-                  <ComparisonRow feature="Weak-point variations + accessories" free={<CrossIcon />} pro={<CheckIcon />} />
-                  <ComparisonRow feature="Block focus (squat / bench / deadlift)" free={<CrossIcon />} pro={<CheckIcon />} />
-                  <ComparisonRow feature="Meet-aware peaking + taper" free="1 block" pro="Every block" />
-                  <ComparisonRow feature="Injury-safe load caps + swaps" free={<CheckIcon />} pro={<CheckIcon />} />
-                  <ComparisonRow feature="Workout logger + history" free={<CheckIcon />} pro={<CheckIcon />} />
-                  <ComparisonRow feature="Weekly check-in sets next week's kg" free={<CrossIcon />} pro={<CheckIcon />} />
+                  <ComparisonRow feature={L('Program Generation', 'Program banana')} free={L('Week 1 only', 'Sirf Week 1')} pro={L('Unlimited blocks', 'Unlimited blocks')} />
+                  <ComparisonRow feature={L('Weak-point variations + accessories', 'Weak-point variations + accessories')} free={<CrossIcon />} pro={<CheckIcon />} />
+                  <ComparisonRow feature={L('Block focus (squat / bench / deadlift)', 'Block focus (squat / bench / deadlift)')} free={<CrossIcon />} pro={<CheckIcon />} />
+                  <ComparisonRow feature={L('Meet-aware peaking + taper', 'Meet ke hisaab se peaking + taper')} free={<CrossIcon />} pro={<CheckIcon />} />
+                  <ComparisonRow feature={L('Injury-safe load caps + swaps', 'Injury-safe load limit + swaps')} free={<CheckIcon />} pro={<CheckIcon />} />
+                  <ComparisonRow feature={L('Workout logger + history', 'Workout logger + history')} free="Week 1" pro={<CheckIcon />} />
+                  <ComparisonRow feature={L('Weekly check-in sets next week\'s kg', 'Weekly check-in se agle week ka kg set hota hai')} free={<CrossIcon />} pro={<CheckIcon />} />
                 </div>
               </div>
 
               <div className="px-6 md:px-10 py-10 text-center">
                 <div className="inline-flex items-center gap-2 mb-4">
-                  <span className="px-2.5 py-1 text-[10px] font-bold bg-amber-100 text-amber-800 rounded-full uppercase tracking-wider">One-time payment · no auto-debit</span>
+                  <span className="px-2.5 py-1 text-[10px] font-bold bg-amber-100 text-amber-800 rounded-full uppercase tracking-wider">{L('One-time payment · no auto-debit', 'Ek baar payment · koi auto-debit nahi')}</span>
                 </div>
                 
                 <div className="flex items-baseline justify-center gap-2 mb-1">
-                  <span className="text-gray-500 font-medium">from</span>
+                  <span className="text-gray-500 font-medium">{L('from', 'sirf')}</span>
                   <span className="text-4xl md:text-5xl font-bold text-gray-900">₹833</span>
-                  <span className="text-gray-500 font-medium">/ month</span>
+                  <span className="text-gray-500 font-medium">{L('/ month', '/ mahina')}</span>
                 </div>
-                <p className="text-xs text-gray-400 mb-8">1 month ₹1,499 · 3 months ₹3,499 · 6 months ₹5,999 · 1 year ₹9,999. No auto-debit. All Iron Engine updates included.</p>
+                <p className="text-xs text-gray-400 mb-8">{L('1 month ₹1,499 · 3 months ₹3,499 · 6 months ₹5,999 · 1 year ₹9,999. No auto-debit. All Iron Engine updates included.', '1 mahina ₹1,499 · 3 mahine ₹3,499 · 6 mahine ₹5,999 · 1 saal ₹9,999. Koi auto-debit nahi. Iron Engine ke saare updates included.')}</p>
 
                 <button onClick={goToCheckout} className="w-full md:w-auto bg-gray-900 hover:bg-gray-800 text-white px-12 py-4 rounded-xl text-sm font-semibold transition-colors shadow-lg hover:shadow-xl">
-                  {isExpired ? 'Renew Pro — see plans' : 'Upgrade to Pro — see plans'}
+                  {isExpired ? L('Renew Pro — see plans', 'Pro renew karo — plans dekho') : L('Upgrade to Pro — see plans', 'Pro pe upgrade karo — plans dekho')}
                 </button>
-                <p className="text-xs text-gray-400 mt-4">Secure payment. Instant access after successful payment verification.</p>
+                <p className="text-xs text-gray-400 mt-4">{L('Secure payment. Instant access after successful payment verification.', 'Secure payment. Payment verify hote hi turant access.')}</p>
               </div>
 
             </div>

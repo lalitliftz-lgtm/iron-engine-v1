@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
+import { useLang } from '../lib/useLang';
 
 export default function PurchaseSuccess() {
   const { user } = useAuth();
+  const { L } = useLang();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [purchaseData, setPurchaseData] = useState(null);
@@ -55,8 +57,8 @@ export default function PurchaseSuccess() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <div className="text-center">
-          <h1 className="text-xl font-bold text-gray-900 mb-2">No Recent Purchases Found</h1>
-          <button onClick={() => navigate('/dashboard')} className="mt-4 text-gray-600 hover:text-gray-900 underline">Go to Dashboard</button>
+          <h1 className="text-xl font-bold text-gray-900 mb-2">{L('No Recent Purchases Found', 'Koi recent purchase nahi mila')}</h1>
+          <button onClick={() => navigate('/dashboard')} className="mt-4 text-gray-600 hover:text-gray-900 underline">{L('Go to Dashboard', 'Dashboard pe jao')}</button>
         </div>
       </div>
     );
@@ -70,28 +72,28 @@ export default function PurchaseSuccess() {
         <motion.div initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", stiffness: 260, damping: 20, delay: 0.1 }} className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-8">
           <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
         </motion.div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-3 tracking-tight">Payment Successful!</h1>
-        <p className="text-gray-500 mb-8 max-w-sm mx-auto">Thank you for your purchase. Your transaction has been verified and access is now unlocked.</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-3 tracking-tight">{L('Payment Successful!', 'Payment ho gaya!')}</h1>
+        <p className="text-gray-500 mb-8 max-w-sm mx-auto">{L('Thank you for your purchase. Your transaction has been verified and access is now unlocked.', 'Purchase ke liye thank you. Transaction verify ho gaya aur access ab unlock hai.')}</p>
         <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 mb-8 text-left">
           <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-200">
-            <span className="text-sm text-gray-500">Product</span>
+            <span className="text-sm text-gray-500">{L('Product', 'Product')}</span>
             <span className="text-sm font-semibold text-gray-900">{purchaseData.productName}</span>
           </div>
           {isSubscription && purchaseData.expiryDate && (
             <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-200">
-              <span className="text-sm text-gray-500">Access Valid Until</span>
+              <span className="text-sm text-gray-500">{L('Access Valid Until', 'Access kab tak valid')}</span>
               <span className="text-sm font-semibold text-gray-900">{new Date(purchaseData.expiryDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
             </div>
           )}
           <div className="flex justify-between items-center">
-            <span className="text-sm text-gray-500">Transaction ID</span>
+            <span className="text-sm text-gray-500">{L('Transaction ID', 'Transaction ID')}</span>
             <span className="text-xs font-mono text-gray-700 bg-gray-200 px-2 py-1 rounded">{purchaseData.transactionId}</span>
           </div>
         </div>
         <div className="flex flex-col gap-3">
-          <button onClick={() => navigate(isSubscription ? '/dashboard/generate' : '/dashboard/products')} className="w-full bg-gray-900 hover:bg-gray-800 text-white py-3.5 rounded-lg text-sm font-semibold transition-colors">{isSubscription ? 'Build My Next Block →' : 'Download Your Guide →'}</button>
-          {isSubscription && <p className="text-xs text-gray-400">No assessment yet? The engine will ask you to complete it first — about 5 minutes.</p>}
-          <button onClick={() => navigate('/dashboard')} className="w-full text-gray-600 hover:text-gray-900 py-2.5 rounded-lg text-sm font-medium transition-colors">Go to Dashboard</button>
+          <button onClick={() => navigate(isSubscription ? '/dashboard/generate' : '/dashboard/products')} className="w-full bg-gray-900 hover:bg-gray-800 text-white py-3.5 rounded-lg text-sm font-semibold transition-colors">{isSubscription ? L('Build My Next Block →', 'Mera agla block banao →') : L('Download Your Guide →', 'Apni guide download karo →')}</button>
+          {isSubscription && <p className="text-xs text-gray-400">{L('No assessment yet? The engine will ask you to complete it first — about 5 minutes.', 'Assessment abhi tak nahi kiya? Engine pehle wo complete karwayega — bas 5 minute.')}</p>}
+          <button onClick={() => navigate('/dashboard')} className="w-full text-gray-600 hover:text-gray-900 py-2.5 rounded-lg text-sm font-medium transition-colors">{L('Go to Dashboard', 'Dashboard pe jao')}</button>
         </div>
       </motion.div>
     </div>

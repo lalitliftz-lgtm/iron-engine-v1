@@ -1,11 +1,13 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { blockSummary, printBlock } from '../../lib/exportBlock';
+import { useLang } from '../../lib/useLang';
 
 const STYLE = { focused: 'Focused', balanced: 'Balanced', full: 'Full' };
 
 /** The moment after "Build my block": what you got, at a glance, and the one next step. */
 export default function BlockReady({ snapshot, athlete }) {
+  const { L } = useLang();
   const s = blockSummary(snapshot, athlete);
   const weeks = snapshot.weeks || [];
   // Heaviest prescribed % of each week (main lifts) — the shape of the block.
@@ -23,20 +25,20 @@ export default function BlockReady({ snapshot, athlete }) {
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="bg-gray-900 border border-gray-800 rounded-2xl p-6 md:p-10 shadow-2xl text-white">
       <div className="flex items-center gap-2 text-green-400 text-sm font-semibold">
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
-        Your block is ready
+        {L('Your block is ready', 'Aapka block ready hai')}
       </div>
       <h1 className="text-3xl md:text-4xl mt-3 leading-tight" style={{ fontFamily: "'Archivo Black', sans-serif" }}>{s.block}</h1>
       <p className="text-gray-400 mt-1">{s.athlete}{s.range ? ` · ${s.range}` : ''}</p>
 
       <div className="flex flex-wrap gap-2 mt-5">
-        {[`${s.weeks} weeks`, `${s.sessions} sessions`, s.freq, style && `${STYLE[style]} accessories`, s.meet && `Meet ${s.meet}`].filter(Boolean).map((c) => (
+        {[L(`${s.weeks} weeks`, `${s.weeks} hafte`), `${s.sessions} sessions`, s.freq, style && `${STYLE[style]} accessories`, s.meet && `Meet ${s.meet}`].filter(Boolean).map((c) => (
           <span key={c} className="text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-700 text-gray-300">{c}</span>
         ))}
       </div>
 
       {tops.length > 0 && (
         <div className="mt-7">
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500 mb-3">How heavy each week gets</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500 mb-3">{L('How heavy each week gets', 'Har hafte kitna heavy jaayega')}</p>
           <div className="flex items-end gap-2 h-28">
             {shape.map((w, i) => {
               const h = w.top ? 18 + ((w.top - lo) / Math.max(1, hi - lo)) * 82 : 10;
@@ -57,7 +59,7 @@ export default function BlockReady({ snapshot, athlete }) {
 
       {first && (
         <div className="mt-7 border border-gray-800 rounded-xl p-4">
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">First session · {first.weekday} {first.date}</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">{L('First session', 'Pehla session')} · {first.weekday} {first.date}</p>
           <p className="font-semibold mt-1">{first.focus}</p>
           <div className="mt-2 space-y-1">
             {(first.exercises || []).filter((e) => e.type === 'Main').map((e, i) => (
@@ -69,16 +71,16 @@ export default function BlockReady({ snapshot, athlete }) {
 
       {why.length > 0 && (
         <div className="mt-6 space-y-1.5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">Why this block</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">{L('Why this block', 'Yeh block kyun')}</p>
           {why.map((w, i) => <p key={i} className="text-sm text-gray-300">• {w}</p>)}
         </div>
       )}
 
       <div className="mt-8 grid gap-2 sm:grid-cols-3">
-        <Link to="/dashboard/programs" className="sm:col-span-2 bg-red-600 hover:bg-red-700 text-white text-center font-semibold py-3.5 rounded-xl">Open my program</Link>
-        <button type="button" onClick={() => printBlock(snapshot, athlete)} className="border border-gray-700 text-gray-200 font-semibold py-3.5 rounded-xl hover:bg-gray-800">Download PDF</button>
+        <Link to="/dashboard/programs" className="sm:col-span-2 bg-red-600 hover:bg-red-700 text-white text-center font-semibold py-3.5 rounded-xl">{L('Open my program', 'Mera program kholo')}</Link>
+        <button type="button" onClick={() => printBlock(snapshot, athlete)} className="border border-gray-700 text-gray-200 font-semibold py-3.5 rounded-xl hover:bg-gray-800">{L('Download PDF', 'PDF download karo')}</button>
       </div>
-      <Link to="/dashboard" className="block text-center text-sm text-gray-400 mt-4 hover:text-white">Go to Today</Link>
+      <Link to="/dashboard" className="block text-center text-sm text-gray-400 mt-4 hover:text-white">{L('Go to Today', 'Aaj pe jao')}</Link>
     </motion.div>
   );
 }

@@ -2,13 +2,14 @@ import { Suspense } from 'react';
 import { NavLink, Outlet, Link, useLocation } from 'react-router-dom';
 import Footer from '../Footer';
 import { TestDateBanner } from './TestDate';
+import { useLang } from '../../lib/useLang';
 
 // Four places a lifter actually goes. Everything else lives inside one of them.
 const TABS = [
-  { to: '/dashboard', label: 'Today', end: true, icon: 'M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10' },
-  { to: '/dashboard/programs', label: 'Program', icon: 'M4 5h16M4 10h16M4 15h10M4 20h7' },
-  { to: '/dashboard/history', label: 'History', icon: 'M12 8v4l3 2M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5' },
-  { to: '/dashboard/account', label: 'Account', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0' },
+  { to: '/dashboard', label: 'Today', hi: 'Aaj', end: true, icon: 'M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10' },
+  { to: '/dashboard/programs', label: 'Program', hi: 'Program', icon: 'M4 5h16M4 10h16M4 15h10M4 20h7' },
+  { to: '/dashboard/history', label: 'History', hi: 'History', icon: 'M12 8v4l3 2M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5' },
+  { to: '/dashboard/account', label: 'Account', hi: 'Account', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0' },
 ];
 // Pages reached from inside a tab still light up their parent tab.
 const PARENT = { '/dashboard/generate': '/dashboard/programs', '/dashboard/checkin': '/dashboard', '/dashboard/workout': '/dashboard', '/dashboard/assessment': '/dashboard/account', '/dashboard/subscription': '/dashboard/account', '/dashboard/products': '/dashboard/account', '/dashboard/library': '/dashboard/account', '/dashboard/athlete-profile': '/dashboard/account', '/dashboard/settings': '/dashboard/account' };
@@ -19,6 +20,7 @@ function Icon({ d }) {
 
 export default function DashboardLayout() {
   const { pathname } = useLocation();
+  const { L } = useLang();
   const parent = PARENT[Object.keys(PARENT).find((p) => pathname.startsWith(p))];
   const isActive = (t, navActive) => navActive || parent === t.to;
   // Focused flows (logging a workout, filling the assessment) hide the tab bar.
@@ -42,7 +44,7 @@ export default function DashboardLayout() {
           {TABS.map((t) => (
             <NavLink key={t.to} to={t.to} end={t.end}
               className={({ isActive: a }) => `flex items-center gap-3 py-2.5 px-3 rounded-lg text-sm font-semibold transition ${isActive(t, a) ? 'bg-steel2 text-chalk' : 'text-knurl hover:bg-steel2 hover:text-chalk'}`}>
-              {({ isActive: a }) => (<><span className={isActive(t, a) ? 'text-red-500' : ''}><Icon d={t.icon} /></span>{t.label}</>)}
+              {({ isActive: a }) => (<><span className={isActive(t, a) ? 'text-red-500' : ''}><Icon d={t.icon} /></span>{L(t.label, t.hi)}</>)}
             </NavLink>
           ))}
         </nav>
@@ -59,7 +61,7 @@ export default function DashboardLayout() {
           {TABS.map((t) => (
             <NavLink key={t.to} to={t.to} end={t.end}
               className={({ isActive: a }) => `flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold ${isActive(t, a) ? 'text-red-500' : 'text-knurl'}`}>
-              <Icon d={t.icon} />{t.label}
+              <Icon d={t.icon} />{L(t.label, t.hi)}
             </NavLink>
           ))}
         </nav>

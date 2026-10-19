@@ -22,9 +22,6 @@ export default function EngineGate() {
       )}&product=${encodeURIComponent(engine.productName)}`
     );
 
-  // The free account already gets one full 4-week block with the logger — the sample's main ask is that, not a payment.
-  const goFree = () => navigate(`/signup?next=${encodeURIComponent("/dashboard/assessment")}`);
-
   return (
     <div>
       {/* Upgrade strip */}
@@ -132,7 +129,7 @@ export default function EngineGate() {
           Try the engine — generate Week 1 of a real program, no login needed.
         </span>
       </div>
-      <IronEngine full={false} onUpgrade={goFree} />
+      <IronEngine full={false} onUpgrade={goBuy} />
     </div>
   );
 }

@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useLang } from '../../lib/useLang';
 
 export default function TechniqueLab() {
+  const { L } = useLang();
   const [searchParams] = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
   
@@ -34,16 +36,16 @@ export default function TechniqueLab() {
     <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 md:py-12">
       <div className="mb-8">
         <h1 className="text-3xl font-semibold text-gray-900 tracking-tight">Technique Lab</h1>
-        <p className="text-gray-500 mt-1">Master the movement. Browse our premium exercise library.</p>
+        <p className="text-gray-500 mt-1">{L('Master the movement. Browse our premium exercise library.', 'Movement perfect karo. Hamari premium exercise library dekho.')}</p>
       </div>
       <div className="flex flex-col md:flex-row gap-3 mb-8 sticky top-0 bg-gray-50 py-4 z-10 -mx-4 px-4 md:mx-0 md:px-0">
-        <input type="text" placeholder="Search exercises..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        <input type="text" placeholder={L('Search exercises...', 'Exercise search karo...')} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
         <select value={filterPattern} onChange={(e) => setFilterPattern(e.target.value)} className="px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 capitalize">
-          {patterns.map(p => <option key={p} value={p} className="capitalize">{p === 'all' ? 'All Patterns' : p}</option>)}
+          {patterns.map(p => <option key={p} value={p} className="capitalize">{p === 'all' ? L('All Patterns', 'Saare patterns') : p}</option>)}
         </select>
       </div>
       {filteredExercises.length === 0 ? (
-        <div className="text-center py-20 text-gray-500">No exercises found.</div>
+        <div className="text-center py-20 text-gray-500">{L('No exercises found.', 'Koi exercise nahi mili.')}</div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
           {filteredExercises.map((ex, idx) => (
