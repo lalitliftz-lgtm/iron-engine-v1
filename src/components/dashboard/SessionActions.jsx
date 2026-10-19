@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { appNow } from '../../lib/schedule';
 import { localYmd } from '../../lib/engine';
+import { useLang } from '../../lib/useLang';
 
-const REASONS = [['sick', 'Sick / not well'], ['busy', 'No time'], ['gym_closed', 'Gym closed / holiday'], ['travel', 'Travelling'], ['injury', 'Injury / pain'], ['other', 'Other']];
+const REASONS = [['sick', 'Sick / not well', 'Bimaar / tabiyat theek nahi'], ['busy', 'No time', 'Time nahi hai'], ['gym_closed', 'Gym closed / holiday', 'Gym band / chutti'], ['travel', 'Travelling', 'Travel kar raha hoon'], ['injury', 'Injury / pain', 'Injury / dard'], ['other', 'Other', 'Kuch aur']];
 
 async function post(body) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -22,6 +23,7 @@ async function post(body) {
  * and keep History honest. Neither guilt-trips — one missed day changes nothing.
  */
 export default function SessionActions({ programId, week, day, onDone, meetLocked = false }) {
+  const { L } = useLang();
   const [open, setOpen] = useState(null); // 'skip' | 'done'
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -44,26 +46,26 @@ export default function SessionActions({ programId, week, day, onDone, meetLocke
   return (
     <div className="mt-3">
       <div className="flex justify-center gap-5 text-xs">
-        <button type="button" onClick={() => setOpen(open === 'done' ? null : 'done')} className="text-gray-500 hover:text-gray-900 font-medium">Did it without the app?</button>
-        <button type="button" onClick={() => setOpen(open === 'skip' ? null : 'skip')} className="text-gray-500 hover:text-gray-900 font-medium">Can't train?</button>
+        <button type="button" onClick={() => setOpen(open === 'done' ? null : 'done')} className="text-gray-500 hover:text-gray-900 font-medium">{L('Did it without the app?', 'App ke bina kar liya?')}</button>
+        <button type="button" onClick={() => setOpen(open === 'skip' ? null : 'skip')} className="text-gray-500 hover:text-gray-900 font-medium">{L("Can't train?", 'Aaj train nahi kar sakte?')}</button>
       </div>
       {open === 'done' && (
         <div className="mt-3 bg-gray-50 border border-gray-200 rounded-xl p-4">
-          <p className="text-sm text-gray-700">Mark <b>{day.focus}</b> as done as planned. It counts for your block; it isn't used to estimate your max (no RPE).</p>
-          <button type="button" disabled={busy} onClick={() => run({ loggedExercises: asPlanned(), quick: true })} className="mt-3 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50">{busy ? 'Saving…' : 'Mark done'}</button>
+          <p className="text-sm text-gray-700">{L(<>Mark <b>{day.focus}</b> as done as planned. It counts for your block; it isn't used to estimate your max (no RPE).</>, <><b>{day.focus}</b> ko plan ke hisaab se done mark karo. Yeh aapke block mein count hoga; isse aapka max estimate nahi hoga (RPE nahi hai).</>)}</p>
+          <button type="button" disabled={busy} onClick={() => run({ loggedExercises: asPlanned(), quick: true })} className="mt-3 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50">{busy ? L('Saving…', 'Save ho raha hai…') : L('Mark done', 'Done mark karo')}</button>
         </div>
       )}
       {open === 'skip' && (
         <div className="mt-3 bg-gray-50 border border-gray-200 rounded-xl p-4">
           <p className="text-sm text-gray-700 mb-3">{meetLocked
-            ? "No problem. Your meet date can't move, so the plan continues with the next session (a missed hard session can be made up on a free day this week). Why can't you train?"
-            : 'No problem — nothing is lost. This session moves to your next training day and the plan slides along. Never two sessions in one day. Why can\'t you train?'}</p>
+            ? L("No problem. Your meet date can't move, so the plan continues with the next session (a missed hard session can be made up on a free day this week). Why can't you train?", 'Koi baat nahi. Meet ki date fix hai, isliye plan agle session se chalega (miss hua heavy session is hafte kisi free din kar lena). Train kyun nahi kar pa rahe?')
+            : L('No problem — nothing is lost. This session moves to your next training day and the plan slides along. Never two sessions in one day. Why can\'t you train?', 'Koi baat nahi — kuch waste nahi hua. Yeh session aapke agle training din pe shift ho jayega aur plan aage khisak jayega. Ek din mein do session kabhi nahi. Train kyun nahi kar pa rahe?')}</p>
           <div className="grid grid-cols-2 gap-2">
-            {REASONS.map(([v, l]) => (
-              <button key={v} type="button" disabled={busy} onClick={() => run({ loggedExercises: skipped(), skipReason: v })} className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-100 text-left disabled:opacity-50">{l}</button>
+            {REASONS.map(([v, l, h]) => (
+              <button key={v} type="button" disabled={busy} onClick={() => run({ loggedExercises: skipped(), skipReason: v })} className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-700 hover:bg-gray-100 text-left disabled:opacity-50">{L(l, h)}</button>
             ))}
           </div>
-          <p className="text-[11px] text-gray-400 mt-2">Injury or pain that lasts? Update it in your profile so the plan works around it.</p>
+          <p className="text-[11px] text-gray-400 mt-2">{L('Injury or pain that lasts? Update it in your profile so the plan works around it.', 'Injury ya dard lamba chal raha hai? Profile mein update karo taaki plan uske hisaab se bane.')}</p>
         </div>
       )}
       {err && <p className="text-xs text-red-600 mt-2">{err}</p>}

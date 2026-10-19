@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLang } from '../../lib/useLang';
 
 export default function MyLibrary() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { L } = useLang();
   const [products, setProducts] = useState([]);
   const [ownedIds, setOwnedIds] = useState([]);
   const [downloadedVersions, setDownloadedVersions] = useState({});
@@ -73,13 +75,13 @@ export default function MyLibrary() {
     <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 md:py-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
         <div>
-          <h1 className="text-3xl font-semibold text-gray-900 tracking-tight">My Library</h1>
-          <p className="text-gray-500 mt-1">Your premium digital guides and resources.</p>
+          <h1 className="text-3xl font-semibold text-gray-900 tracking-tight">{L('My Library', 'Meri Library')}</h1>
+          <p className="text-gray-500 mt-1">{L('Your premium digital guides and resources.', 'Aapki premium digital guides aur resources.')}</p>
         </div>
         <div className="flex gap-3">
-          <input type="text" placeholder="Search guides..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 w-full md:w-64" />
+          <input type="text" placeholder={L('Search guides...', 'Guides search karo...')} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 w-full md:w-64" />
           <select value={filter} onChange={(e) => setFilter(e.target.value)} className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
-            <option value="all">All</option><option value="owned">Owned</option><option value="locked">Locked</option>
+            <option value="all">{L('All', 'Sab')}</option><option value="owned">{L('Owned', 'Kharidi hui')}</option><option value="locked">{L('Locked', 'Locked')}</option>
           </select>
         </div>
       </div>
@@ -94,24 +96,24 @@ export default function MyLibrary() {
               <div className="h-52 bg-gray-100 relative overflow-hidden">
                 {product.cover_image_url ? <img src={product.cover_image_url} alt={product.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900"><span className="text-white font-bold text-xl tracking-wider">LALITLIFTS</span></div>}
                 <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
-                  {isOwned && <span className="px-2.5 py-1 text-xs font-semibold rounded-full backdrop-blur-md bg-green-500/90 text-white">Owned</span>}
-                  {!isOwned && <span className="px-2.5 py-1 text-xs font-semibold rounded-full backdrop-blur-md bg-black/50 text-white border border-white/20">Locked</span>}
-                  {isNew && <span className="px-2.5 py-1 text-xs font-semibold rounded-full backdrop-blur-md bg-blue-500/90 text-white">New</span>}
-                  {hasUpdate && <span className="px-2.5 py-1 text-xs font-semibold rounded-full backdrop-blur-md bg-amber-500/90 text-white">Update Available</span>}
+                  {isOwned && <span className="px-2.5 py-1 text-xs font-semibold rounded-full backdrop-blur-md bg-green-500/90 text-white">{L('Owned', 'Kharidi hui')}</span>}
+                  {!isOwned && <span className="px-2.5 py-1 text-xs font-semibold rounded-full backdrop-blur-md bg-black/50 text-white border border-white/20">{L('Locked', 'Locked')}</span>}
+                  {isNew && <span className="px-2.5 py-1 text-xs font-semibold rounded-full backdrop-blur-md bg-blue-500/90 text-white">{L('New', 'Naya')}</span>}
+                  {hasUpdate && <span className="px-2.5 py-1 text-xs font-semibold rounded-full backdrop-blur-md bg-amber-500/90 text-white">{L('Update Available', 'Update aaya hai')}</span>}
                 </div>
               </div>
               <div className="p-6 flex-1 flex flex-col">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-xs text-gray-400 uppercase tracking-wider">v{product.version}</span>
                   <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                  <span className="text-xs text-gray-400">Updated {new Date(product.updated_at).toLocaleDateString()}</span>
+                  <span className="text-xs text-gray-400">{L('Updated', 'Update hua')} {new Date(product.updated_at).toLocaleDateString()}</span>
                 </div>
                 <h3 className="text-lg font-bold text-gray-900 mb-2">{product.name}</h3>
-                <p className="text-sm text-gray-500 mb-4 flex-1 line-clamp-2">{product.short_description || "Premium powerlifting knowledge to elevate your training."}</p>
+                <p className="text-sm text-gray-500 mb-4 flex-1 line-clamp-2">{product.short_description || L('Premium powerlifting knowledge to elevate your training.', 'Premium powerlifting knowledge jo aapki training ko next level le jaaye.')}</p>
                 {isOwned && releaseNotes.length > 0 && (
                   <div className="mb-4 border-t border-gray-100 pt-3">
                     <button onClick={() => setExpandedHistory(expandedHistory === product.id ? null : product.id)} className="w-full flex justify-between items-center text-xs font-medium text-gray-500 hover:text-gray-900">
-                      <span>Version History</span>
+                      <span>{L('Version History', 'Version History')}</span>
                       <svg className={`w-4 h-4 transition-transform ${expandedHistory === product.id ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
                     </button>
                     <AnimatePresence>
@@ -130,11 +132,11 @@ export default function MyLibrary() {
                 )}
                 {isOwned ? (
                   <button onClick={() => handleDownload(product.id)} disabled={downloadingId === product.id} className={`w-full py-3 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-50 ${hasUpdate ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}>
-                    {downloadingId === product.id ? <><div className="animate-spin h-4 w-4 border-2 border-white/30 border-t-white rounded-full"></div> Generating Link...</> : <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> {hasUpdate ? 'Download Latest' : 'Download PDF'}</>}
+                    {downloadingId === product.id ? <><div className="animate-spin h-4 w-4 border-2 border-white/30 border-t-white rounded-full"></div> {L('Generating Link...', 'Link ban raha hai...')}</> : <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> {hasUpdate ? L('Download Latest', 'Latest download karo') : L('Download PDF', 'PDF download karo')}</>}
                   </button>
                 ) : (
                   <button onClick={() => navigate(`/dashboard/subscription?product=${encodeURIComponent(product.name)}`)} className="w-full bg-white border border-gray-300 hover:bg-gray-50 text-gray-900 py-3 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2">
-                    Buy for ₹{(product.price_cents / 100).toLocaleString('en-IN')} <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                    {L(`Buy for ₹${(product.price_cents / 100).toLocaleString('en-IN')}`, `₹${(product.price_cents / 100).toLocaleString('en-IN')} mein kharido`)} <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
                   </button>
                 )}
               </div>

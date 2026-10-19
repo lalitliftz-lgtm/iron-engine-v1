@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { e1rmFromLogs } from '../../lib/autoreg';
+import { useLang } from '../../lib/useLang';
 
 const LIFT_NAMES = { squat: 'Squat', bench: 'Bench', deadlift: 'Deadlift' };
 const n = (v) => (v === '' || v === null || v === undefined || Number.isNaN(Number(v)) ? null : Number(v));
@@ -30,6 +31,7 @@ function setCounts(log) {
 
 export default function WorkoutHistory() {
   const { user } = useAuth();
+  const { L } = useLang();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -59,7 +61,7 @@ export default function WorkoutHistory() {
 
   // Soft delete (is_deleted) — the row is kept for safety but leaves History, Today and block stats.
   const removeLog = async (log) => {
-    if (!window.confirm(`Remove the session from ${fmtDate(log.date_completed)}? Use this for a wrong or test log — it no longer counts anywhere.`)) return;
+    if (!window.confirm(L(`Remove the session from ${fmtDate(log.date_completed)}? Use this for a wrong or test log — it no longer counts anywhere.`, `${fmtDate(log.date_completed)} wala session hatana hai? Yeh galat ya test log ke liye use karo — iske baad yeh kahin count nahi hoga.`))) return;
     const { data: { session } } = await supabase.auth.getSession();
     const res = await fetch('/api/remove-workout', {
       method: 'POST',
@@ -67,7 +69,7 @@ export default function WorkoutHistory() {
       body: JSON.stringify({ logId: log.id }),
     });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) { window.alert(`Could not remove it: ${body.error || 'please try again'}`); return; }
+    if (!res.ok) { window.alert(L(`Could not remove it: ${body.error || 'please try again'}`, `Hata nahi paaye: ${body.error || 'please phir try karo'}`)); return; }
     setLogs((prev) => prev.filter((l) => l.id !== log.id));
   };
 
@@ -81,23 +83,23 @@ export default function WorkoutHistory() {
 
   if (logs.length === 0) return (
     <div className="max-w-3xl mx-auto px-4 md:px-8 py-8 md:py-12">
-      <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight mb-6">History</h1>
+      <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight mb-6">{L('History', 'History')}</h1>
       <div className="bg-white border border-gray-200 rounded-2xl p-10 text-center">
-        <h2 className="text-lg font-semibold text-gray-900 mb-1">No sessions logged yet</h2>
-        <p className="text-gray-500 text-sm mb-5">Every session you log shows up here, with your top sets and how your strength is moving.</p>
-        <Link to="/dashboard" className="inline-block bg-gray-900 text-white px-6 py-3 rounded-lg text-sm font-semibold">Go to today's session</Link>
+        <h2 className="text-lg font-semibold text-gray-900 mb-1">{L('No sessions logged yet', 'Abhi tak koi session log nahi hua')}</h2>
+        <p className="text-gray-500 text-sm mb-5">{L('Every session you log shows up here, with your top sets and how your strength is moving.', 'Aap jo bhi session log karoge woh yahan dikhega — top sets ke saath, aur strength kaise badh rahi hai woh bhi.')}</p>
+        <Link to="/dashboard" className="inline-block bg-gray-900 text-white px-6 py-3 rounded-lg text-sm font-semibold">{L("Go to today's session", 'Aaj ke session par jao')}</Link>
       </div>
     </div>
   );
 
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-12">
-      <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight">History</h1>
-      <p className="text-sm text-gray-500 mt-1 mb-6">{logs.length} session{logs.length === 1 ? '' : 's'} logged · {blocks.length} block{blocks.length === 1 ? '' : 's'}</p>
+      <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight">{L('History', 'History')}</h1>
+      <p className="text-sm text-gray-500 mt-1 mb-6">{L(`${logs.length} session${logs.length === 1 ? '' : 's'} logged · ${blocks.length} block${blocks.length === 1 ? '' : 's'}`, `${logs.length} session log hue · ${blocks.length} block`)}</p>
 
       {trend.length > 0 && (
         <section className="bg-white border border-gray-200 rounded-2xl p-4 md:p-5 mb-6">
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Strength trend</h2>
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">{L('Strength trend', 'Strength trend')}</h2>
           <div className="grid grid-cols-3 gap-3">
             {trend.map((t) => {
               const delta = t.start ? t.now - t.start : null;
@@ -107,14 +109,14 @@ export default function WorkoutHistory() {
                   <p className="text-xl font-bold text-gray-900 tabular-nums">{t.now}<span className="text-xs font-normal text-gray-500"> kg</span></p>
                   {delta !== null && (
                     <p className={`text-xs tabular-nums ${delta >= 2.5 ? 'text-green-600' : 'text-gray-400'}`}>
-                      {delta >= 2.5 ? `▲ +${delta}` : delta <= -2.5 ? `${delta}` : '±0'} vs start {t.start}
+                      {delta >= 2.5 ? `▲ +${delta}` : delta <= -2.5 ? `${delta}` : '±0'} {L('vs start', 'shuru se')} {t.start}
                     </p>
                   )}
                 </div>
               );
             })}
           </div>
-          <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">Estimated 1RM from your logged sets of 5 reps or fewer at RPE 8.5 or below — not a test. Best sets: {trend.map((t) => `${LIFT_NAMES[t.lift]} ${t.from}`).join(' · ')}.</p>
+          <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">{L('Estimated 1RM from your logged sets of 5 reps or fewer at RPE 8.5 or below — not a test. Best sets:', 'Estimated 1RM aapke logged sets se — 5 ya kam reps, RPE 8.5 ya kam par — yeh test nahi hai. Best sets:')} {trend.map((t) => `${LIFT_NAMES[t.lift]} ${t.from}`).join(' · ')}.</p>
         </section>
       )}
 
@@ -126,6 +128,7 @@ export default function WorkoutHistory() {
 }
 
 function Block({ block, open, onRemove }) {
+  const { L } = useLang();
   const snap = block.snapshot;
   const trainable = snap?.weeks ? snap.weeks.flatMap((w) => w.days.filter((d) => !d.rest && !d.meetDay && !d.optional).map((d) => `${w.week}-${d.day}`)) : [];
   // A session counts only when at least one set was ticked — an empty "Finish" is not a trained day.
@@ -138,15 +141,15 @@ function Block({ block, open, onRemove }) {
       <summary className="list-none cursor-pointer p-4 md:p-5">
         <div className="flex justify-between items-start gap-3">
           <div className="min-w-0">
-            <h2 className="text-base font-semibold text-gray-900 truncate">{snap?.blockType || 'Program'}</h2>
-            <p className="text-xs text-gray-500 mt-0.5">{fmtDate(first.date_completed, { day: 'numeric', month: 'short' })} – {fmtDate(last.date_completed, { day: 'numeric', month: 'short' })} · {block.logs.length} session{block.logs.length === 1 ? '' : 's'}</p>
+            <h2 className="text-base font-semibold text-gray-900 truncate">{snap?.blockType || L('Program', 'Program')}</h2>
+            <p className="text-xs text-gray-500 mt-0.5">{fmtDate(first.date_completed, { day: 'numeric', month: 'short' })} – {fmtDate(last.date_completed, { day: 'numeric', month: 'short' })} · {L(`${block.logs.length} session${block.logs.length === 1 ? '' : 's'}`, `${block.logs.length} session`)}</p>
           </div>
           <span className="text-gray-400 text-sm transition-transform group-open:rotate-180" aria-hidden>▾</span>
         </div>
         {pct !== null && (
           <div className="mt-3">
             <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'var(--ll-good)' }} /></div>
-            <p className="text-[11px] text-gray-400 mt-1">{done} of {trainable.length} sessions done · {pct}%</p>
+            <p className="text-[11px] text-gray-400 mt-1">{L(`${done} of ${trainable.length} sessions done`, `${trainable.length} mein se ${done} session ho gaye`)} · {pct}%</p>
           </div>
         )}
       </summary>
@@ -158,11 +161,12 @@ function Block({ block, open, onRemove }) {
 }
 
 function Session({ log, snap, onRemove }) {
+  const { L } = useLang();
   const day = snap?.weeks?.[log.week_number - 1]?.days?.find((d) => d.day === log.day_number);
   const top = topSets(log);
   const { done, total, pain } = setCounts(log);
   const meta = log.recovery_checklist || {};
-  const SKIP = { sick: 'sick', busy: 'no time', gym_closed: 'gym closed', travel: 'travelling', injury: 'injury / pain', other: 'other' };
+  const SKIP = { sick: L('sick', 'beemar'), busy: L('no time', 'time nahi tha'), gym_closed: L('gym closed', 'gym band tha'), travel: L('travelling', 'travel par'), injury: L('injury / pain', 'injury / dard'), other: L('other', 'kuch aur') };
   const exercises = (log.logged_exercises || []).filter((ex) => !ex.skipped && ex.loggedSets?.some((s) => s.completed));
   const mins = Math.round((log.duration_seconds || 0) / 60);
 
@@ -173,17 +177,17 @@ function Session({ log, snap, onRemove }) {
           <p className="text-sm font-medium text-gray-900 min-w-0 truncate">
             {fmtDate(log.date_completed)} <span className="text-gray-500 font-normal">· W{log.week_number} D{log.day_number}{day?.focus ? ` · ${day.focus}` : ''}</span>
           </p>
-          <p className="text-xs text-gray-400 shrink-0 tabular-nums">{mins ? `${mins} min · ` : ''}{done}/{total} sets</p>
+          <p className="text-xs text-gray-400 shrink-0 tabular-nums">{mins ? `${mins} min · ` : ''}{done}/{total} {L('sets', 'sets')}</p>
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs">
           {Object.entries(top).map(([l, s]) => (
             <span key={l} className="text-gray-600"><span className="text-gray-400">{LIFT_NAMES[l]}</span> <b className="text-gray-900 font-semibold tabular-nums">{s.kg}×{s.reps}</b>{s.rpe ? <span className="text-gray-400"> @{s.rpe}</span> : ''}</span>
           ))}
-          {pain && <span className="text-amber-700">⚠ pain noted</span>}
-          {meta.skip_reason && <span className="text-gray-400">Skipped — {SKIP[meta.skip_reason] || meta.skip_reason}</span>}
-          {meta.quick && <span className="text-gray-400">Marked done as planned (no details)</span>}
-          {done === 0 && !meta.skip_reason && <span className="text-amber-700">No sets ticked — tap ✓ on each set while you train so it counts</span>}
-          {done > 0 && !Object.keys(top).length && <span className="text-gray-400">Accessories / support work</span>}
+          {pain && <span className="text-amber-700">⚠ {L('pain noted', 'dard note hua')}</span>}
+          {meta.skip_reason && <span className="text-gray-400">{L('Skipped', 'Skip kiya')} — {SKIP[meta.skip_reason] || meta.skip_reason}</span>}
+          {meta.quick && <span className="text-gray-400">{L('Marked done as planned (no details)', 'Plan ke hisaab se done mark kiya (details nahi)')}</span>}
+          {done === 0 && !meta.skip_reason && <span className="text-amber-700">{L('No sets ticked — tap ✓ on each set while you train so it counts', 'Koi set tick nahi hua — train karte waqt har set par ✓ dabao taaki count ho')}</span>}
+          {done > 0 && !Object.keys(top).length && <span className="text-gray-400">{L('Accessories / support work', 'Accessories / support work')}</span>}
         </div>
       </summary>
       <div className="px-4 md:px-5 pb-4 space-y-2">
@@ -199,7 +203,7 @@ function Session({ log, snap, onRemove }) {
         ))}
         {meta.session_notes && <p className="text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2 whitespace-pre-line">📝 {meta.session_notes}</p>}
         <div className="pt-2 text-right">
-          <button type="button" onClick={() => onRemove(log)} className="text-xs text-gray-400 hover:text-red-600">Remove this session</button>
+          <button type="button" onClick={() => onRemove(log)} className="text-xs text-gray-400 hover:text-red-600">{L('Remove this session', 'Yeh session hatao')}</button>
         </div>
       </div>
     </details>
