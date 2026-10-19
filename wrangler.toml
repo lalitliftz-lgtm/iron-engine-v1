@@ -1,0 +1,7 @@
+# Cloudflare Pages config (the Vercel setup in vercel.json keeps working side by side).
+# Build: npm run build → dist/. API: functions/api/[[path]].js runs the same api/*.js handlers.
+name = "iron-engine-v1"
+pages_build_output_dir = "dist"
+compatibility_date = "2025-09-01"
+# The handlers use Node's crypto (PayU hash) and process.env.
+compatibility_flags = ["nodejs_compat"]

@@ -118,3 +118,32 @@ Set `PAYU_MODE=live` before launch — the Owner panel shows a warning while it 
 ## Hosting
 Vercel's free **Hobby** plan is for non-commercial use; taking payments needs **Pro**. Server logs
 (Vercel → Logs) are where API errors are written.
+
+## Cloudflare Pages (free, commercial use allowed) — runs side by side with Vercel
+The same code runs on both: `functions/api/[[path]].js` runs every `api/*.js` handler on Cloudflare,
+`wrangler.toml` turns on Node compatibility (PayU hash), `public/_headers` copies the vercel.json headers.
+Vercel keeps working until the domain is moved, so nothing breaks while you test.
+
+1. dash.cloudflare.com → free account → **Workers & Pages → Create → Pages → Connect to Git** →
+   GitHub → `iron-engine-v1` → branch `main`.
+2. Build settings: Framework **Vite** (or None) · Build command `npm run build` · Output `dist`.
+3. **Settings → Variables and Secrets** (Production) — copy each value from Vercel → Settings →
+   Environment Variables. Type **Secret** for the two marked 🔒:
+   `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` 🔒, `PAYMENT_PROVIDER`,
+   `PAYU_MODE`, `PAYU_KEY`, `PAYU_SALT` 🔒, `OWNER_EMAIL`, `OWNER_USER_ID`. Then **Retry deployment**
+   (VITE_ values are baked in at build time).
+4. Supabase → Authentication → URL Configuration → Redirect URLs: add `https://iron-engine-v1.pages.dev/**`.
+5. Test on `https://iron-engine-v1.pages.dev`: sign up / log in, generate, log a session, owner panel,
+   one PayU test payment (PAYU_MODE=test).
+6. Switch the domain — Cloudflare needs to run the domain's DNS for the root (`lalitlifts.online`):
+   - Cloudflare → **Add a domain** → `lalitlifts.online` → Free plan. It copies the GoDaddy records and
+     shows two nameservers.
+   - GoDaddy → lalitlifts.online → **Nameservers → Change → I'll use my own** → paste the two
+     Cloudflare nameservers. Wait until Cloudflare says Active (minutes to a few hours).
+   - Cloudflare Pages project → **Custom domains** → add `lalitlifts.online` and `www.lalitlifts.online`
+     (Cloudflare replaces the old Vercel records itself).
+   - Vercel → Domains → remove both domains. Keep the Vercel project as a backup for a week, then delete it.
+7. Logs on Cloudflare: Pages project → Functions → **Real-time logs**.
+
+Local test: `npx wrangler pages dev dist` after `npm run build`, with secrets in `.dev.vars`
+(git-ignored — never commit it).
