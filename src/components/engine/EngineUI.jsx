@@ -105,7 +105,7 @@ function PrintView({ program, form, maxes }) {
           Block: {form.exp === "beg" ? "Beginner Linear" : SCHEMES[form.goal].label} · {program.freq}
           {maxes?.squat ? ` · 1RM: SQ ${maxes.squat} / BP ${maxes.bench} / DL ${maxes.deadlift} kg${maxes.estimated ? " (est.)" : ""}` : ""}
         </div>
-        <div style={{ fontSize: 12, marginTop: 2 }}>@{CONFIG.insta} · lalitlifts.com · Rest days: {program.restDays.join(", ")}</div>
+        <div style={{ fontSize: 12, marginTop: 2 }}>@{CONFIG.insta} · {CONFIG.site} · Rest days: {program.restDays.join(", ")}</div>
       </div>
 
       {program.weeks.map((w, wi) => (

@@ -13,7 +13,7 @@ export default function Contact() {
         </div>
         <div className="pt-4 border-t border-gray-200">
           <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-1">Email Support</h3>
-          <p className="text-gray-600">support@lalitlifts.com</p>
+          <a href={`mailto:${CONFIG.supportEmail}`} className="text-gray-600 underline">{CONFIG.supportEmail}</a>
           <p className="text-xs text-gray-400 mt-1">We respond within 24-48 hours.</p>
         </div>
         <div className="pt-4 border-t border-gray-200">

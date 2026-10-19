@@ -94,9 +94,15 @@ Supabase → Storage → New bucket **`pdf_guides`**, **Public OFF**. Upload, wi
 `powerlifting-system-2.pdf`, `powerlifting-system.pdf`, `learn-lift-eat.pdf` (free plan limit: 50 MB per file).
 
 ## Email (sign-up confirmation + password reset) — needed before real users
-- Supabase → Authentication → **URL Configuration**: Site URL = your live URL
-  (e.g. `https://iron-engine-v1.vercel.app`), and add `https://iron-engine-v1.vercel.app/**` (and your custom
-  domain `/**`) to **Redirect URLs**. Otherwise verify/reset links point at localhost.
+- Supabase → Authentication → **URL Configuration**: Site URL = `https://www.lalitlifts.online`, and
+  **Redirect URLs** = `https://www.lalitlifts.online/**`, `https://lalitlifts.online/**`,
+  `https://iron-engine-v1.vercel.app/**`. Otherwise verify/reset links point at the wrong site.
+
+## Domain (lalitlifts.online, bought on GoDaddy)
+- Vercel → project → Settings → Domains: `lalitlifts.online` (308 → www) and `www.lalitlifts.online`.
+- GoDaddy DNS: **A** `@` → the IP Vercel shows (216.198.79.1), **CNAME** `www` → the
+  `…vercel-dns-017.com` value Vercel shows. One A record for `@` only. Auto-renew on.
+- PayU builds its return URL from the site address, so nothing changes in code.
 - Supabase → Authentication → **Emails → SMTP Settings**: connect a real sender (Resend, Brevo, Amazon SES…).
   Supabase's built-in sender is rate-limited to a few emails an hour and is meant for testing only.
 - Keep **Confirm email** ON (the owner panel relies on a confirmed email).
