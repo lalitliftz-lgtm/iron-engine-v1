@@ -8,7 +8,9 @@ import { readDraft, saveDraft, clearDraft } from '../../lib/workoutDraft';
 import { warmupSets, CUES, RPE_SCALE, CUES_HI, RPE_SCALE_HI } from '../../lib/education';
 import { useLang } from '../../lib/useLang';
 import LangToggle from '../../components/dashboard/LangToggle';
-import { reentry, trained, startOfDay, planSchedule, lockReason, appNow } from '../../lib/schedule';
+import { reentry, trained, startOfDay, planSchedule, lockReason, appNow, proWeekLocked } from '../../lib/schedule';
+import { useSubscription } from '../../context/SubscriptionContext';
+import { findWins } from '../../lib/wins';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const MAIN_REST = 180; // System 2.0: main lifts 3–5 min
@@ -80,7 +82,7 @@ export default function WorkoutSession() {
   const [loading, setLoading] = useState(true);
   const [exercises, setExercises] = useState([]);
   const [notes, setNotes] = useState('');
-  const { lang, t: tx } = useLang();
+  const { lang, t: tx, L } = useLang();
   const [now, setNow] = useState(() => Date.now());
   // Timing is kept as timestamps, never as a counting-down number: phones pause
   // background tabs (screen lock, Spotify), and a timestamp is right the moment you come back.
@@ -92,6 +94,8 @@ export default function WorkoutSession() {
   const [offline, setOffline] = useState(false);
   const [screenLock, setScreenLock] = useState('');
   const [locked, setLocked] = useState(null);    // { text } when this session can't be started today
+  const { status: planStatus } = useSubscription();
+  const isPro = planStatus === 'pro_active' || planStatus === 'loading'; // free plan = Week 1 only
   const [startNote, setStartNote] = useState(''); // re-entry after a break / already logged
   const [dayMode, setDayMode] = useState('');      // '' | 'low' | 'short'
   const [rpeHelp, setRpeHelp] = useState(false);
@@ -151,6 +155,8 @@ export default function WorkoutSession() {
         const dData = wData?.days.find((d) => d.day === day);
         if (dData) {
           setDayData(dData);
+          if (proWeekLocked(isPro, wData)) { setLocked(lockReason(null, wData, dData, data.created_at, false)); setLoading(false); return; }
+          setLocked(null);
           const draft = readDraft(user.id);
           if (draft && draft.programId === data.id && draft.week === week && draft.day === day && draft.exercises?.length) {
             setExercises(draft.exercises);
@@ -165,7 +171,7 @@ export default function WorkoutSession() {
             // Same rule as the Program page: only what Today offers can be started.
             const { data: blockLogs } = await supabase.from('workout_logs').select('week_number, day_number, date_completed, logged_exercises').eq('user_id', user.id).eq('program_id', data.id).eq('is_deleted', false).limit(300);
             const sched = planSchedule(snap, blockLogs || [], data.created_at);
-            const lock = lockReason(sched, wData, dData, data.created_at);
+            const lock = lockReason(sched, wData, dData, data.created_at, isPro);
             if (lock) { setLocked(lock); setLoading(false); return; }
             let fresh = dData.exercises.map((ex) => ({ ...ex, loggedSets: newSets(ex), skipped: false }));
             const { data: recent } = await supabase.from('workout_logs').select('program_id, week_number, day_number, date_completed, logged_exercises').eq('user_id', user.id).order('date_completed', { ascending: false }).limit(20);
@@ -196,7 +202,7 @@ export default function WorkoutSession() {
       setLoading(false);
     };
     fetchProgram();
-  }, [user, week, day]);
+  }, [user, week, day, isPro]);
 
   // Keep the in-progress session in this browser on every change.
   useEffect(() => {
@@ -337,6 +343,11 @@ export default function WorkoutSession() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || 'Could not save the session');
+      // Today's wins vs the athlete's own history (a failed lookup just shows the session without them).
+      try {
+        const { data: past } = await supabase.from('workout_logs').select('id, date_completed, logged_exercises').eq('user_id', user.id).eq('is_deleted', false).neq('id', body.logId).order('date_completed', { ascending: false }).limit(300);
+        s.wins = findWins(exercises, past || []);
+      } catch { s.wins = []; }
       clearDraft(user.id);
       setOffline(false);
       setSummary(s);
@@ -381,7 +392,9 @@ export default function WorkoutSession() {
       <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Week {week} · {dayData?.weekday || `Day ${day}`}{dayData?.date ? ` · ${dayData.date}` : ''}</p>
       <h1 className="text-xl font-bold text-gray-900">{dayData?.focus || 'Session'} is locked</h1>
       <p className="text-sm text-gray-500 max-w-sm">{locked.text}</p>
-      <Link to="/dashboard" className="mt-2 bg-gray-900 text-white px-6 py-3 rounded-lg text-sm font-semibold">Go to today's session</Link>
+      {locked.kind === 'pro'
+        ? <Link to="/dashboard/subscription" className="mt-2 bg-gray-900 text-white px-6 py-3 rounded-lg text-sm font-semibold">🔒 Unlock with Pro</Link>
+        : <Link to="/dashboard" className="mt-2 bg-gray-900 text-white px-6 py-3 rounded-lg text-sm font-semibold">Go to today's session</Link>}
     </div>
   );
   if (!dayData && !isWorkoutComplete) return <div className="min-h-screen flex flex-col justify-center items-center text-gray-500 gap-4">Session not found.<Link to="/dashboard/programs" className="text-gray-900 underline">Back to program</Link></div>;
@@ -393,8 +406,16 @@ export default function WorkoutSession() {
           <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.1 }} className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-8">
             <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
           </motion.div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2 tracking-tight">Session saved</h1>
-          <p className="text-gray-500 mb-8">Week {week} · {dayData?.focus}</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2 tracking-tight">{summary.wins?.some((w) => w.pr) ? L('New PR! 🏆', 'Naya PR! 🏆') : L('Session done 💪', 'Session ho gaya 💪')}</h1>
+          <p className="text-gray-500 mb-6">Week {week} · {dayData?.focus}</p>
+          {summary.wins?.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-left">
+              <p className="text-xs font-bold uppercase tracking-wider text-amber-700 mb-2">{L("Today's wins", 'Aaj ki jeet')}</p>
+              {summary.wins.map((w, i) => (
+                <motion.p key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 + i * 0.12 }} className={`text-sm mb-1.5 ${w.big ? 'font-bold text-gray-900' : 'text-gray-800'}`}>{w.big ? '🏆 ' : '✓ '}{L(w.en, w.hi)}</motion.p>
+              ))}
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-3 mb-6">
             <div className="bg-gray-50 border border-gray-100 rounded-xl p-4"><p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Time</p><p className="text-xl font-bold text-gray-900">{formatTime(summary.duration)}</p></div>
             <div className="bg-gray-50 border border-gray-100 rounded-xl p-4"><p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Sets</p><p className="text-xl font-bold text-gray-900">{summary.sets}</p></div>
