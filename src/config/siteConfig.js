@@ -1,15 +1,15 @@
 // ============================================================
 //  LALITLIFTS — SITE CONFIG
 //  Lalit, edit everything here: brand, prices, product routing.
-//  `productId` on each item maps to a row in the `products` table
-//  (supabase_schema.sql) so checkout uses the real Razorpay flow.
+//  `productName` on each item must match a row in the Supabase `products`
+//  table (accounts, data, prices); checkout runs on PayU.
 // ============================================================
 export const CONFIG = {
   brand: "LALITLIFTS",
   site: "lalitlifts.online",
   supportEmail: "lalitliftz@gmail.com", // 👈 shown on the Contact page — change when you have a domain email
-  insta: "lalit_lifts_",
-  instaUrl: "https://instagram.com/lalit_lifts_",
+  insta: "lalit_lifts1",
+  instaUrl: "https://instagram.com/lalit_lifts1",
   tagline: "Science-Based Powerlifting. No Bro-Science.",
   credentials:
     "State & District Gold Medalist · All India Inter-University Powerlifter",
@@ -30,6 +30,10 @@ export const CONFIG = {
       { v: "66", u: "kg", l: "Bodyweight" },
     ],
   },
+  // "Results" on the landing page — real screenshots from lifters (wins / PR screens), put in /public.
+  // The section stays hidden while this list is empty. Example:
+  // { img: "/results/rahul-squat-pr.jpg", caption: "Rahul · squat 140 → 150 kg in one block" },
+  results: [],
   // 1:1 coaching applications open WhatsApp with this draft already typed — the lifter fills the blanks and sends.
   whatsapp: "918279951257", // 👈 country code + number, no + or spaces
   coachingMessage: [
@@ -50,7 +54,7 @@ export const CONFIG = {
   // charges and products.duration_days is how long access lasts — keep these display prices in sync with it.
   proPlans: [
     { productName: "Iron Engine Pro", label: "1 Month", months: 1, price: 1499 },
-    { productName: "Iron Engine Pro — 3 Months", label: "3 Months", months: 3, price: 3499 },
+    { productName: "Iron Engine Pro — 3 Months", label: "3 Months", months: 3, price: 3499, popular: true },
     { productName: "Iron Engine Pro — 6 Months", label: "6 Months", months: 6, price: 5999 },
     { productName: "Iron Engine Pro — 1 Year", label: "1 Year", months: 12, price: 9999, best: true },
   ],
@@ -66,28 +70,6 @@ export const CONFIG = {
       desc: "The evolved version of the original system — 16 chapters + worksheets: volume & progression, periodization, fatigue & deloads, weak-point diagnostics, technique in detail, build your own program with worked examples, and meet prep & peaking.",
       mrp: "",
       price: "₹1,499",
-      cta: "Buy Guide",
-    },
-    {
-      id: "guide1",
-      productName: "All About Powerlifting System 1.0",
-      type: "pdf_guide",
-      tag: "GUIDE · PDF",
-      name: "All About Powerlifting System 1.0",
-      desc: "Basic to Advanced — technique, programming logic, fatigue management, and block design. Learn to build your own programs.",
-      mrp: "₹2,999",
-      price: "₹999",
-      cta: "Buy Guide",
-    },
-    {
-      id: "guide2",
-      productName: "Learn Lift Eat & Repeat",
-      type: "pdf_guide",
-      tag: "GUIDE · PDF",
-      name: "Learn Lift Eat & Repeat",
-      desc: "The complete science of muscle building and fat loss — training, nutrition, macros. No fluff, only what actually works.",
-      mrp: "₹1,999",
-      price: "₹699",
       cta: "Buy Guide",
     },
     {

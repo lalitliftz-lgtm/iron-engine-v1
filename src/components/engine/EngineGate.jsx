@@ -1,7 +1,7 @@
 // ============================================================
 //  ENGINE GATE (landing) — free Week-1 sample, always open.
-//  "Get Access" routes into the REAL auth + PayU checkout
-//  (no static access code — the backend grants access on payment).
+//  "Unlock" routes into the real sign-up + PayU checkout (the backend grants
+//  access on payment). Prices live in the landing page's Pricing section.
 // ============================================================
 import { useNavigate } from "react-router-dom";
 import { CONFIG } from "../../config/siteConfig";
@@ -12,9 +12,7 @@ export default function EngineGate() {
   const navigate = useNavigate();
   const engine = CONFIG.products.find((p) => p.id === "engine");
 
-  // Send visitors into the account flow; after signup they land on the
-  // subscription page pre-targeted at Iron Engine Pro, which triggers
-  // /api/payments/create-order (PayU).
+  // After sign-up they land on the subscription page pre-targeted at Iron Engine Pro (PayU checkout).
   const goBuy = () =>
     navigate(
       `/signup?next=${encodeURIComponent(
@@ -24,94 +22,7 @@ export default function EngineGate() {
 
   return (
     <div>
-      {/* Upgrade strip */}
-      <div
-        style={{
-          background: `linear-gradient(135deg, ${C.redDim} 0%, ${C.steel} 65%)`,
-          border: `1px solid ${C.red}`,
-          borderRadius: 14,
-          padding: "22px 22px",
-          marginBottom: 22,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 14,
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontFamily: "'Archivo Black', sans-serif",
-                fontSize: 20,
-              }}
-            >
-              Full Access —{" "}
-              <span style={{ color: C.brass }}>{engine.price}</span>
-            </div>
-            <div
-              style={{
-                color: C.knurl,
-                fontSize: 13.5,
-                marginTop: 4,
-                maxWidth: 480,
-              }}
-            >
-              Unlimited blocks built from your logs · sticking-point work ·
-              weekly check-ins · block focus · Excel + PDF export. One-time
-              payment via PayU (UPI / cards) · no auto-debit.
-            </div>
-          </div>
-          <button
-            onClick={goBuy}
-            style={{
-              padding: "13px 26px",
-              borderRadius: 10,
-              background: C.red,
-              color: "#fff",
-              border: "none",
-              cursor: "pointer",
-              fontFamily: "'Archivo Black', sans-serif",
-              fontSize: 15,
-              letterSpacing: 1,
-              whiteSpace: "nowrap",
-            }}
-          >
-            GET ACCESS →
-          </button>
-        </div>
-        <div style={{ marginTop: 14, fontSize: 12.5, color: C.dim }}>
-          Already a member?{" "}
-          <button
-            onClick={() => navigate("/login")}
-            style={{
-              background: "none",
-              border: "none",
-              color: C.brass,
-              cursor: "pointer",
-              fontWeight: 700,
-              fontSize: 12.5,
-              padding: 0,
-            }}
-          >
-            Log in →
-          </button>
-        </div>
-      </div>
-
-      {/* Free sample */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          marginBottom: 14,
-        }}
-      >
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
         <span
           style={{
             fontSize: 11,
@@ -123,10 +34,10 @@ export default function EngineGate() {
             letterSpacing: 1.5,
           }}
         >
-          FREE SAMPLE
+          FREE · NO LOGIN
         </span>
         <span style={{ color: C.knurl, fontSize: 13.5 }}>
-          Try the engine — generate Week 1 of a real program, no login needed.
+          3 short steps → Week 1 of your real program.
         </span>
       </div>
       <IronEngine full={false} onUpgrade={goBuy} />

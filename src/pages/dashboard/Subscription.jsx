@@ -204,8 +204,8 @@ export default function Subscription() {
               const save = Math.round((1 - p.price / (CONFIG.proPlans[0].price * p.months)) * 100);
               return (
                 <button key={p.productName} type="button" onClick={() => startCheckout(p.productName)} disabled={busy || renewLocked}
-                  className={`relative text-left rounded-xl border p-4 transition disabled:opacity-50 disabled:cursor-not-allowed ${p.best ? 'border-[#C9A24B] bg-steel2' : 'border-line hover:border-knurl'}`}>
-                  {p.best && <span className="absolute -top-2.5 left-3 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: '#C9A24B', color: '#14161B' }}>{L('Best value', 'Sabse best value')}</span>}
+                  className={`relative text-left rounded-xl border p-4 transition disabled:opacity-50 disabled:cursor-not-allowed ${p.popular || p.best ? 'border-[#C9A24B] bg-steel2' : 'border-line hover:border-knurl'}`}>
+                  {(p.popular || p.best) && <span className="absolute -top-2.5 left-3 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: '#C9A24B', color: '#14161B' }}>{p.popular ? L('Most popular', 'Sabse popular') : L('Best value', 'Sabse best value')}</span>}
                   <span className="block text-knurl text-xs uppercase tracking-wider">{p.label}</span>
                   <span className="block text-2xl font-bold text-chalk mt-1">₹{p.price.toLocaleString('en-IN')}</span>
                   <span className="block text-xs text-knurl mt-0.5">₹{perMonth.toLocaleString('en-IN')} {L(' / month', ' / mahina')}{save > 0 ? L(` · save ${save}%`, ` · ${save}% bachao`) : ''}</span>
