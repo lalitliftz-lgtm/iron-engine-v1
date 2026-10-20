@@ -20,8 +20,11 @@ export default function MyLibrary() {
 
   useEffect(() => {
     const fetchLibrary = async () => {
-      const { data: prods } = await supabase.from('products').select('id, name, short_description, version, cover_image_url, price_cents, release_notes, updated_at').eq('type', 'pdf_guide').eq('is_active', true);
+      // Guides no longer sold (is_active = false) still show for people who bought them.
+      const { data: allProds } = await supabase.from('products').select('id, name, short_description, version, cover_image_url, price_cents, release_notes, updated_at, is_active').eq('type', 'pdf_guide');
       const { data: purchases } = await supabase.from('purchases').select('product_id').eq('user_id', user.id);
+      const owned = new Set((purchases || []).map((p) => p.product_id));
+      const prods = (allProds || []).filter((p) => p.is_active || owned.has(p.id));
       const { data: history } = await supabase.from('download_history').select('product_id, version_string, downloaded_at').eq('user_id', user.id).order('downloaded_at', { ascending: false });
 
       const versionMap = {};
